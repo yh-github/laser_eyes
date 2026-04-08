@@ -23,16 +23,30 @@
         }
         #laser-dot {
             position: fixed;
-            width: 24px;
-            height: 24px;
-            background: radial-gradient(circle, #ff0000 30%, #a00000 90%);
+            width: 16px;
+            height: 16px;
+            background: #fff;
             border-radius: 50%;
             pointer-events: none;
             transform: translate(-50%, -50%);
             z-index: 10000;
             display: none;
-            animation: pulse-laser 1.5s infinite ease-in-out;
-            border: 2px solid rgba(255, 255, 255, 0.4);
+            box-shadow: 
+                0 0 10px 2px #ff0000,
+                0 0 25px 8px #ff0000,
+                0 0 45px 15px rgba(255, 0, 0, 0.4);
+            border: 1px solid white;
+        }
+        #laser-dot::after {
+            content: '';
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            width: 100vw;
+            height: 2px;
+            background: linear-gradient(90deg, rgba(255,0,0,0.8) 0%, rgba(255,0,0,0) 100%);
+            transform: translate(0, -50%);
+            display: none; /* Can enable for beam effect later */
         }
         .target {
             position: absolute;
@@ -126,6 +140,12 @@
             </div>
         </div>
 
+        <div class="absolute top-6 left-6 z-40 flex gap-2">
+            <button id="recalib-btn" class="bg-black/50 hover:bg-black/80 text-white/50 hover:text-white px-4 py-1 rounded-full text-xs font-bold border border-white/10 transition-all active:scale-95">
+                RE-CALIBRATE
+            </button>
+        </div>
+
         <div class="absolute top-6 right-6 z-40 text-xl font-bold text-gray-300 bg-black/50 px-4 py-1 rounded-full pointer-events-none border border-white/10">
             Score: <span id="score" class="text-red-500">0</span>
         </div>
@@ -155,16 +175,19 @@
         let loopInterval;
         let isGazerStarted = false;
         let calibCount = 0;
-        const totalCalib = 5;
+        const totalCalib = 9;
 
         // Visual locations for calibration (Viewport %)
         const calibPoints = [
-            {x: 10, y: 10},
-            {x: 90, y: 10},
-            {x: 50, y: 50},
-            {x: 10, y: 90},
-            {x: 90, y: 90}
+            {x: 10, y: 10}, {x: 50, y: 10}, {x: 90, y: 10},
+            {x: 10, y: 50}, {x: 50, y: 50}, {x: 90, y: 50},
+            {x: 10, y: 90}, {x: 50, y: 90}, {x: 90, y: 90}
         ];
+
+        // Snapping and Continuous Training Config
+        const SNAPPING_DISTANCE = 150; // Pixels
+        const TRAINING_INTERVAL = 10; // Record every X frames when locked
+        let trainingFrameCount = 0;
         
         function showError(title, action) {
             statusBox.classList.remove('hidden');
@@ -233,7 +256,14 @@
             startGame();
         });
 
+        document.getElementById('recalib-btn').addEventListener('click', () => {
+            if (!isGazerStarted) return;
+            startCalibration();
+        });
+
         function startCalibration() {
+            calibCount = 0;
+            calibProgress.style.width = '0%';
             calibOverlay.classList.remove('hidden');
             spawnCalibPoint();
         }
@@ -269,11 +299,50 @@
 
         function updateLaser() {
             laserDot.style.display = 'block';
-            laserDot.style.left = cursorX + 'px';
-            laserDot.style.top = cursorY + 'px';
+            
+            let displayX = cursorX;
+            let displayY = cursorY;
+
+            // Find nearest target for visual snapping
+            let nearestTarget = null;
+            let minDist = SNAPPING_DISTANCE;
+
+            targets.forEach(target => {
+                const tx = parseFloat(target.dataset.vpX);
+                const ty = parseFloat(target.dataset.vpY);
+                const dx = cursorX - tx;
+                const dy = cursorY - ty;
+                const dist = Math.sqrt(dx * dx + dy * dy);
+                if (dist < minDist) {
+                    minDist = dist;
+                    nearestTarget = target;
+                }
+            });
+
+            if (nearestTarget) {
+                const tx = parseFloat(nearestTarget.dataset.vpX);
+                const ty = parseFloat(nearestTarget.dataset.vpY);
+                // Smooth interpolation towards target
+                const weight = 0.6; // 60% snapping
+                displayX = cursorX * (1 - weight) + tx * weight;
+                displayY = cursorY * (1 - weight) + ty * weight;
+
+                // Add "Locked" jitter effect
+                displayX += (Math.random() - 0.5) * 5;
+                displayY += (Math.random() - 0.5) * 5;
+                laserDot.style.scale = 1.2 + Math.random() * 0.3;
+            } else {
+                laserDot.style.scale = 1;
+            }
+
+            laserDot.style.left = displayX + 'px';
+            laserDot.style.top = displayY + 'px';
         }
 
         function spawnTarget() {
+            // Transitions to one target at a time for better focus
+            if (targets.length > 0) return;
+
             const target = document.createElement('div');
             target.className = 'target';
             
@@ -289,12 +358,22 @@
                 destroyTarget(target);
             });
 
-            target.dataset.vpX = rect.left + x + 35;
-            target.dataset.vpY = rect.top + y + 35;
+            // Target movement
+            target.dataset.x = x;
+            target.dataset.y = y;
+            target.dataset.vx = (Math.random() - 0.5) * 4;
+            target.dataset.vy = (Math.random() - 0.5) * 4;
+
+            updateTargetVirtualPos(target, rect);
             target.dataset.gazeStart = ""; 
 
             gameContainer.appendChild(target);
             targets.push(target);
+        }
+
+        function updateTargetVirtualPos(target, rect) {
+            target.dataset.vpX = rect.left + parseFloat(target.dataset.x) + 35;
+            target.dataset.vpY = rect.top + parseFloat(target.dataset.y) + 35;
         }
 
         function destroyTarget(target) {
@@ -312,15 +391,30 @@
         function checkCollisions() {
             const now = Date.now();
             const requiredDuration = 1000;
+            const rect = gameContainer.getBoundingClientRect();
 
             targets.forEach(target => {
+                // Move target
+                let x = parseFloat(target.dataset.x) + parseFloat(target.dataset.vx);
+                let y = parseFloat(target.dataset.y) + parseFloat(target.dataset.vy);
+                
+                // Bounce
+                if (x < 50 || x > rect.width - 100) target.dataset.vx *= -1;
+                if (y < 50 || y > rect.height - 100) target.dataset.vy *= -1;
+                
+                target.dataset.x = x;
+                target.dataset.y = y;
+                target.style.left = x + 'px';
+                target.style.top = y + 'px';
+                updateTargetVirtualPos(target, rect);
+
                 const tx = parseFloat(target.dataset.vpX);
                 const ty = parseFloat(target.dataset.vpY);
                 const dx = cursorX - tx;
                 const dy = cursorY - ty;
                 const distance = Math.sqrt(dx * dx + dy * dy);
                 
-                if (distance < 70) {
+                if (distance < 100) { // Increased hit area for smoother feel
                     if (!target.dataset.gazeStart) target.dataset.gazeStart = now;
                     
                     const elapsed = now - parseInt(target.dataset.gazeStart);
@@ -335,6 +429,15 @@
                     target.style.backgroundColor = `rgb(${r}, ${g}, ${b})`;
                     target.style.boxShadow = `0 0 ${15 + (25 * progress)}px rgb(${r}, ${g}, ${b})`;
                     
+                    // CONTINUOUS TRAINING: Record gaze when focused on target or very close
+                    if (isGazerStarted && distance < 80) {
+                        trainingFrameCount++;
+                        if (trainingFrameCount >= TRAINING_INTERVAL) {
+                            webgazer.recordScreenPosition(tx, ty, 'click'); // Use 'click' to trigger full training
+                            trainingFrameCount = 0;
+                        }
+                    }
+
                     if (progress === 1) destroyTarget(target);
                 } else {
                     target.dataset.gazeStart = "";
@@ -343,6 +446,9 @@
                     target.style.boxShadow = '0 0 15px #3b82f6';
                 }
             });
+            
+            // Continuous laser update for smooth pursuit
+            updateLaser();
         }
         
         window.addEventListener('resize', () => {
