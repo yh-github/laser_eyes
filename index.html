@@ -7,7 +7,15 @@
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdn.jsdelivr.net/npm/webgazer@2.1.1/dist/webgazer.js" onerror="window.webgazerLoadError = true;"></script>
     <style>
-        body { touch-action: none; overflow: hidden; }
+        body, html { 
+            margin: 0;
+            padding: 0;
+            height: 100%;
+            height: 100dvh;
+            width: 100%;
+            touch-action: none; 
+            overflow: hidden; 
+        }
         @keyframes pulse-laser {
             0% { transform: translate(-50%, -50%) scale(0.9); box-shadow: 0 0 10px 2px rgba(255, 0, 0, 0.6); }
             50% { transform: translate(-50%, -50%) scale(1.2); box-shadow: 0 0 30px 10px rgba(255, 0, 0, 0.9); }
@@ -78,9 +86,9 @@
         }
     </style>
 </head>
-<body class="bg-black min-h-screen flex items-center justify-center m-0 p-0 overflow-hidden text-white font-sans">
+<body class="bg-black flex items-center justify-center text-white font-sans">
 
-    <div id="app-container" class="relative w-full h-full sm:w-[400px] sm:h-[800px] sm:max-h-screen bg-gray-900 sm:rounded-[2.5rem] sm:border-8 sm:border-gray-800 overflow-hidden shadow-[0_0_50px_rgba(0,0,0,0.8)]">
+    <div id="app-container" class="relative w-full h-full h-[100dvh] sm:h-[800px] sm:w-[400px] bg-gray-900 sm:rounded-[2.5rem] sm:border-8 sm:border-gray-800 overflow-hidden shadow-[0_0_50px_rgba(0,0,0,0.8)]">
         
         <!-- UI Overlay -->
         <div id="overlay" class="absolute inset-0 z-50 flex flex-col items-center justify-center bg-gray-900 bg-opacity-95 p-6 text-center">
