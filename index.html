@@ -98,6 +98,14 @@
             overflow: hidden !important;
             box-shadow: 0 10px 25px rgba(0,0,0,0.6) !important;
         }
+
+        @keyframes target-flash {
+            0%, 100% { filter: brightness(1); }
+            50% { filter: brightness(1.8) saturate(1.5); }
+        }
+        .flashing {
+            animation: target-flash 0.8s infinite ease-in-out;
+        }
     </style>
 </head>
 <body class="bg-black flex items-center justify-center text-white font-sans">
@@ -169,6 +177,8 @@
         const scoreEl = document.getElementById('score');
         
         let score = 0;
+        let popCount = 0;
+        let maxTargets = 1;
         let targets = [];
         let cursorX = -100;
         let cursorY = -100;
@@ -340,11 +350,11 @@
         }
 
         function spawnTarget() {
-            // Transitions to one target at a time for better focus
-            if (targets.length > 0) return;
+            if (targets.length >= maxTargets) return;
 
             const target = document.createElement('div');
             target.className = 'target';
+            if (Math.random() > 0.5) target.classList.add('flashing');
             
             const rect = gameContainer.getBoundingClientRect();
             const x = Math.random() * (rect.width - 100) + 50;
@@ -380,11 +390,16 @@
             target.remove();
             targets = targets.filter(t => t !== target);
             score += 10;
+            popCount++;
             scoreEl.innerText = score;
             
+            // Progression: after 3 pops, allow a second target
+            if (popCount >= 3) maxTargets = 2;
+
             spawnTarget();
-            if (Math.random() > 0.4 && targets.length < 5) {
-                setTimeout(spawnTarget, 400);
+            // If we just increased maxTargets, or if we still have room
+            if (targets.length < maxTargets) {
+                setTimeout(spawnTarget, 600);
             }
         }
 
@@ -394,9 +409,12 @@
             const rect = gameContainer.getBoundingClientRect();
 
             targets.forEach(target => {
-                // Move target
-                let x = parseFloat(target.dataset.x) + parseFloat(target.dataset.vx);
-                let y = parseFloat(target.dataset.y) + parseFloat(target.dataset.vy);
+                // Move target with random jitter
+                const jitterX = (Math.random() - 0.5) * 2;
+                const jitterY = (Math.random() - 0.5) * 2;
+                
+                let x = parseFloat(target.dataset.x) + parseFloat(target.dataset.vx) + jitterX;
+                let y = parseFloat(target.dataset.y) + parseFloat(target.dataset.vy) + jitterY;
                 
                 // Bounce
                 if (x < 50 || x > rect.width - 100) target.dataset.vx *= -1;
