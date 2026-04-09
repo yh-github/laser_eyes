@@ -8,7 +8,7 @@ This document serves as the north star for the development of **Laser Eyes**. Ev
 The primary physical goal of Laser Eyes is to provide a gaming experience that leaves the user feeling better than when they started.
 
 - **Physical Differentiation**: Move away from sedentary "hunch and click" mechanics.
-- **Micro-Ergonomics**: Specifically designed to encourage the relaxation of hands and wrists.
+- **Micro-Ergonomics**: Specifically designed to encourage the relaxation of hands and wrists (by not using them to play the game).
 - **Active Movement**: Gameplay encourages gentle, purposeful neck rotation and (eventually) facial expression exercises.
 - **Post-Play State**: A player should feel physically refreshed and loose after a session, as if they've completed a light physical therapy or relaxation routine.
 
