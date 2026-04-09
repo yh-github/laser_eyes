@@ -62,11 +62,11 @@
         /* Force WebGazer UI to be visible and styled */
         #webgazerVideoContainer {
             display: block !important;
-            position: fixed !important;
+            position: absolute !important;
             top: 20px !important;
             left: 20px !important;
-            width: 200px !important;
-            height: 150px !important;
+            width: 140px !important;
+            height: 105px !important;
             z-index: 1000 !important;
             border: 3px solid #00f2ff !important;
             border-radius: 1rem !important;
@@ -110,7 +110,7 @@
             }
         }
         .calib-crosshair {
-            position: fixed;
+            position: absolute;
             top: 50%;
             left: 50%;
             transform: translate(-50%, -50%);
@@ -152,7 +152,7 @@
 
         /* Live nose indicator during calibration */
         #calib-nose-dot {
-            position: fixed;
+            position: absolute;
             width: 10px;
             height: 10px;
             background: #22d3ee;
@@ -163,6 +163,23 @@
             display: none;
             box-shadow: 0 0 8px #22d3ee;
             transition: left 0.08s ease-out, top 0.08s ease-out;
+        }
+
+        #laser-dot {
+            position: absolute;
+            width: 16px;
+            height: 16px;
+            background: #fff;
+            border-radius: 50%;
+            pointer-events: none;
+            transform: translate(-50%, -50%);
+            z-index: 10000;
+            display: none;
+            box-shadow: 
+                0 0 10px 2px #00f2ff,
+                0 0 25px 8px #00f2ff,
+                0 0 45px 15px rgba(0, 242, 255, 0.4);
+            border: 1px solid #e0ffff;
         }
     </style>
 </head>
@@ -195,15 +212,15 @@
         </div>
 
         <!-- Calibration Overlay -->
-        <div id="calib-overlay" class="absolute inset-0 z-[60] flex flex-col items-center justify-center bg-black/90 hidden">
-            <div id="nose-calib-ui" class="text-center p-10">
-                <h2 id="calib-title" class="text-3xl font-bold text-cyan-400 mb-2">Nose Calibration</h2>
-                <p id="calib-status" class="text-white mb-2 font-semibold">Detecting your face...</p>
-                <p id="calib-hint" class="text-gray-400 mb-6 text-xs italic">Position your face in the camera</p>
-                <div class="w-64 h-2 bg-gray-800 rounded-full mx-auto overflow-hidden">
+        <div id="calib-overlay" class="absolute inset-0 z-[60] flex flex-col items-center justify-start bg-black/95 hidden">
+            <div id="nose-calib-ui" class="text-center p-10 mt-12 w-full">
+                <h2 id="calib-title" class="text-2xl font-bold text-cyan-400 mb-2">Nose Calibration</h2>
+                <p id="calib-status" class="text-white text-sm mb-2 font-semibold">Detecting your face...</p>
+                <div class="w-full h-1 bg-gray-800 rounded-full mx-auto overflow-hidden">
                     <div id="nose-calib-progress" class="bg-cyan-500 h-full w-0 transition-all duration-100"></div>
                 </div>
-                <p id="calib-pct" class="text-cyan-400/60 text-xs mt-2 font-mono">0%</p>
+                <p id="calib-pct" class="text-cyan-400/60 text-[10px] mt-1 font-mono">0%</p>
+                <p id="calib-hint" class="text-gray-500 mt-4 text-[10px] italic">Position your face in the camera & look at the center</p>
             </div>
         </div>
 
@@ -218,12 +235,14 @@
         </div>
 
         <div id="game-container" class="relative w-full h-full"></div>
+
+        <!-- Elements moved inside container -->
+        <div id="laser-dot"></div>
+        <div id="calib-nose-dot"></div>
     </div>
 
-    <div id="laser-dot"></div>
-    <div id="calib-nose-dot"></div>
-
     <script>
+        const appContainer = document.getElementById('app-container');
         const overlay = document.getElementById('overlay');
         const calibOverlay = document.getElementById('calib-overlay');
         const statusBox = document.getElementById('status-box');
@@ -284,6 +303,12 @@
                 actionMsg.innerText = "This might take 10-20 seconds on first load.";
                 
                 await webgazer.begin();
+                
+                // Move video preview inside the phone container to keep it "inside the floor"
+                const videoContainer = document.getElementById('webgazerVideoContainer');
+                if (videoContainer) {
+                    appContainer.appendChild(videoContainer);
+                }
                 
                 webgazer.showVideoPreview(true)
                         .showPredictionPoints(false);
@@ -357,9 +382,9 @@
 
                     const nose = positions[62] || positions[37];
                     
-                    // Show live nose position as feedback
-                    const screenW = window.innerWidth;
-                    const screenH = window.innerHeight;
+                    // Show live nose position as feedback (relative to container)
+                    const screenW = appContainer.clientWidth;
+                    const screenH = appContainer.clientHeight;
                     const liveX = screenW / 2 - (nose[0] - (tempX / Math.max(noseCalibFrames, 1))) * noseSensitivity;
                     const liveY = screenH / 2 + (nose[1] - (tempY / Math.max(noseCalibFrames, 1))) * noseSensitivity;
                     calibNoseDot.style.left = (noseCalibFrames > 0 ? liveX : screenW / 2) + 'px';
@@ -480,16 +505,17 @@
             target.dataset.vx = (Math.random() - 0.5) * 4;
             target.dataset.vy = (Math.random() - 0.5) * 4;
 
-            updateTargetVirtualPos(target, rect);
+            updateTargetVirtualPos(target);
             target.dataset.gazeStart = ""; 
 
             gameContainer.appendChild(target);
             targets.push(target);
         }
 
-        function updateTargetVirtualPos(target, rect) {
-            target.dataset.vpX = rect.left + parseFloat(target.dataset.x) + 35;
-            target.dataset.vpY = rect.top + parseFloat(target.dataset.y) + 35;
+        function updateTargetVirtualPos(target) {
+            // Target center relative to appContainer
+            target.dataset.vpX = parseFloat(target.dataset.x) + 35;
+            target.dataset.vpY = parseFloat(target.dataset.y) + 35;
         }
 
         function destroyTarget(target) {
@@ -529,7 +555,7 @@
                 target.dataset.y = y;
                 target.style.left = x + 'px';
                 target.style.top = y + 'px';
-                updateTargetVirtualPos(target, rect);
+                updateTargetVirtualPos(target);
 
                 const tx = parseFloat(target.dataset.vpX);
                 const ty = parseFloat(target.dataset.vpY);
@@ -579,8 +605,8 @@
             const dx = (rawX - noseCenter.x);
             const dy = (rawY - noseCenter.y);
 
-            const screenW = window.innerWidth;
-            const screenH = window.innerHeight;
+            const screenW = appContainer.clientWidth;
+            const screenH = appContainer.clientHeight;
 
             const targetX = (screenW / 2) - (dx * noseSensitivity);
             const targetY = (screenH / 2) + (dy * noseSensitivity);
@@ -598,12 +624,8 @@
         }
         
         window.addEventListener('resize', () => {
-            const rect = gameContainer.getBoundingClientRect();
             targets.forEach(target => {
-                const x = parseFloat(target.style.left);
-                const y = parseFloat(target.style.top);
-                target.dataset.vpX = rect.left + x + 35;
-                target.dataset.vpY = rect.top + y + 35;
+                updateTargetVirtualPos(target);
             });
         });
     </script>
