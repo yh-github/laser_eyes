@@ -456,6 +456,34 @@
             0% { transform: scale(1); opacity: 1; }
             100% { transform: scale(1.1); opacity: 0; }
         }
+
+        .boundary-line {
+            position: absolute;
+            left: 0;
+            right: 0;
+            height: 1px;
+            background: rgba(255, 255, 255, 0.1);
+            border-top: 1px dashed rgba(255, 255, 255, 0.2);
+            z-index: 5;
+            pointer-events: none;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .boundary-line.top-10 { top: 10%; }
+        .boundary-line.bottom-10 { bottom: 10%; }
+
+        .boundary-line span {
+            font-size: 8px;
+            color: rgba(255, 255, 255, 0.2);
+            letter-spacing: 3px;
+            font-weight: 900;
+            text-transform: uppercase;
+            background: #111827;
+            padding: 2px 10px;
+            border-radius: 4px;
+        }
     </style>
 </head>
 
@@ -594,9 +622,12 @@
                 </label>
             </div>
 
-            <p class="text-[9px] text-gray-500 italic mt-2 opacity-60">Higher range makes snapping initiate from further
-                away.</p>
+            <p class="text-[9px] text-gray-500 italic mt-2 opacity-60">Higher range makes snapping initiate from further away.</p>
         </div>
+
+        <!-- Vertical Boundaries -->
+        <div class="boundary-line top-10"><span>Off Limits</span></div>
+        <div class="boundary-line bottom-10"><span>Off Limits</span></div>
 
         <div id="game-container" class="relative w-full h-full"></div>
 
@@ -1028,8 +1059,10 @@
             food.dataset.type = isHealthy ? 'healthy' : 'bad';
 
             const rect = gameContainer.getBoundingClientRect();
+            const spawnMinY = rect.height * 0.1;
+            const spawnMaxY = rect.height * 0.9 - 70;
             const x = Math.random() * (rect.width - 100) + 50;
-            const y = Math.random() * (rect.height - 100) + 50;
+            const y = Math.random() * (spawnMaxY - spawnMinY) + spawnMinY;
 
             food.style.left = x + 'px';
             food.style.top = y + 'px';
@@ -1196,8 +1229,10 @@
             if (Math.random() > 0.5) target.classList.add('flashing');
 
             const rect = gameContainer.getBoundingClientRect();
+            const spawnMinY = rect.height * 0.1;
+            const spawnMaxY = rect.height * 0.9 - 70;
             const x = Math.random() * (rect.width - 100) + 50;
-            const y = Math.random() * (rect.height - 100) + 50;
+            const y = Math.random() * (spawnMaxY - spawnMinY) + spawnMinY;
 
             target.style.left = x + 'px';
             target.style.top = y + 'px';
@@ -1309,8 +1344,11 @@
                     let y = parseFloat(target.dataset.y) + parseFloat(target.dataset.vy) + jitterY;
 
                     // Bounce
+                    const minY = rect.height * 0.1;
+                    const maxY = rect.height * 0.9 - 70;
+
                     if (x < 50 || x > rect.width - 100) target.dataset.vx *= -1;
-                    if (y < 50 || y > rect.height - 100) target.dataset.vy *= -1;
+                    if (y < minY || y > maxY) target.dataset.vy *= -1;
 
                     target.dataset.x = x;
                     target.dataset.y = y;
