@@ -58,15 +58,29 @@
             position: absolute;
             width: 70px;
             height: 70px;
-            background-color: #3b82f6;
             border-radius: 50%;
             cursor: pointer;
-            box-shadow: 0 0 15px #3b82f6;
             transition: all 0.1s cubic-bezier(0.175, 0.885, 0.32, 1.275);
             display: flex;
             align-items: center;
             justify-content: center;
             border: 3px solid rgba(255, 255, 255, 0.2);
+        }
+
+        .target.food-item {
+            border: 3px solid rgba(255, 255, 255, 0.1);
+            box-shadow: none;
+            background: transparent !important;
+        }
+
+        .food-healthy {
+            border-color: rgba(34, 211, 238, 0.6) !important;
+            box-shadow: 0 0 20px rgba(34, 211, 238, 0.4) !important;
+        }
+
+        .food-bad {
+            border-color: rgba(244, 63, 94, 0.6) !important;
+            box-shadow: 0 0 20px rgba(244, 63, 94, 0.4) !important;
         }
 
         .target::after {
@@ -654,6 +668,8 @@
         const healthyFoods = ['🍏', '🍎', '🍐', '🍊', '🍋', '🍌', '🍉', '🍇', '🍓', '🫐', '🍈', '🍒', '🍑', '🥭', '🍍', '🥥', '🥝', '🍅', '🍆', '🥑', '🥦', '🥬', '🥒', '🌽', '🥕', '🫑', '🥔', '🍠', '🥩', '🍗', '🍖', '🧀'];
         const badFoods = ['🍔', '🍟', '🍕', '🌭', '🥪', '🌮', '🌯', '🍿', '🍦', '🍧', '🍨', '🍩', '🍪', '🎂', '🍰', '🧁', '🥧', '🍫', '🍬', '🍭', '🍮'];
 
+        const TUTORIAL_MIN_GOOD_SCORE = 3;
+
         // Helper to calculate 2D distance
         function getDistance(p1, p2) {
             return Math.sqrt(Math.pow(p1[0] - p2[0], 2) + Math.pow(p1[1] - p2[1], 2));
@@ -1000,12 +1016,14 @@
         function spawnFood() {
             if (!gameActive || currentGameMode !== 'bigmouth') return;
 
-            const isHealthy = Math.random() > 0.4;
+            // Tutorial logic: only healthy food until minimum score reached
+            const isTutorial = goodPoints < TUTORIAL_MIN_GOOD_SCORE;
+            const isHealthy = isTutorial || (Math.random() > 0.4);
             const foodList = isHealthy ? healthyFoods : badFoods;
             const emoji = foodList[Math.floor(Math.random() * foodList.length)];
 
             const food = document.createElement('div');
-            food.className = 'target food-item';
+            food.className = `target food-item ${isHealthy ? 'food-healthy' : 'food-bad'}`;
             food.style.fontSize = '40px';
             food.innerText = emoji;
             food.dataset.type = isHealthy ? 'healthy' : 'bad';
@@ -1025,9 +1043,10 @@
             gameContainer.appendChild(food);
             targets.push(food);
 
-            // Spawn another food soon
-            if (targets.length < 5) {
-                setTimeout(spawnFood, 1000 + Math.random() * 2000);
+            // Difficulty Scaling: more items as score increases
+            const maxItems = Math.min(2 + Math.floor(goodPoints / 4), 6);
+            if (targets.length < maxItems) {
+                setTimeout(spawnFood, 800 + Math.random() * 1200);
             }
         }
 
@@ -1110,6 +1129,9 @@
                 let minDist = snapRange;
 
                 targets.forEach(target => {
+                    // Lenient snapping: ignore bad foods
+                    if (currentGameMode === 'bigmouth' && target.dataset.type === 'bad') return;
+
                     const tx = parseFloat(target.dataset.vpX);
                     const ty = parseFloat(target.dataset.vpY);
                     const dx = cursorX - tx;
@@ -1305,7 +1327,9 @@
 
                     if (currentGameMode === 'bigmouth') {
                         // Big Mouth eating mechanic: hover + mouth open
-                        if (distance < 60 && mouthOpenness > 0.4) {
+                        // Using a slightly lower threshold for "open" to feel more responsive
+                        // but requires the mouth to actually be open (not just smoothed towards it)
+                        if (distance < 70 && mouthOpenness > 0.35) {
                             destroyFood(target, true);
                         }
                     } else {
