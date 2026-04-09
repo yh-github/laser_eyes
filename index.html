@@ -974,9 +974,15 @@
                         neutralBaselines.faceWidth = faceW;
                         neutralBaselines.faceHeight = faceH;
                         neutralBaselines.mouthWidth = getDistance(positions[44], positions[50]) / faceW;
-                        neutralBaselines.mouthHeight = Math.abs(positions[60][1] - positions[57][1]) / faceW;
+                        neutralBaselines.mouthHeight = getDistance(positions[60], positions[57]) / faceW;
                         neutralBaselines.eyebrowDist = getDistance(positions[16], positions[24]) / faceH;
                         neutralBaselines.noseToChin = getDistance(positions[62], positions[7]) / faceH;
+                        
+                        // Capture neutral pitch ratio for correcting deformations when looking up/down
+                        const midEye = [(positions[27][0] + positions[32][0])/2, (positions[27][1] + positions[32][1])/2];
+                        const eyeToNose = getDistance(midEye, positions[62] || positions[37]);
+                        const noseToChin = getDistance(positions[62] || positions[37], positions[7]);
+                        neutralBaselines.pitchRatio = eyeToNose / Math.max(noseToChin, 1);
                         
                         const dy = positions[32][1] - positions[27][1];
                         const dx = positions[32][0] - positions[27][0];
@@ -1447,7 +1453,25 @@
             const faceHeight = getDistance(positions[33], positions[7]);
 
             // 2. Roar (Mouth Open)
-            const currentMouthHeight = Math.abs(positions[60][1] - positions[57][1]) / faceWidth;
+            let currentMouthHeight = getDistance(positions[60], positions[57]) / faceWidth;
+            
+            // Apply pitch correction so looking UP (high false pos) or DOWN (high false neg) is compensated
+            if (neutralBaselines.captured && neutralBaselines.pitchRatio) {
+                const midEye = [(positions[27][0] + positions[32][0])/2, (positions[27][1] + positions[32][1])/2];
+                const eyeToNose = getDistance(midEye, positions[62] || positions[37]);
+                const noseToChin = getDistance(positions[62] || positions[37], positions[7]);
+                const currentPitchRatio = eyeToNose / Math.max(noseToChin, 1);
+                
+                // When looking down, pitchRatio increases (>1). We need a high multiplier to boost small mouth heights.
+                // When looking up, pitchRatio decreases (<1). We need a low multiplier to squash false positives.
+                let pitchCorrection = currentPitchRatio / neutralBaselines.pitchRatio;
+                
+                // Clamp correction to avoid wildly explosive values if landmarks glitch
+                pitchCorrection = Math.max(0.4, Math.min(pitchCorrection, 3.5));
+                
+                currentMouthHeight *= pitchCorrection;
+            }
+
             const baseMouthH = neutralBaselines.captured ? neutralBaselines.mouthHeight : 0.05;
             const targetMouthOpenness = Math.min(Math.max(currentMouthHeight - baseMouthH, 0) / 0.15, 1);
             mouthOpenness = mouthOpenness * 0.7 + targetMouthOpenness * 0.3;
