@@ -700,6 +700,7 @@
         const badFoods = ['🍔', '🍟', '🍕', '🌭', '🥪', '🌮', '🌯', '🍿', '🍦', '🍧', '🍨', '🍩', '🍪', '🎂', '🍰', '🧁', '🥧', '🍫', '🍬', '🍭', '🍮'];
 
         const TUTORIAL_MIN_GOOD_SCORE = 3;
+        const MIN_SPAWN_DIST = 200;
 
         // Helper to calculate 2D distance
         function getDistance(p1, p2) {
@@ -1061,8 +1062,15 @@
             const rect = gameContainer.getBoundingClientRect();
             const spawnMinY = rect.height * 0.1;
             const spawnMaxY = rect.height * 0.9 - 70;
-            const x = Math.random() * (rect.width - 100) + 50;
-            const y = Math.random() * (spawnMaxY - spawnMinY) + spawnMinY;
+            
+            let x, y, dist;
+            let attempts = 0;
+            do {
+                x = Math.random() * (rect.width - 100) + 50;
+                y = Math.random() * (spawnMaxY - spawnMinY) + spawnMinY;
+                dist = Math.sqrt(Math.pow(x + 35 - cursorX, 2) + Math.pow(y + 35 - cursorY, 2));
+                attempts++;
+            } while (dist < MIN_SPAWN_DIST && attempts < 10);
 
             food.style.left = x + 'px';
             food.style.top = y + 'px';
@@ -1231,8 +1239,15 @@
             const rect = gameContainer.getBoundingClientRect();
             const spawnMinY = rect.height * 0.1;
             const spawnMaxY = rect.height * 0.9 - 70;
-            const x = Math.random() * (rect.width - 100) + 50;
-            const y = Math.random() * (spawnMaxY - spawnMinY) + spawnMinY;
+            
+            let x, y, dist;
+            let attempts = 0;
+            do {
+                x = Math.random() * (rect.width - 100) + 50;
+                y = Math.random() * (spawnMaxY - spawnMinY) + spawnMinY;
+                dist = Math.sqrt(Math.pow(x + 35 - cursorX, 2) + Math.pow(y + 35 - cursorY, 2));
+                attempts++;
+            } while (dist < MIN_SPAWN_DIST && attempts < 10);
 
             target.style.left = x + 'px';
             target.style.top = y + 'px';
