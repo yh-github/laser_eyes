@@ -269,6 +269,51 @@
         }
         input:checked + .slider-round { background-color: #22d3ee; }
         input:checked + .slider-round:before { transform: translateX(20px); }
+
+        /* Facial Diagnostic HUD */
+        #facial-hud {
+            position: absolute;
+            bottom: 30px;
+            left: 24px;
+            width: 150px;
+            background: rgba(0, 0, 0, 0.7);
+            backdrop-filter: blur(8px);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 1rem;
+            padding: 12px;
+            z-index: 100;
+            display: none;
+            pointer-events: none;
+            font-family: monospace;
+        }
+        .hud-gauge {
+            margin-bottom: 8px;
+        }
+        .hud-label {
+            font-size: 9px;
+            color: #94a3b8;
+            display: block;
+            margin-bottom: 2px;
+            text-transform: uppercase;
+        }
+        .hud-bar-bg {
+            width: 100%;
+            height: 4px;
+            background: #1e293b;
+            border-radius: 2px;
+            overflow: hidden;
+        }
+        .hud-bar-fill {
+            height: 100%;
+            width: 0%;
+            background: #22d3ee;
+            transition: width 0.1s ease-out;
+            box-shadow: 0 0 10px rgba(34, 211, 238, 0.5);
+        }
+        .hud-bar-fill.active {
+            background: #f43f5e;
+            box-shadow: 0 0 15px rgba(244, 63, 94, 0.8);
+        }
     </style>
 </head>
 <body class="bg-black flex items-center justify-center text-white font-sans">
@@ -334,6 +379,9 @@
                 Score: <span id="score" class="text-cyan-400">0</span>
             </div>
             <div class="flex gap-2">
+                <div id="mission-timer" class="text-xl font-bold text-gray-300 bg-black/50 px-4 py-1 rounded-full pointer-events-none border border-white/10 hidden">
+                    Time: <span id="timer-val" class="text-rose-400">120</span>s
+                </div>
                 <button id="camera-toggle-btn" class="bg-black/50 hover:bg-black/80 text-white p-2 rounded-full text-lg border border-white/10 transition-all active:scale-95 shadow-lg" title="Toggle Camera Feed">
                     📷
                 </button>
@@ -341,6 +389,16 @@
                     🧲
                 </button>
             </div>
+        </div>
+
+        <div id="rest-overlay" class="absolute inset-0 z-[70] flex flex-col items-center justify-center bg-gray-900 bg-opacity-98 p-6 text-center hidden">
+            <h2 class="text-4xl font-black mb-4 text-cyan-400 uppercase italic">Mission Complete</h2>
+            <p class="text-lg mb-2 text-white">Great work, Hero.</p>
+            <p class="text-sm mb-8 text-gray-400">Take 30 seconds to relax your eyes and wrists. <br>Look away from the screen.</p>
+            <div id="rest-timer" class="text-6xl font-bold text-cyan-500 mb-8">30</div>
+            <button id="next-mission-btn" class="py-4 px-12 bg-cyan-600 hover:bg-cyan-500 rounded-xl text-xl font-bold shadow-2xl transition-all hidden">
+                START NEXT MISSION
+            </button>
         </div>
 
         <div id="snap-menu" class="hidden">
@@ -362,6 +420,22 @@
         </div>
 
         <div id="game-container" class="relative w-full h-full"></div>
+
+        <!-- Facial Diagnostic HUD -->
+        <div id="facial-hud">
+            <div class="hud-gauge">
+                <span class="hud-label">Mouth (Roar)</span>
+                <div class="hud-bar-bg"><div id="gauge-mouth" class="hud-bar-fill"></div></div>
+            </div>
+            <div class="hud-gauge">
+                <span class="hud-label">Smile</span>
+                <div class="hud-bar-bg"><div id="gauge-smile" class="hud-bar-fill"></div></div>
+            </div>
+            <div class="hud-gauge">
+                <span class="hud-label">Eye Blink</span>
+                <div class="hud-bar-bg"><div id="gauge-eyes" class="hud-bar-fill"></div></div>
+            </div>
+        </div>
 
         <!-- Elements moved inside container -->
         <div id="laser-dot"></div>
@@ -388,6 +462,11 @@
         let cursorY = -100;
         let loopInterval;
         let isGazerStarted = false;
+
+        // Mission State
+        let gameTime = 120;
+        let gameActive = false;
+        let missionInterval;
 
         // Snapping Config
         let snappingEnabled = true;
@@ -434,6 +513,17 @@
         let lastNoseX = -100;
         let lastNoseY = -100;
 
+        // Facial Expression State
+        let mouthOpenness = 0;
+        let smileStrength = 0;
+        let eyeRatio = 0;
+        let isRoaring = false;
+
+        const facialHud = document.getElementById('facial-hud');
+        const gaugeMouth = document.getElementById('gauge-mouth');
+        const gaugeSmile = document.getElementById('gauge-smile');
+        const gaugeEyes = document.getElementById('gauge-eyes');
+
         // Persist model data across sessions (prevents re-training on reload)
         window.saveDataAcrossSessions = true;
 
@@ -475,6 +565,8 @@
                 webgazer.showVideoPreview(true)
                         .showPredictionPoints(false);
                 
+                facialHud.style.display = 'block';
+
                 loadingMsg.innerText = "Camera ready!";
                 isGazerStarted = true;
 
@@ -602,12 +694,53 @@
 
         function startGame() {
             overlay.classList.add('hidden');
+            document.getElementById('mission-timer').classList.remove('hidden');
+            gameActive = true;
+            gameTime = 120;
             spawnTarget();
             if (!loopInterval) loopInterval = setInterval(checkCollisions, 30);
+            
+            if (missionInterval) clearInterval(missionInterval);
+            missionInterval = setInterval(() => {
+                gameTime--;
+                document.getElementById('timer-val').innerText = gameTime;
+                if (gameTime <= 0) endMission();
+            }, 1000);
+        }
+
+        function endMission() {
+            gameActive = false;
+            clearInterval(missionInterval);
+            document.getElementById('rest-overlay').classList.remove('hidden');
+            let restTime = 30;
+            const restCounter = document.getElementById('rest-timer');
+            const nextBtn = document.getElementById('next-mission-btn');
+            restCounter.innerText = restTime;
+            
+            const restInt = setInterval(() => {
+                restTime--;
+                restCounter.innerText = restTime;
+                if (restTime <= 0) {
+                    clearInterval(restInt);
+                    nextBtn.classList.remove('hidden');
+                }
+            }, 1000);
+
+            nextBtn.onclick = () => {
+                document.getElementById('rest-overlay').classList.add('hidden');
+                nextBtn.classList.add('hidden');
+                startGame();
+            };
         }
 
         function updateLaser() {
-            laserDot.style.display = 'block';
+            // Firing check: only show laser if roaring or if we are not in game mode
+            if (!isRoaring && gameActive) {
+                laserDot.style.display = 'none';
+                return;
+            } else {
+                laserDot.style.display = 'block';
+            }
             
             let displayX = cursorX;
             let displayY = cursorY;
@@ -633,15 +766,12 @@
                     const tx = parseFloat(nearestTarget.dataset.vpX);
                     const ty = parseFloat(nearestTarget.dataset.vpY);
                     
-                    // Smooth implementation: weight based on distance
-                    // weight is 0 at edge of snapRange, reaches full snapStrength at center
                     const distanceFactor = Math.pow(1 - (minDist / snapRange), 1.5);
                     const weight = snapStrength * distanceFactor;
                     
                     displayX = cursorX * (1 - weight) + tx * weight;
                     displayY = cursorY * (1 - weight) + ty * weight;
 
-                    // Add "Locked" jitter effect - proportional to lock strength
                     displayX += (Math.random() - 0.5) * (5 * distanceFactor);
                     displayY += (Math.random() - 0.5) * (5 * distanceFactor);
                     laserDot.style.scale = 1 + (0.5 * distanceFactor) + Math.random() * 0.2;
@@ -654,6 +784,15 @@
 
             laserDot.style.left = displayX + 'px';
             laserDot.style.top = displayY + 'px';
+            
+            // Visual feedback for firing strength
+            if (isRoaring) {
+                laserDot.style.boxShadow = `0 0 30px 10px rgba(0, 242, 255, ${0.5 + mouthOpenness})`;
+                laserDot.style.background = `rgba(255, 255, 255, ${0.8 + mouthOpenness*0.2})`;
+            } else {
+                laserDot.style.boxShadow = `0 0 10px 2px #00f2ff, 0 0 25px 8px #00f2ff, 0 0 45px 15px rgba(0, 242, 255, 0.4)`;
+                laserDot.style.background = `#fff`;
+            }
         }
 
         function spawnTarget() {
@@ -739,7 +878,8 @@
                 const dy = cursorY - ty;
                 const distance = Math.sqrt(dx * dx + dy * dy);
                 
-                if (distance < 100) {
+                // Damage only if roaring
+                if (distance < 100 && isRoaring && gameActive) {
                     if (!target.dataset.gazeStart) target.dataset.gazeStart = now;
                     
                     const elapsed = now - parseInt(target.dataset.gazeStart);
@@ -763,8 +903,65 @@
                 }
             });
             
+            updateFacialExpressions();
             updateNoseTracking();
             updateLaser();
+        }
+
+        function updateFacialExpressions() {
+            let positions = null;
+            try {
+                positions = webgazer.getTracker().getPositions();
+            } catch(e) { return; }
+            if (!positions || positions.length < 60) return;
+
+            // 1. Mouth Openness (Roar)
+            // Points: 60 (top inner lip), 57 (bottom inner lip)
+            // Or 47 (top outer), 53 (bottom outer)
+            // We'll use 60 and 57 for inner mouth opening
+            const p60 = positions[60];
+            const p57 = positions[57];
+            const rawMouthDist = Math.abs(p60[1] - p57[1]);
+
+            // 2. Smile Strength
+            // Points: 44 (left corner), 50 (right corner)
+            const p44 = positions[44];
+            const p50 = positions[50];
+            const mouthWidth = Math.sqrt(Math.pow(p50[0]-p44[0], 2) + Math.pow(p50[1]-p44[1], 2));
+
+            // 3. Eye Distance (Normalization factor)
+            // Left Eye: 27, Right Eye: 32 (Approximated centers or edges)
+            // Consistent reference to handle distance to camera
+            const p27 = positions[27];
+            const p32 = positions[32];
+            const eyeDist = Math.sqrt(Math.pow(p32[0]-p27[0], 2) + Math.pow(p32[1]-p27[1], 2));
+
+            // Normalized Values
+            mouthOpenness = Math.min(rawMouthDist / (eyeDist * 0.5), 1);
+            smileStrength = Math.min(Math.max((mouthWidth / eyeDist) - 0.8, 0) / 0.5, 1);
+            
+            // 4. Eye Openness (Blink)
+            // Simple vertical distance of eyelids
+            const p24 = positions[24]; // Left eye top
+            const p26 = positions[26]; // Left eye bottom
+            const eyeOpenDist = Math.abs(p24[1] - p26[1]);
+            eyeRatio = Math.min(eyeOpenDist / (eyeDist * 0.2), 1);
+
+            // Update UI
+            gaugeMouth.style.width = (mouthOpenness * 100) + '%';
+            gaugeSmile.style.width = (smileStrength * 100) + '%';
+            gaugeEyes.style.width = (eyeRatio * 100) + '%';
+
+            // Active States
+            isRoaring = mouthOpenness > 0.4;
+            if (isRoaring) gaugeMouth.classList.add('active');
+            else gaugeMouth.classList.remove('active');
+
+            if (smileStrength > 0.6) gaugeSmile.classList.add('active');
+            else gaugeSmile.classList.remove('active');
+
+            if (eyeRatio < 0.2) gaugeEyes.classList.add('active'); // Close = Active (Blink)
+            else gaugeEyes.classList.remove('active');
         }
 
         function updateNoseTracking() {
