@@ -795,7 +795,7 @@
                 }
 
                 webgazer.showVideoPreview(true).showPredictionPoints(false);
-                facialHud.style.display = 'block';
+                // facialHud visibility moved to startGame
 
                 isGazerStarted = true;
                 loadingMsg.innerText = "AI Ready!";
@@ -836,6 +836,7 @@
             const calibHint = document.getElementById('calib-hint');
             const progressBar = document.getElementById('nose-calib-progress');
 
+            facialHud.style.display = 'none';
             // Reset state
             progressBar.style.width = '0%';
             calibStatus.innerText = 'Detecting your face...';
@@ -972,6 +973,7 @@
                 goodPoints = 0;
                 badPoints = 0;
                 updateBigMouthScore();
+                facialHud.style.display = 'none';
                 spawnFood();
             } else {
                 document.getElementById('mission-timer').classList.remove('hidden');
@@ -980,6 +982,7 @@
                 document.getElementById('snap-settings-btn').classList.remove('hidden');
                 document.getElementById('recalib-btn').classList.remove('hidden');
                 
+                facialHud.style.display = 'block';
                 spawnTarget();
             }
 
@@ -1070,6 +1073,7 @@
                 completionText.innerText = "Great work, Hero.";
             }
             
+            facialHud.style.display = 'none';
             restOverlay.classList.remove('hidden');
             let restTime = 30;
             const restCounter = document.getElementById('rest-timer');
