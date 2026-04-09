@@ -32,21 +32,10 @@
             z-index: 10000;
             display: none;
             box-shadow: 
-                0 0 10px 2px #ff0000,
-                0 0 25px 8px #ff0000,
-                0 0 45px 15px rgba(255, 0, 0, 0.4);
-            border: 1px solid white;
-        }
-        #laser-dot::after {
-            content: '';
-            position: absolute;
-            top: 50%;
-            left: 50%;
-            width: 100vw;
-            height: 2px;
-            background: linear-gradient(90deg, rgba(255,0,0,0.8) 0%, rgba(255,0,0,0) 100%);
-            transform: translate(0, -50%);
-            display: none; /* Can enable for beam effect later */
+                0 0 10px 2px #00f2ff,
+                0 0 25px 8px #00f2ff,
+                0 0 45px 15px rgba(0, 242, 255, 0.4);
+            border: 1px solid #e0ffff;
         }
         .target {
             position: absolute;
@@ -69,20 +58,6 @@
             background: rgba(255,255,255,0.3);
             border-radius: 50%;
         }
-        .calib-point {
-            position: fixed;
-            width: 50px;
-            height: 50px;
-            background: #ef4444;
-            border: 5px solid white;
-            border-radius: 50%;
-            cursor: pointer;
-            z-index: 10001;
-            box-shadow: 0 0 30px #ef4444;
-            transform: translate(-50%, -50%);
-            transition: transform 0.2s;
-        }
-        .calib-point:hover { transform: translate(-50%, -50%) scale(1.3); }
         
         /* Force WebGazer UI to be visible and styled */
         #webgazerVideoContainer {
@@ -93,10 +68,24 @@
             width: 200px !important;
             height: 150px !important;
             z-index: 1000 !important;
-            border: 3px solid #ef4444 !important;
+            border: 3px solid #00f2ff !important;
             border-radius: 1rem !important;
             overflow: hidden !important;
             box-shadow: 0 10px 25px rgba(0,0,0,0.6) !important;
+        }
+
+        /* Hide the green bounding box but keep the wireframe mesh */
+        #webgazerVideoCanvas {
+            /* This is the face detection bounding box overlay — hide it */
+            display: none !important;
+        }
+        #webgazerFaceOverlay {
+            /* This is the wireframe mesh — keep it visible */
+            display: block !important;
+        }
+        /* Also hide WebGazer's default prediction point (we draw our own laser) */
+        #webgazerGazeDot {
+            display: none !important;
         }
 
         @keyframes target-flash {
@@ -106,15 +95,74 @@
         .flashing {
             animation: target-flash 0.8s infinite ease-in-out;
         }
-        #laser-dot.nose-mode {
-            box-shadow: 
-                0 0 10px 2px #00f2ff,
-                0 0 25px 8px #00f2ff,
-                0 0 45px 15px rgba(0, 242, 255, 0.4);
-            border: 1px solid #e0ffff;
+
+        /* Calibration crosshair */
+        @keyframes crosshair-pulse {
+            0%, 100% { 
+                transform: translate(-50%, -50%) scale(1); 
+                opacity: 0.8;
+                box-shadow: 0 0 20px rgba(0, 242, 255, 0.3);
+            }
+            50% { 
+                transform: translate(-50%, -50%) scale(1.15); 
+                opacity: 1;
+                box-shadow: 0 0 40px rgba(0, 242, 255, 0.6);
+            }
         }
-        #laser-dot.nose-mode::after {
-            background: linear-gradient(90deg, rgba(0, 242, 255,0.8) 0%, rgba(0, 242, 255,0) 100%);
+        .calib-crosshair {
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            width: 60px;
+            height: 60px;
+            border: 3px solid #00f2ff;
+            border-radius: 50%;
+            animation: crosshair-pulse 1.2s ease-in-out infinite;
+            z-index: 61;
+        }
+        .calib-crosshair::before,
+        .calib-crosshair::after {
+            content: '';
+            position: absolute;
+            background: #00f2ff;
+        }
+        .calib-crosshair::before {
+            width: 2px;
+            height: 100%;
+            left: 50%;
+            top: 0;
+            transform: translateX(-50%);
+        }
+        .calib-crosshair::after {
+            height: 2px;
+            width: 100%;
+            top: 50%;
+            left: 0;
+            transform: translateY(-50%);
+        }
+
+        @keyframes fade-in-up {
+            from { opacity: 0; transform: translateY(10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        .fade-in-up {
+            animation: fade-in-up 0.4s ease-out forwards;
+        }
+
+        /* Live nose indicator during calibration */
+        #calib-nose-dot {
+            position: fixed;
+            width: 10px;
+            height: 10px;
+            background: #22d3ee;
+            border-radius: 50%;
+            pointer-events: none;
+            transform: translate(-50%, -50%);
+            z-index: 62;
+            display: none;
+            box-shadow: 0 0 8px #22d3ee;
+            transition: left 0.08s ease-out, top 0.08s ease-out;
         }
     </style>
 </head>
@@ -124,29 +172,22 @@
         
         <!-- UI Overlay -->
         <div id="overlay" class="absolute inset-0 z-50 flex flex-col items-center justify-center bg-gray-900 bg-opacity-95 p-6 text-center">
-            <h1 class="text-5xl font-black mb-2 text-red-600 uppercase tracking-tighter italic">Laser Eyes</h1>
+            <h1 class="text-5xl font-black mb-2 text-cyan-400 uppercase tracking-tighter italic">Laser Eyes</h1>
             <p class="text-md mb-8 text-gray-400">
                 Destroy targets with your gaze. <br>
-                <span class="text-xs">Initial 5-point calibration required.</span>
+                <span class="text-xs">Quick nose calibration required.</span>
             </p>
             
             <div class="flex flex-col gap-3 w-full max-w-[280px] mb-4">
-                <button id="start-eyes-btn" class="w-full py-4 bg-red-600 hover:bg-red-500 rounded-xl text-xl font-bold shadow-2xl shadow-red-900/40 transition-all active:scale-95">
-                    EYE TRACKING
-                </button>
-                <button id="start-nose-btn" class="w-full py-4 bg-cyan-600 hover:bg-cyan-500 rounded-xl text-xl font-bold shadow-2xl shadow-cyan-900/40 transition-all active:scale-95">
-                    NOSE TRACKING
+                <button id="start-btn" class="w-full py-4 bg-cyan-600 hover:bg-cyan-500 rounded-xl text-xl font-bold shadow-2xl shadow-cyan-900/40 transition-all active:scale-95">
+                    START
                 </button>
             </div>
-            
-            <button id="touch-btn" class="w-full max-w-[280px] py-4 bg-gray-800 hover:bg-gray-700 rounded-xl text-xl font-bold border border-gray-700 transition-all active:scale-95 text-gray-400 text-sm">
-                Touch Fallback (Mouse)
-            </button>
             
             <!-- Dynamic Status / Error Box -->
             <div id="status-box" class="mt-8 p-5 rounded-2xl bg-black/40 hidden max-w-sm border border-white/10 backdrop-blur-md">
                 <div class="flex items-center gap-3 mb-2">
-                    <div class="w-2 h-2 rounded-full bg-red-500 animate-ping"></div>
+                    <div class="w-2 h-2 rounded-full bg-cyan-500 animate-ping"></div>
                     <p id="loading-msg" class="text-white text-sm font-semibold"></p>
                 </div>
                 <p id="action-msg" class="text-gray-500 text-xs text-left leading-relaxed"></p>
@@ -155,21 +196,14 @@
 
         <!-- Calibration Overlay -->
         <div id="calib-overlay" class="absolute inset-0 z-[60] flex flex-col items-center justify-center bg-black/90 hidden">
-            <div id="eye-calib-ui" class="text-center p-10">
-                <h2 class="text-3xl font-bold text-white mb-2">Eye Calibration</h2>
-                <p class="text-red-500 mb-8 font-mono tracking-widest uppercase text-xs">Look at the red dots and CLICK them</p>
-                <div class="w-64 h-2 bg-gray-800 rounded-full mx-auto overflow-hidden">
-                    <div id="calib-progress" class="bg-red-600 h-full w-0 transition-all duration-500"></div>
-                </div>
-            </div>
-            
-            <div id="nose-calib-ui" class="text-center p-10 hidden">
-                <h2 class="text-3xl font-bold text-cyan-400 mb-2">Nose Calibration</h2>
-                <p class="text-white mb-2 font-semibold">Look at the center of the screen</p>
-                <p class="text-gray-400 mb-8 text-xs italic">Hold still for 3 seconds...</p>
+            <div id="nose-calib-ui" class="text-center p-10">
+                <h2 id="calib-title" class="text-3xl font-bold text-cyan-400 mb-2">Nose Calibration</h2>
+                <p id="calib-status" class="text-white mb-2 font-semibold">Detecting your face...</p>
+                <p id="calib-hint" class="text-gray-400 mb-6 text-xs italic">Position your face in the camera</p>
                 <div class="w-64 h-2 bg-gray-800 rounded-full mx-auto overflow-hidden">
                     <div id="nose-calib-progress" class="bg-cyan-500 h-full w-0 transition-all duration-100"></div>
                 </div>
+                <p id="calib-pct" class="text-cyan-400/60 text-xs mt-2 font-mono">0%</p>
             </div>
         </div>
 
@@ -180,26 +214,25 @@
         </div>
 
         <div class="absolute top-6 right-6 z-40 text-xl font-bold text-gray-300 bg-black/50 px-4 py-1 rounded-full pointer-events-none border border-white/10">
-            Score: <span id="score" class="text-red-500">0</span>
+            Score: <span id="score" class="text-cyan-400">0</span>
         </div>
 
         <div id="game-container" class="relative w-full h-full"></div>
     </div>
 
     <div id="laser-dot"></div>
+    <div id="calib-nose-dot"></div>
 
     <script>
-        const startBtn = document.getElementById('start-btn');
-        const touchBtn = document.getElementById('touch-btn');
         const overlay = document.getElementById('overlay');
         const calibOverlay = document.getElementById('calib-overlay');
-        const calibProgress = document.getElementById('calib-progress');
         const statusBox = document.getElementById('status-box');
         const loadingMsg = document.getElementById('loading-msg');
         const actionMsg = document.getElementById('action-msg');
         const laserDot = document.getElementById('laser-dot');
         const gameContainer = document.getElementById('game-container');
         const scoreEl = document.getElementById('score');
+        const calibNoseDot = document.getElementById('calib-nose-dot');
         
         let score = 0;
         let popCount = 0;
@@ -209,49 +242,32 @@
         let cursorY = -100;
         let loopInterval;
         let isGazerStarted = false;
-        let calibCount = 0;
-        const totalCalib = 9;
 
-        // Visual locations for calibration (Viewport %)
-        const calibPoints = [
-            {x: 10, y: 10}, {x: 50, y: 10}, {x: 90, y: 10},
-            {x: 10, y: 50}, {x: 50, y: 50}, {x: 90, y: 50},
-            {x: 10, y: 90}, {x: 50, y: 90}, {x: 90, y: 90}
-        ];
+        // Snapping Config
+        const SNAPPING_DISTANCE = 150;
 
-        // Snapping and Continuous Training Config
-        const SNAPPING_DISTANCE = 150; // Pixels
-        const TRAINING_INTERVAL = 10; // Record every X frames when locked
-        let trainingFrameCount = 0;
-
-        let trackingMode = 'eyes'; // 'eyes', 'nose', 'touch'
+        // Nose tracking state
         let noseCenter = {x: 0, y: 0};
         let noseSensitivity = 3.5;
         let noseSmoothing = 0.4;
         let lastNoseX = -100;
         let lastNoseY = -100;
 
+        // Persist model data across sessions (prevents re-training on reload)
+        window.saveDataAcrossSessions = true;
+
         function showError(title, action) {
             statusBox.classList.remove('hidden');
             loadingMsg.innerText = title;
             actionMsg.innerText = action;
-            document.getElementById('start-eyes-btn').parentElement.classList.remove('hidden');
-            touchBtn.classList.remove('hidden');
+            document.getElementById('start-btn').classList.remove('hidden');
         }
 
-        async function initWebGazer(mode) {
-            trackingMode = mode;
-            document.getElementById('start-eyes-btn').parentElement.classList.add('hidden');
-            touchBtn.classList.add('hidden');
+        async function initNoseTracking() {
+            document.getElementById('start-btn').classList.add('hidden');
             statusBox.classList.remove('hidden');
             loadingMsg.innerText = "Initializing AI & Camera...";
             actionMsg.innerText = "Please accept camera permissions if prompted.";
-
-            if (mode === 'nose') {
-                laserDot.classList.add('nose-mode');
-            } else {
-                laserDot.classList.remove('nose-mode');
-            }
 
             try {
                 if (window.webgazerLoadError || typeof webgazer === 'undefined') {
@@ -259,14 +275,10 @@
                 }
 
                 webgazer.params.showVideo = true;
-                webgazer.params.showPredictionPoints = (mode === 'eyes');
+                webgazer.params.showPredictionPoints = false;
 
-                webgazer.setGazeListener((data) => {
-                    if (data == null || trackingMode !== 'eyes') return;
-                    cursorX = data.x;
-                    cursorY = data.y;
-                    updateLaser();
-                });
+                // We don't use gaze prediction for nose mode, but webgazer needs a listener
+                webgazer.setGazeListener(() => {});
 
                 loadingMsg.innerText = "Downloading AI Models (15MB)...";
                 actionMsg.innerText = "This might take 10-20 seconds on first load.";
@@ -274,19 +286,15 @@
                 await webgazer.begin();
                 
                 webgazer.showVideoPreview(true)
-                        .showPredictionPoints(mode === 'eyes');
+                        .showPredictionPoints(false);
                 
-                loadingMsg.innerText = "Calibrating Face Tracker...";
+                loadingMsg.innerText = "Camera ready!";
                 isGazerStarted = true;
 
                 setTimeout(() => {
                     overlay.classList.add('hidden');
-                    if (mode === 'eyes') {
-                        startCalibration();
-                    } else {
-                        startNoseCalibration();
-                    }
-                }, 1500);
+                    startNoseCalibration();
+                }, 800);
 
             } catch (err) {
                 console.error(err);
@@ -295,87 +303,108 @@
             }
         }
 
-        document.getElementById('start-eyes-btn').addEventListener('click', () => initWebGazer('eyes'));
-        document.getElementById('start-nose-btn').addEventListener('click', () => initWebGazer('nose'));
-
-        touchBtn.addEventListener('click', () => {
-            const trackMove = (e) => {
-                cursorX = e.clientX || (e.touches ? e.touches[0].clientX : 0);
-                cursorY = e.clientY || (e.touches ? e.touches[0].clientY : 0);
-                updateLaser();
-            };
-            document.addEventListener('touchmove', trackMove);
-            document.addEventListener('mousemove', trackMove);
-            statusBox.classList.add('hidden');
-            startGame();
-        });
+        document.getElementById('start-btn').addEventListener('click', initNoseTracking);
 
         document.getElementById('recalib-btn').addEventListener('click', () => {
             if (!isGazerStarted) return;
-            startCalibration();
+            startNoseCalibration();
         });
 
-        function startCalibration() {
-            calibCount = 0;
-            calibProgress.style.width = '0%';
-            document.getElementById('eye-calib-ui').classList.remove('hidden');
-            document.getElementById('nose-calib-ui').classList.add('hidden');
-            calibOverlay.classList.remove('hidden');
-            spawnCalibPoint();
-        }
-
         function startNoseCalibration() {
-            calibCount = 0;
-            document.getElementById('eye-calib-ui').classList.add('hidden');
-            document.getElementById('nose-calib-ui').classList.remove('hidden');
-            calibOverlay.classList.remove('hidden');
+            const calibStatus = document.getElementById('calib-status');
+            const calibHint = document.getElementById('calib-hint');
+            const calibPct = document.getElementById('calib-pct');
+            const progressBar = document.getElementById('nose-calib-progress');
             
+            // Reset state
+            progressBar.style.width = '0%';
+            calibPct.innerText = '0%';
+            calibStatus.innerText = 'Detecting your face...';
+            calibHint.innerText = 'Position your face in the camera';
+            calibOverlay.classList.remove('hidden');
+            calibNoseDot.style.display = 'none';
+            lastNoseX = -100;
+            lastNoseY = -100;
+
+            // Add crosshair target at center
+            const crosshair = document.createElement('div');
+            crosshair.className = 'calib-crosshair';
+            document.body.appendChild(crosshair);
+
             let noseCalibFrames = 0;
-            const targetFrames = 60;
+            const targetFrames = 30; // ~1 second at 30ms interval (down from 60)
             let tempX = 0;
             let tempY = 0;
+            let faceDetected = false;
+            let waitingFrames = 0;
 
             const calibInt = setInterval(() => {
-                const positions = webgazer.getTracker().getPositions();
+                let positions = null;
+                try {
+                    positions = webgazer.getTracker().getPositions();
+                } catch(e) { /* tracker not ready yet */ }
+
                 if (positions && positions.length > 60) {
+                    if (!faceDetected) {
+                        faceDetected = true;
+                        calibStatus.innerText = '✓ Face detected!';
+                        calibStatus.classList.add('fade-in-up');
+                        calibHint.innerText = 'Look at the crosshair — hold still...';
+                        
+                        // Show live nose dot
+                        calibNoseDot.style.display = 'block';
+                    }
+
                     const nose = positions[62] || positions[37];
+                    
+                    // Show live nose position as feedback
+                    const screenW = window.innerWidth;
+                    const screenH = window.innerHeight;
+                    const liveX = screenW / 2 - (nose[0] - (tempX / Math.max(noseCalibFrames, 1))) * noseSensitivity;
+                    const liveY = screenH / 2 + (nose[1] - (tempY / Math.max(noseCalibFrames, 1))) * noseSensitivity;
+                    calibNoseDot.style.left = (noseCalibFrames > 0 ? liveX : screenW / 2) + 'px';
+                    calibNoseDot.style.top = (noseCalibFrames > 0 ? liveY : screenH / 2) + 'px';
+
+                    // Wait a couple frames after detection before starting calibration
+                    waitingFrames++;
+                    if (waitingFrames < 5) return;
+
                     tempX += nose[0];
                     tempY += nose[1];
                     noseCalibFrames++;
-                    document.getElementById('nose-calib-progress').style.width = (noseCalibFrames / targetFrames * 100) + '%';
+                    
+                    const pct = Math.round(noseCalibFrames / targetFrames * 100);
+                    progressBar.style.width = pct + '%';
+                    calibPct.innerText = pct + '%';
+
+                    if (noseCalibFrames >= Math.round(targetFrames * 0.5)) {
+                        calibStatus.innerText = '⏳ Almost there...';
+                    }
                 }
 
                 if (noseCalibFrames >= targetFrames) {
                     clearInterval(calibInt);
                     noseCenter.x = tempX / targetFrames;
                     noseCenter.y = tempY / targetFrames;
-                    calibOverlay.classList.add('hidden');
-                    startGame();
+                    
+                    // Success feedback
+                    calibStatus.innerText = '🎯 Calibrated!';
+                    calibHint.innerText = 'Let\'s go!';
+                    progressBar.style.width = '100%';
+                    calibPct.innerText = '100%';
+                    
+                    // Haptic feedback on mobile
+                    if (navigator.vibrate) navigator.vibrate(50);
+
+                    // Brief pause to show success, then start
+                    setTimeout(() => {
+                        crosshair.remove();
+                        calibNoseDot.style.display = 'none';
+                        calibOverlay.classList.add('hidden');
+                        startGame();
+                    }, 500);
                 }
             }, 30);
-        }
-
-        function spawnCalibPoint() {
-            if (calibCount >= totalCalib) {
-                calibOverlay.classList.add('hidden');
-                startGame();
-                return;
-            }
-
-            const p = calibPoints[calibCount];
-            const pt = document.createElement('div');
-            pt.className = 'calib-point';
-            pt.style.left = p.x + '%';
-            pt.style.top = p.y + '%';
-            
-            pt.onclick = () => {
-                pt.remove();
-                calibCount++;
-                calibProgress.style.width = (calibCount / totalCalib * 100) + '%';
-                spawnCalibPoint();
-            };
-            
-            document.body.appendChild(pt);
         }
 
         function startGame() {
@@ -410,7 +439,7 @@
                 const tx = parseFloat(nearestTarget.dataset.vpX);
                 const ty = parseFloat(nearestTarget.dataset.vpY);
                 // Smooth interpolation towards target
-                const weight = 0.6; // 60% snapping
+                const weight = 0.6;
                 displayX = cursorX * (1 - weight) + tx * weight;
                 displayY = cursorY * (1 - weight) + ty * weight;
 
@@ -474,7 +503,6 @@
             if (popCount >= 3) maxTargets = 2;
 
             spawnTarget();
-            // If we just increased maxTargets, or if we still have room
             if (targets.length < maxTargets) {
                 setTimeout(spawnTarget, 600);
             }
@@ -509,7 +537,7 @@
                 const dy = cursorY - ty;
                 const distance = Math.sqrt(dx * dx + dy * dy);
                 
-                if (distance < 100) { // Increased hit area for smoother feel
+                if (distance < 100) {
                     if (!target.dataset.gazeStart) target.dataset.gazeStart = now;
                     
                     const elapsed = now - parseInt(target.dataset.gazeStart);
@@ -523,15 +551,6 @@
                     target.style.transform = `scale(${scale})`;
                     target.style.backgroundColor = `rgb(${r}, ${g}, ${b})`;
                     target.style.boxShadow = `0 0 ${15 + (25 * progress)}px rgb(${r}, ${g}, ${b})`;
-                    
-                    // CONTINUOUS TRAINING: Record gaze when focused on target or very close
-                    if (isGazerStarted && trackingMode === 'eyes' && distance < 80) {
-                        trainingFrameCount++;
-                        if (trainingFrameCount >= TRAINING_INTERVAL) {
-                            webgazer.recordScreenPosition(tx, ty, 'click'); // Use 'click' to trigger full training
-                            trainingFrameCount = 0;
-                        }
-                    }
 
                     if (progress === 1) destroyTarget(target);
                 } else {
@@ -542,29 +561,24 @@
                 }
             });
             
-            if (trackingMode === 'nose') updateNoseTracking();
-
-            // Continuous laser update for smooth pursuit
+            updateNoseTracking();
             updateLaser();
         }
 
         function updateNoseTracking() {
-            const positions = webgazer.getTracker().getPositions();
+            let positions = null;
+            try {
+                positions = webgazer.getTracker().getPositions();
+            } catch(e) { return; }
             if (!positions || positions.length < 60) return;
 
-            // Point 62 is the nose tip in clmtrackr
             const nose = positions[62] || positions[37];
             const rawX = nose[0];
             const rawY = nose[1];
 
-            // Calculate relative movement from center
             const dx = (rawX - noseCenter.x);
             const dy = (rawY - noseCenter.y);
 
-            // Map to screen coordinates
-            // Note: Camera image is usually mirrored or inverted relative to screen movement
-            // Typically, moving head left makes nose X decrease. We want cursor X to decrease (or increase if mirrored)
-            // We'll apply sensitivity and a basic screen mapping
             const screenW = window.innerWidth;
             const screenH = window.innerHeight;
 
