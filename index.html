@@ -728,7 +728,6 @@
         });
 
         camBtn.addEventListener('click', () => {
-            if (currentGameMode === 'bigmouth') return; // Disable camera in Big Mouth
             const videoContainer = document.getElementById('webgazerVideoContainer');
             if (videoContainer) {
                 const isHidden = videoContainer.style.getPropertyValue('display') === 'none';
