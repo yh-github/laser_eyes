@@ -462,7 +462,11 @@
             <div class="flex flex-col gap-3 w-full max-w-[280px] mb-4">
                 <button id="start-btn"
                     class="w-full py-4 bg-cyan-600 hover:bg-cyan-500 rounded-xl text-xl font-bold shadow-2xl shadow-cyan-900/40 transition-all active:scale-95 chargeable">
-                    START
+                    PoC
+                </button>
+                <button id="big-mouth-btn"
+                    class="w-full py-4 bg-purple-600 hover:bg-purple-500 rounded-xl text-xl font-bold shadow-2xl shadow-purple-900/40 transition-all active:scale-95 chargeable">
+                    Big Mouth
                 </button>
             </div>
 
@@ -512,9 +516,14 @@
         </div>
 
         <div class="absolute top-6 right-6 z-40 flex flex-col items-end gap-2">
-            <div
+            <div id="standard-score"
                 class="text-xl font-bold text-gray-300 bg-black/50 px-4 py-1 rounded-full pointer-events-none border border-white/10">
                 Score: <span id="score" class="text-cyan-400">0</span>
+            </div>
+            <div id="bigmouth-score"
+                class="hidden flex gap-3 text-sm font-bold bg-black/50 px-4 py-1 rounded-full pointer-events-none border border-white/10">
+                <div class="text-green-400">Good: <span id="good-points">0</span></div>
+                <div class="text-red-400">Bad: <span id="bad-points">0</span></div>
             </div>
             <div class="flex gap-2">
                 <div id="mission-timer"
@@ -640,10 +649,16 @@
         let loopInterval;
         let isGazerStarted = false;
 
-        // Mission State
+        // Game State
         let gameTime = 120;
         let gameActive = false;
         let missionInterval;
+        let currentGameMode = 'standard'; // 'standard' or 'bigmouth'
+        let goodPoints = 0;
+        let badPoints = 0;
+
+        const healthyFoods = ['🍏', '🍎', '🍐', '🍊', '🍋', '🍌', '🍉', '🍇', '🍓', '🫐', '🍈', '🍒', '🍑', '🥭', '🍍', '🥥', '🥝', '🍅', '🍆', '🥑', '🥦', '🥬', '🥒', '🌽', '🥕', '🫑', '🥔', '🍠', '🥩', '🍗', '🍖', '🧀'];
+        const badFoods = ['🍔', '🍟', '🍕', '🌭', '🥪', '🌮', '🌯', '🍿', '🍦', '🍧', '🍨', '🍩', '🍪', '🎂', '🍰', '🧁', '🥧', '🍫', '🍬', '🍭', '🍮'];
 
         // Helper to calculate 2D distance
         function getDistance(p1, p2) {
@@ -702,6 +717,7 @@
         });
 
         camBtn.addEventListener('click', () => {
+            if (currentGameMode === 'bigmouth') return; // Disable camera in Big Mouth
             const videoContainer = document.getElementById('webgazerVideoContainer');
             if (videoContainer) {
                 const isHidden = videoContainer.style.getPropertyValue('display') === 'none';
@@ -752,8 +768,8 @@
             document.getElementById('start-btn').classList.remove('hidden');
         }
 
-        async function initNoseTracking() {
-            document.getElementById('start-btn').classList.add('hidden');
+        async function initAI() {
+            // Only show status box if we're not ready
             statusBox.classList.remove('hidden');
             loadingMsg.innerText = "Initializing AI & Camera...";
             actionMsg.innerText = "Please accept camera permissions if prompted.";
@@ -765,8 +781,6 @@
 
                 webgazer.params.showVideo = true;
                 webgazer.params.showPredictionPoints = false;
-
-                // We don't use gaze prediction for nose mode, but webgazer needs a listener
                 webgazer.setGazeListener(() => { });
 
                 loadingMsg.innerText = "Downloading AI Models (15MB)...";
@@ -774,27 +788,24 @@
 
                 await webgazer.begin();
 
-                // Move video preview inside the phone container
                 const videoContainer = document.getElementById('webgazerVideoContainer');
                 if (videoContainer) {
                     appContainer.appendChild(videoContainer);
                     videoContainer.appendChild(debugCanvas);
                 }
 
-                webgazer.showVideoPreview(true)
-                    .showPredictionPoints(false);
-
+                webgazer.showVideoPreview(true).showPredictionPoints(false);
                 facialHud.style.display = 'block';
 
-                loadingMsg.innerText = "Camera ready!";
                 isGazerStarted = true;
+                loadingMsg.innerText = "AI Ready!";
+                actionMsg.innerText = "Model loaded and camera active.";
+                
+                // Keep overlay showing but buttons enabled
+                document.getElementById('start-btn').classList.remove('hidden');
+                document.getElementById('big-mouth-btn').classList.remove('hidden');
 
-                setTimeout(() => {
-                    overlay.classList.add('hidden');
-                    if (!loopInterval) loopInterval = setInterval(checkCollisions, 30);
-                    startNoseCalibration();
-                }, 800);
-
+                if (!loopInterval) loopInterval = setInterval(checkCollisions, 30);
             } catch (err) {
                 console.error(err);
                 if (typeof webgazer !== 'undefined') webgazer.end();
@@ -802,7 +813,18 @@
             }
         }
 
-        document.getElementById('start-btn').addEventListener('click', initNoseTracking);
+        // Run AI initialization immediately
+        window.addEventListener('load', initAI);
+
+        document.getElementById('start-btn').addEventListener('click', () => {
+            currentGameMode = 'standard';
+            startNoseCalibration();
+        });
+
+        document.getElementById('big-mouth-btn').addEventListener('click', () => {
+            currentGameMode = 'bigmouth';
+            startNoseCalibration();
+        });
 
         document.getElementById('recalib-btn').addEventListener('click', () => {
             if (!isGazerStarted) return;
@@ -933,10 +955,33 @@
 
         function startGame() {
             overlay.classList.add('hidden');
-            document.getElementById('mission-timer').classList.remove('hidden');
             gameActive = true;
             gameTime = 120;
-            spawnTarget();
+
+            if (currentGameMode === 'bigmouth') {
+                document.getElementById('mission-timer').classList.add('hidden');
+                document.getElementById('standard-score').classList.add('hidden');
+                document.getElementById('bigmouth-score').classList.remove('hidden');
+                document.getElementById('snap-settings-btn').classList.add('hidden');
+                document.getElementById('recalib-btn').classList.add('hidden');
+                
+                // Keep camera hidden in Big Mouth
+                const videoContainer = document.getElementById('webgazerVideoContainer');
+                if (videoContainer) videoContainer.style.setProperty('display', 'none', 'important');
+                
+                goodPoints = 0;
+                badPoints = 0;
+                updateBigMouthScore();
+                spawnFood();
+            } else {
+                document.getElementById('mission-timer').classList.remove('hidden');
+                document.getElementById('standard-score').classList.remove('hidden');
+                document.getElementById('bigmouth-score').classList.add('hidden');
+                document.getElementById('snap-settings-btn').classList.remove('hidden');
+                document.getElementById('recalib-btn').classList.remove('hidden');
+                
+                spawnTarget();
+            }
 
             if (missionInterval) clearInterval(missionInterval);
             missionInterval = setInterval(() => {
@@ -946,10 +991,86 @@
             }, 1000);
         }
 
+        function updateBigMouthScore() {
+            document.getElementById('good-points').innerText = goodPoints;
+            document.getElementById('bad-points').innerText = badPoints;
+        }
+
+        function spawnFood() {
+            if (!gameActive || currentGameMode !== 'bigmouth') return;
+
+            const isHealthy = Math.random() > 0.4;
+            const foodList = isHealthy ? healthyFoods : badFoods;
+            const emoji = foodList[Math.floor(Math.random() * foodList.length)];
+
+            const food = document.createElement('div');
+            food.className = 'target food-item';
+            food.style.fontSize = '40px';
+            food.innerText = emoji;
+            food.dataset.type = isHealthy ? 'healthy' : 'bad';
+
+            const rect = gameContainer.getBoundingClientRect();
+            const x = Math.random() * (rect.width - 100) + 50;
+            const y = Math.random() * (rect.height - 100) + 50;
+
+            food.style.left = x + 'px';
+            food.style.top = y + 'px';
+            food.dataset.x = x;
+            food.dataset.y = y;
+            food.dataset.vx = (Math.random() - 0.5) * 3;
+            food.dataset.vy = (Math.random() - 0.5) * 3;
+
+            updateTargetVirtualPos(food);
+            gameContainer.appendChild(food);
+            targets.push(food);
+
+            // Spawn another food soon
+            if (targets.length < 5) {
+                setTimeout(spawnFood, 1000 + Math.random() * 2000);
+            }
+        }
+
+        function destroyFood(food, eaten) {
+            if (eaten) {
+                if (food.dataset.type === 'healthy') {
+                    goodPoints++;
+                } else {
+                    badPoints++;
+                }
+                updateBigMouthScore();
+                
+                // Visual feedback for eating
+                food.style.transition = 'all 0.3s ease-out';
+                food.style.transform = 'scale(2)';
+                food.style.opacity = '0';
+                setTimeout(() => food.remove(), 300);
+            } else {
+                food.remove();
+            }
+            
+            targets = targets.filter(t => t !== food);
+            if (gameActive && currentGameMode === 'bigmouth') {
+                setTimeout(spawnFood, 500);
+            }
+        }
+
         function endMission() {
             gameActive = false;
             clearInterval(missionInterval);
-            document.getElementById('rest-overlay').classList.remove('hidden');
+            
+            const restOverlay = document.getElementById('rest-overlay');
+            const completionTitle = restOverlay.querySelector('h2');
+            const completionText = restOverlay.querySelector('p:nth-of-type(1)');
+            
+            if (currentGameMode === 'bigmouth') {
+                completionTitle.innerText = "Big Mouth Summary";
+                completionText.innerHTML = `Good Food: <span class="text-green-400">${goodPoints}</span><br>Bad Food: <span class="text-red-400">${badPoints}</span>`;
+            } else {
+                completionTitle.innerText = "Mission Complete";
+                completionText.innerText = "Great work, Hero.";
+            }
+            
+            restOverlay.classList.remove('hidden');
             let restTime = 30;
             const restCounter = document.getElementById('rest-timer');
             const nextBtn = document.getElementById('next-mission-btn');
@@ -981,7 +1102,7 @@
             let displayX = cursorX;
             let displayY = cursorY;
 
-            if (snappingEnabled) {
+            if (snappingEnabled && currentGameMode !== 'bigmouth') {
                 // Find nearest target for visual snapping
                 let nearestTarget = null;
                 let minDist = snapRange;
@@ -1180,28 +1301,36 @@
                     const dy = cursorY - ty;
                     const distance = Math.sqrt(dx * dx + dy * dy);
 
-                    // Damage only if roaring
-                    if (distance < 100 && isRoaring) {
-                        if (!target.dataset.gazeStart) target.dataset.gazeStart = now;
-
-                        const elapsed = now - parseInt(target.dataset.gazeStart);
-                        const progress = Math.min(elapsed / requiredDuration, 1);
-
-                        const scale = 1 + (progress * 0.4);
-                        const r = Math.round(59 + (180 * progress));
-                        const g = Math.round(130 - (62 * progress));
-                        const b = Math.round(246 - (178 * progress));
-
-                        target.style.transform = `scale(${scale})`;
-                        target.style.backgroundColor = `rgb(${r}, ${g}, ${b})`;
-                        target.style.boxShadow = `0 0 ${15 + (25 * progress)}px rgb(${r}, ${g}, ${b})`;
-
-                        if (progress === 1) destroyTarget(target);
+                    if (currentGameMode === 'bigmouth') {
+                        // Big Mouth eating mechanic: hover + mouth open
+                        if (distance < 60 && mouthOpenness > 0.4) {
+                            destroyFood(target, true);
+                        }
                     } else {
-                        target.dataset.gazeStart = "";
-                        target.style.transform = 'scale(1)';
-                        target.style.backgroundColor = '#3b82f6';
-                        target.style.boxShadow = '0 0 15px #3b82f6';
+                        // Standard mode: damage only if roaring
+                        if (distance < 100 && isRoaring) {
+                            if (!target.dataset.gazeStart) target.dataset.gazeStart = now;
+
+                            const elapsed = now - parseInt(target.dataset.gazeStart);
+                            const requiredDuration = 1000;
+                            const progress = Math.min(elapsed / requiredDuration, 1);
+
+                            const scale = 1 + (progress * 0.4);
+                            const r = Math.round(59 + (180 * progress));
+                            const g = Math.round(130 - (62 * progress));
+                            const b = Math.round(246 - (178 * progress));
+
+                            target.style.transform = `scale(${scale})`;
+                            target.style.backgroundColor = `rgb(${r}, ${g}, ${b})`;
+                            target.style.boxShadow = `0 0 ${15 + (25 * progress)}px rgb(${r}, ${g}, ${b})`;
+
+                            if (progress === 1) destroyTarget(target);
+                        } else {
+                            target.dataset.gazeStart = "";
+                            target.style.transform = 'scale(1)';
+                            target.style.backgroundColor = '#3b82f6';
+                            target.style.boxShadow = '0 0 15px #3b82f6';
+                        }
                     }
                 });
             }
