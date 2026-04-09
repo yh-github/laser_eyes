@@ -416,6 +416,15 @@
             <label class="menu-label">Range</label>
             <input type="range" id="snap-range" class="snap-slider" min="50" max="300" value="150">
             
+            <label class="menu-label">Diagnostic Tools</label>
+            <div class="flex items-center justify-between mb-4">
+                <span class="text-[10px] text-gray-400">Show Tracking Dots</span>
+                <label class="toggle-switch">
+                    <input type="checkbox" id="debug-landmarks-toggle">
+                    <span class="slider-round"></span>
+                </label>
+            </div>
+
             <p class="text-[9px] text-gray-500 italic mt-2 opacity-60">Higher range makes snapping initiate from further away.</p>
         </div>
 
@@ -468,6 +477,26 @@
         let gameActive = false;
         let missionInterval;
 
+        // Facial Expression Baselines (Neutral Face)
+        const neutralBaselines = {
+            mouthWidth: 0,
+            mouthHeight: 0,
+            eyeHeight: 0,
+            faceWidth: 0,
+            captured: false
+        };
+
+        let showDebugLandmarks = false;
+        const debugCanvas = document.createElement('canvas');
+        debugCanvas.id = 'debug-landmark-canvas';
+        debugCanvas.style.position = 'absolute';
+        debugCanvas.style.top = '0';
+        debugCanvas.style.left = '0';
+        debugCanvas.style.width = '100%';
+        debugCanvas.style.height = '100%';
+        debugCanvas.style.zIndex = '5';
+        debugCanvas.style.pointerEvents = 'none';
+
         // Snapping Config
         let snappingEnabled = true;
         let snapStrength = 0.6;
@@ -480,6 +509,9 @@
         const snapToggle = document.getElementById('snap-toggle');
         const snapStrengthSlider = document.getElementById('snap-strength');
         const snapRangeSlider = document.getElementById('snap-range');
+        const debugToggle = document.getElementById('debug-landmarks-toggle');
+
+        debugToggle.addEventListener('change', (e) => showDebugLandmarks = e.target.checked);
 
         snapBtn.addEventListener('click', (e) => {
             e.stopPropagation();
@@ -556,10 +588,11 @@
                 
                 await webgazer.begin();
                 
-                // Move video preview inside the phone container to keep it "inside the floor"
+                // Move video preview inside the phone container
                 const videoContainer = document.getElementById('webgazerVideoContainer');
                 if (videoContainer) {
                     appContainer.appendChild(videoContainer);
+                    videoContainer.appendChild(debugCanvas);
                 }
                 
                 webgazer.showVideoPreview(true)
@@ -679,7 +712,23 @@
                 
                 if (navigator.vibrate) navigator.vibrate(50);
 
+                // Capture neutral baseline at the very end of calibration
                 setTimeout(() => {
+                    const positions = webgazer.getTracker().getPositions();
+                    if (positions && positions.length > 60) {
+                        const p1 = positions[1];
+                        const p13 = positions[13];
+                        const faceW = Math.sqrt(Math.pow(p13[0]-p1[0], 2) + Math.pow(p13[1]-p1[1], 2));
+                        
+                        neutralBaselines.faceWidth = faceW;
+                        neutralBaselines.mouthWidth = Math.sqrt(Math.pow(positions[50][0]-positions[44][0], 2) + Math.pow(positions[50][1]-positions[44][1], 2)) / faceW;
+                        neutralBaselines.mouthHeight = Math.abs(positions[60][1] - positions[57][1]) / faceW;
+                        neutralBaselines.eyeHeight = (Math.abs(positions[24][1] - positions[28][1]) + Math.abs(positions[29][1] - positions[31][1])) / (2 * faceW);
+                        neutralBaselines.captured = true;
+                        
+                        console.log("Neutral baselines captured:", neutralBaselines);
+                    }
+
                     crosshair.remove();
                     calibNoseDot.style.display = 'none';
                     calibOverlay.classList.add('hidden');
@@ -734,13 +783,13 @@
         }
 
         function updateLaser() {
-            // Firing check: only show laser if roaring or if we are not in game mode
-            if (!isRoaring && gameActive) {
+            // "Pilot Light" logic: The laser is ALWAYS visible if the game is active.
+            // But it's small/sharp when not roaring, and a big beam when roaring.
+            if (!gameActive) {
                 laserDot.style.display = 'none';
                 return;
-            } else {
-                laserDot.style.display = 'block';
             }
+            laserDot.style.display = 'block';
             
             let displayX = cursorX;
             let displayY = cursorY;
@@ -774,12 +823,17 @@
 
                     displayX += (Math.random() - 0.5) * (5 * distanceFactor);
                     displayY += (Math.random() - 0.5) * (5 * distanceFactor);
-                    laserDot.style.scale = 1 + (0.5 * distanceFactor) + Math.random() * 0.2;
+                    
+                    // Beam expansion logic
+                    const expansion = isRoaring ? (1 + mouthOpenness*1.5) : 1;
+                    laserDot.style.scale = (1 + (0.5 * distanceFactor) + Math.random() * 0.2) * expansion;
                 } else {
-                    laserDot.style.scale = 1;
+                    const expansion = isRoaring ? (1 + mouthOpenness*1.5) : 1;
+                    laserDot.style.scale = expansion;
                 }
             } else {
-                laserDot.style.scale = 1;
+                const expansion = isRoaring ? (1 + mouthOpenness*1.5) : 1;
+                laserDot.style.scale = expansion;
             }
 
             laserDot.style.left = displayX + 'px';
@@ -787,11 +841,18 @@
             
             // Visual feedback for firing strength
             if (isRoaring) {
-                laserDot.style.boxShadow = `0 0 30px 10px rgba(0, 242, 255, ${0.5 + mouthOpenness})`;
-                laserDot.style.background = `rgba(255, 255, 255, ${0.8 + mouthOpenness*0.2})`;
-            } else {
-                laserDot.style.boxShadow = `0 0 10px 2px #00f2ff, 0 0 25px 8px #00f2ff, 0 0 45px 15px rgba(0, 242, 255, 0.4)`;
+                // Large beam effect
+                const glow = 20 + (mouthOpenness * 40);
+                laserDot.style.boxShadow = `0 0 ${glow}px ${glow/3}px rgba(0, 242, 255, ${0.4 + mouthOpenness})`;
                 laserDot.style.background = `#fff`;
+                laserDot.style.width = '20px';
+                laserDot.style.height = '20px';
+            } else {
+                // "Pilot Light" mode: sharp micro-dot
+                laserDot.style.boxShadow = `0 0 10px 2px #00f2ff, 0 0 20px rgba(0, 242, 255, 0.4)`;
+                laserDot.style.background = `white`;
+                laserDot.style.width = '8px';
+                laserDot.style.height = '8px';
             }
         }
 
@@ -913,54 +974,71 @@
             try {
                 positions = webgazer.getTracker().getPositions();
             } catch(e) { return; }
-            if (!positions || positions.length < 60) return;
+            if (!positions || positions.length < 65) return;
 
-            // 1. Mouth Openness (Roar)
-            // Points: 60 (top inner lip), 57 (bottom inner lip)
-            // Or 47 (top outer), 53 (bottom outer)
-            // We'll use 60 and 57 for inner mouth opening
+            // Debug landmarks
+            if (showDebugLandmarks) {
+                const ctx = debugCanvas.getContext('2d');
+                debugCanvas.width = debugCanvas.clientWidth;
+                debugCanvas.height = debugCanvas.clientHeight;
+                ctx.clearRect(0, 0, debugCanvas.width, debugCanvas.height);
+                ctx.fillStyle = "#00f2ff";
+                ctx.font = "6px sans-serif";
+                positions.forEach((p, i) => {
+                    ctx.beginPath();
+                    ctx.arc(p[0], p[1], 1, 0, Math.PI*2);
+                    ctx.fill();
+                    ctx.fillText(i, p[0]+2, p[1]);
+                });
+            }
+
+            // 1. Face Width (Normalization anchor)
+            // Points 1 and 13 are jaw corners
+            const p1 = positions[1];
+            const p13 = positions[13];
+            const faceWidth = Math.sqrt(Math.pow(p13[0]-p1[0], 2) + Math.pow(p13[1]-p1[1], 2));
+
+            // 2. Mouth Openness (Roar)
             const p60 = positions[60];
             const p57 = positions[57];
-            const rawMouthDist = Math.abs(p60[1] - p57[1]);
+            const currentMouthHeight = Math.abs(p60[1] - p57[1]) / faceWidth;
+            
+            // Use baseline if available
+            const baseMouthH = neutralBaselines.captured ? neutralBaselines.mouthHeight : 0.05;
+            mouthOpenness = Math.min(Math.max(currentMouthHeight - baseMouthH, 0) / 0.15, 1);
 
-            // 2. Smile Strength
-            // Points: 44 (left corner), 50 (right corner)
+            // 3. Smile Strength
             const p44 = positions[44];
             const p50 = positions[50];
-            const mouthWidth = Math.sqrt(Math.pow(p50[0]-p44[0], 2) + Math.pow(p50[1]-p44[1], 2));
-
-            // 3. Eye Distance (Normalization factor)
-            // Left Eye: 27, Right Eye: 32 (Approximated centers or edges)
-            // Consistent reference to handle distance to camera
-            const p27 = positions[27];
-            const p32 = positions[32];
-            const eyeDist = Math.sqrt(Math.pow(p32[0]-p27[0], 2) + Math.pow(p32[1]-p27[1], 2));
-
-            // Normalized Values
-            mouthOpenness = Math.min(rawMouthDist / (eyeDist * 0.5), 1);
-            smileStrength = Math.min(Math.max((mouthWidth / eyeDist) - 0.8, 0) / 0.5, 1);
+            const currentMouthWidth = Math.sqrt(Math.pow(p50[0]-p44[0], 2) + Math.pow(p50[1]-p44[1], 2)) / faceWidth;
             
-            // 4. Eye Openness (Blink)
-            // Simple vertical distance of eyelids
-            const p24 = positions[24]; // Left eye top
-            const p26 = positions[26]; // Left eye bottom
-            const eyeOpenDist = Math.abs(p24[1] - p26[1]);
-            eyeRatio = Math.min(eyeOpenDist / (eyeDist * 0.2), 1);
+            const baseMouthW = neutralBaselines.captured ? neutralBaselines.mouthWidth : 0.35;
+            smileStrength = Math.min(Math.max(currentMouthWidth - baseMouthW, 0) / 0.1, 1);
+            
+            // 4. Squint/Blink
+            // Left eye: 24 (top), 28 (bottom). Right eye: 29 (top), 31 (bottom)
+            const eyeH = (Math.abs(positions[24][1] - positions[28][1]) + Math.abs(positions[29][1] - positions[31][1])) / (2 * faceWidth);
+            const baseEyeH = neutralBaselines.captured ? neutralBaselines.eyeHeight : 0.04;
+            
+            // eyeRatio: 1 is wide open, close to 0 is shut.
+            // We flip it for the progress bar logic: active when closed.
+            const rawEyeRatio = eyeH / baseEyeH;
+            eyeRatio = 1 - Math.min(Math.max(rawEyeRatio - 0.3, 0) / 0.7, 1);
 
-            // Update UI
+            // Update UI Gauges
             gaugeMouth.style.width = (mouthOpenness * 100) + '%';
             gaugeSmile.style.width = (smileStrength * 100) + '%';
             gaugeEyes.style.width = (eyeRatio * 100) + '%';
 
             // Active States
-            isRoaring = mouthOpenness > 0.4;
+            isRoaring = mouthOpenness > 0.3; // Lowered threshold for sensitivity
             if (isRoaring) gaugeMouth.classList.add('active');
             else gaugeMouth.classList.remove('active');
 
-            if (smileStrength > 0.6) gaugeSmile.classList.add('active');
+            if (smileStrength > 0.5) gaugeSmile.classList.add('active');
             else gaugeSmile.classList.remove('active');
 
-            if (eyeRatio < 0.2) gaugeEyes.classList.add('active'); // Close = Active (Blink)
+            if (eyeRatio > 0.7) gaugeEyes.classList.add('active'); // "Blink Active" when highly closed
             else gaugeEyes.classList.remove('active');
         }
 
