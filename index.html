@@ -611,12 +611,6 @@
                     <div id="gauge-tilt" class="hud-bar-fill"></div>
                 </div>
             </div>
-            <div class="hud-gauge">
-                <span class="hud-label">Nod (Depth)</span>
-                <div class="hud-bar-bg">
-                    <div id="gauge-nod" class="hud-bar-fill"></div>
-                </div>
-            </div>
         </div>
 
         <!-- Elements moved inside container -->
@@ -673,6 +667,7 @@
             mouthHeight: 0,
             eyebrowDist: 0,
             noseToChin: 0,
+            baseTiltAngle: 0,
             captured: false
         };
 
@@ -748,7 +743,6 @@
         let puckerStrength = 0;
         let eyebrowRaise = 0;
         let headTilt = 0;
-        let nodStrength = 0;
         let isRoaring = false;
 
         const facialHud = document.getElementById('facial-hud');
@@ -756,7 +750,6 @@
         const gaugeEyebrows = document.getElementById('gauge-eyebrows');
         const gaugePucker = document.getElementById('gauge-pucker');
         const gaugeTilt = document.getElementById('gauge-tilt');
-        const gaugeNod = document.getElementById('gauge-nod');
 
         // Persist model data across sessions (prevents re-training on reload)
         window.saveDataAcrossSessions = true;
@@ -937,6 +930,11 @@
                         neutralBaselines.mouthHeight = Math.abs(positions[60][1] - positions[57][1]) / faceW;
                         neutralBaselines.eyebrowDist = getDistance(positions[16], positions[24]) / faceH;
                         neutralBaselines.noseToChin = getDistance(positions[62], positions[7]) / faceH;
+                        
+                        const dy = positions[32][1] - positions[27][1];
+                        const dx = positions[32][0] - positions[27][0];
+                        neutralBaselines.baseTiltAngle = Math.atan2(dy, dx) * (180 / Math.PI);
+
                         neutralBaselines.captured = true;
 
                         console.log("Neutral baselines captured:", neutralBaselines);
@@ -1375,43 +1373,41 @@
             // 2. Roar (Mouth Open)
             const currentMouthHeight = Math.abs(positions[60][1] - positions[57][1]) / faceWidth;
             const baseMouthH = neutralBaselines.captured ? neutralBaselines.mouthHeight : 0.05;
-            mouthOpenness = Math.min(Math.max(currentMouthHeight - baseMouthH, 0) / 0.15, 1);
+            const targetMouthOpenness = Math.min(Math.max(currentMouthHeight - baseMouthH, 0) / 0.15, 1);
+            mouthOpenness = mouthOpenness * 0.7 + targetMouthOpenness * 0.3;
 
             // 3. Eyebrow Raise (Surprise)
             const currentEyebrowDist = getDistance(positions[16], positions[24]) / faceHeight;
             const baseEyebrowDist = neutralBaselines.captured ? neutralBaselines.eyebrowDist : 0.08;
-            // threshold: 20%+ increase
-            eyebrowRaise = Math.min(Math.max((currentEyebrowDist / baseEyebrowDist) - 1, 0) / 0.25, 1);
+            // threshold: 35%+ increase (more deliberate)
+            const targetEyebrowRaise = Math.min(Math.max((currentEyebrowDist / baseEyebrowDist) - 1, 0) / 0.35, 1);
+            eyebrowRaise = eyebrowRaise * 0.7 + targetEyebrowRaise * 0.3;
 
             // 4. Pucker (O-Face)
             const currentMouthWidth = getDistance(positions[44], positions[50]) / faceWidth;
             const baseMouthW = neutralBaselines.captured ? neutralBaselines.mouthWidth : 0.35;
-            // threshold: shrinks significantly (25-30%)
-            puckerStrength = Math.min(Math.max(1 - (currentMouthWidth / baseMouthW), 0) / 0.3, 1);
+            // threshold: 40% shrinkage (more deliberate)
+            const targetPuckerStrength = Math.min(Math.max(1 - (currentMouthWidth / baseMouthW), 0) / 0.4, 1);
+            puckerStrength = puckerStrength * 0.7 + targetPuckerStrength * 0.3;
 
             // 5. Head Tilt
             const dy = positions[32][1] - positions[27][1];
             const dx = positions[32][0] - positions[27][0];
-            const angleDegrees = Math.atan2(dy, dx) * (180 / Math.PI);
-            // Threshold +/- 15 degrees
-            headTilt = Math.min(Math.max(Math.abs(angleDegrees) / 15, 0), 1);
-
-            // 6. Deep Nod
-            const currentNoseToChin = getDistance(positions[62], positions[7]) / faceHeight;
-            const baseNoseToChin = neutralBaselines.captured ? neutralBaselines.noseToChin : 0.22;
-            // threshold: compresses heavily
-            nodStrength = Math.min(Math.max(1 - (currentNoseToChin / baseNoseToChin), 0) / 0.2, 1);
+            const currentAngle = Math.atan2(dy, dx) * (180 / Math.PI);
+            const relativeAngle = currentAngle - (neutralBaselines.captured ? neutralBaselines.baseTiltAngle : 0);
+            // Threshold +/- 20 degrees
+            const targetHeadTilt = Math.min(Math.max(Math.abs(relativeAngle) / 20, 0), 1);
+            headTilt = headTilt * 0.8 + targetHeadTilt * 0.2; // Extra smooth
 
             // Update UI Gauges
             gaugeMouth.style.width = (mouthOpenness * 100) + '%';
             gaugeEyebrows.style.width = (eyebrowRaise * 100) + '%';
             gaugePucker.style.width = (puckerStrength * 100) + '%';
             gaugeTilt.style.width = (headTilt * 100) + '%';
-            gaugeNod.style.width = (nodStrength * 100) + '%';
 
             // Active States (Trigger Firing)
-            const isEyebrowRaised = eyebrowRaise > 0.5;
-            const isPuckering = puckerStrength > 0.5;
+            const isEyebrowRaised = eyebrowRaise > 0.6;
+            const isPuckering = puckerStrength > 0.7;
             const isMouthOpen = mouthOpenness > 0.3;
             
             // Firing is triggered by any of these deliberate actions
@@ -1422,7 +1418,6 @@
             if (isEyebrowRaised) gaugeEyebrows.classList.add('active'); else gaugeEyebrows.classList.remove('active');
             if (isPuckering) gaugePucker.classList.add('active'); else gaugePucker.classList.remove('active');
             if (headTilt > 0.8) gaugeTilt.classList.add('active'); else gaugeTilt.classList.remove('active');
-            if (nodStrength > 0.8) gaugeNod.classList.add('active'); else gaugeNod.classList.remove('active');
         }
 
         function updateNoseTracking() {
