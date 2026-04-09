@@ -191,6 +191,84 @@
                 0 0 45px 15px rgba(0, 242, 255, 0.4);
             border: 1px solid #e0ffff;
         }
+        /* Snapping Menu Styles */
+        #snap-menu {
+            position: absolute;
+            top: 110px;
+            right: 24px;
+            width: 200px;
+            background: rgba(0, 0, 0, 0.85);
+            backdrop-filter: blur(12px);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 1.5rem;
+            padding: 1.25rem;
+            z-index: 100;
+            display: none;
+            box-shadow: 0 15px 35px rgba(0,0,0,0.5);
+            transform-origin: top right;
+        }
+        #snap-menu.active {
+            display: block;
+            animation: menu-pop 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+        }
+        @keyframes menu-pop {
+            from { opacity: 0; transform: scale(0.8) translateY(-10px); }
+            to { opacity: 1; transform: scale(1) translateY(0); }
+        }
+        .menu-label {
+            font-size: 0.7rem;
+            text-transform: uppercase;
+            letter-spacing: 0.1em;
+            color: #94a3b8;
+            margin-bottom: 0.5rem;
+            display: block;
+        }
+        .snap-slider {
+            -webkit-appearance: none;
+            appearance: none;
+            width: 100%;
+            height: 4px;
+            border-radius: 2px;
+            background: #334155;
+            outline: none;
+            margin-bottom: 1.25rem;
+        }
+        .snap-slider::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            appearance: none;
+            width: 16px;
+            height: 16px;
+            border-radius: 50%;
+            background: #22d3ee;
+            cursor: pointer;
+            box-shadow: 0 0 10px rgba(34, 211, 238, 0.5);
+        }
+        .toggle-switch {
+            position: relative;
+            display: inline-block;
+            width: 40px;
+            height: 20px;
+        }
+        .toggle-switch input { opacity: 0; width: 0; height: 0; }
+        .slider-round {
+            position: absolute;
+            cursor: pointer;
+            top: 0; left: 0; right: 0; bottom: 0;
+            background-color: #334155;
+            transition: .4s;
+            border-radius: 20px;
+        }
+        .slider-round:before {
+            position: absolute;
+            content: "";
+            height: 14px; width: 14px;
+            left: 3px; bottom: 3px;
+            background-color: white;
+            transition: .4s;
+            border-radius: 50%;
+        }
+        input:checked + .slider-round { background-color: #22d3ee; }
+        input:checked + .slider-round:before { transform: translateX(20px); }
     </style>
 </head>
 <body class="bg-black flex items-center justify-center text-white font-sans">
@@ -251,8 +329,36 @@
             </button>
         </div>
 
-        <div class="absolute top-6 right-6 z-40 text-xl font-bold text-gray-300 bg-black/50 px-4 py-1 rounded-full pointer-events-none border border-white/10">
-            Score: <span id="score" class="text-cyan-400">0</span>
+        <div class="absolute top-6 right-6 z-40 flex flex-col items-end gap-2">
+            <div class="text-xl font-bold text-gray-300 bg-black/50 px-4 py-1 rounded-full pointer-events-none border border-white/10">
+                Score: <span id="score" class="text-cyan-400">0</span>
+            </div>
+            <div class="flex gap-2">
+                <button id="camera-toggle-btn" class="bg-black/50 hover:bg-black/80 text-white p-2 rounded-full text-lg border border-white/10 transition-all active:scale-95 shadow-lg" title="Toggle Camera Feed">
+                    📷
+                </button>
+                <button id="snap-settings-btn" class="bg-black/50 hover:bg-black/80 text-white p-2 rounded-full text-lg border border-white/10 transition-all active:scale-95 shadow-lg" title="Snapping Settings">
+                    🧲
+                </button>
+            </div>
+        </div>
+
+        <div id="snap-menu" class="hidden">
+            <div class="flex items-center justify-between mb-6">
+                <span class="text-xs font-bold tracking-widest uppercase text-cyan-400">Settings</span>
+                <label class="toggle-switch">
+                    <input type="checkbox" id="snap-toggle" checked>
+                    <span class="slider-round"></span>
+                </label>
+            </div>
+            
+            <label class="menu-label">Strength</label>
+            <input type="range" id="snap-strength" class="snap-slider" min="0" max="100" value="60">
+            
+            <label class="menu-label">Range</label>
+            <input type="range" id="snap-range" class="snap-slider" min="50" max="300" value="150">
+            
+            <p class="text-[9px] text-gray-500 italic mt-2 opacity-60">Higher range makes snapping initiate from further away.</p>
         </div>
 
         <div id="game-container" class="relative w-full h-full"></div>
@@ -284,7 +390,42 @@
         let isGazerStarted = false;
 
         // Snapping Config
-        const SNAPPING_DISTANCE = 150;
+        let snappingEnabled = true;
+        let snapStrength = 0.6;
+        let snapRange = 150;
+
+        // UI Listeners
+        const snapMenu = document.getElementById('snap-menu');
+        const snapBtn = document.getElementById('snap-settings-btn');
+        const camBtn = document.getElementById('camera-toggle-btn');
+        const snapToggle = document.getElementById('snap-toggle');
+        const snapStrengthSlider = document.getElementById('snap-strength');
+        const snapRangeSlider = document.getElementById('snap-range');
+
+        snapBtn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            snapMenu.classList.toggle('active');
+            snapMenu.classList.toggle('hidden');
+        });
+
+        camBtn.addEventListener('click', () => {
+            const videoContainer = document.getElementById('webgazerVideoContainer');
+            if (videoContainer) {
+                const isHidden = videoContainer.style.getPropertyValue('display') === 'none';
+                videoContainer.style.setProperty('display', isHidden ? 'block' : 'none', 'important');
+            }
+        });
+
+        document.addEventListener('click', (e) => {
+            if (!snapMenu.contains(e.target) && e.target !== snapBtn) {
+                snapMenu.classList.remove('active');
+                snapMenu.classList.add('hidden');
+            }
+        });
+
+        snapToggle.addEventListener('change', (e) => snappingEnabled = e.target.checked);
+        snapStrengthSlider.addEventListener('input', (e) => snapStrength = e.target.value / 100);
+        snapRangeSlider.addEventListener('input', (e) => snapRange = parseInt(e.target.value));
 
         // Nose tracking state
         let noseCenter = {x: 0, y: 0};
@@ -471,34 +612,42 @@
             let displayX = cursorX;
             let displayY = cursorY;
 
-            // Find nearest target for visual snapping
-            let nearestTarget = null;
-            let minDist = SNAPPING_DISTANCE;
+            if (snappingEnabled) {
+                // Find nearest target for visual snapping
+                let nearestTarget = null;
+                let minDist = snapRange;
 
-            targets.forEach(target => {
-                const tx = parseFloat(target.dataset.vpX);
-                const ty = parseFloat(target.dataset.vpY);
-                const dx = cursorX - tx;
-                const dy = cursorY - ty;
-                const dist = Math.sqrt(dx * dx + dy * dy);
-                if (dist < minDist) {
-                    minDist = dist;
-                    nearestTarget = target;
+                targets.forEach(target => {
+                    const tx = parseFloat(target.dataset.vpX);
+                    const ty = parseFloat(target.dataset.vpY);
+                    const dx = cursorX - tx;
+                    const dy = cursorY - ty;
+                    const dist = Math.sqrt(dx * dx + dy * dy);
+                    if (dist < minDist) {
+                        minDist = dist;
+                        nearestTarget = target;
+                    }
+                });
+
+                if (nearestTarget) {
+                    const tx = parseFloat(nearestTarget.dataset.vpX);
+                    const ty = parseFloat(nearestTarget.dataset.vpY);
+                    
+                    // Smooth implementation: weight based on distance
+                    // weight is 0 at edge of snapRange, reaches full snapStrength at center
+                    const distanceFactor = Math.pow(1 - (minDist / snapRange), 1.5);
+                    const weight = snapStrength * distanceFactor;
+                    
+                    displayX = cursorX * (1 - weight) + tx * weight;
+                    displayY = cursorY * (1 - weight) + ty * weight;
+
+                    // Add "Locked" jitter effect - proportional to lock strength
+                    displayX += (Math.random() - 0.5) * (5 * distanceFactor);
+                    displayY += (Math.random() - 0.5) * (5 * distanceFactor);
+                    laserDot.style.scale = 1 + (0.5 * distanceFactor) + Math.random() * 0.2;
+                } else {
+                    laserDot.style.scale = 1;
                 }
-            });
-
-            if (nearestTarget) {
-                const tx = parseFloat(nearestTarget.dataset.vpX);
-                const ty = parseFloat(nearestTarget.dataset.vpY);
-                // Smooth interpolation towards target
-                const weight = 0.6;
-                displayX = cursorX * (1 - weight) + tx * weight;
-                displayY = cursorY * (1 - weight) + ty * weight;
-
-                // Add "Locked" jitter effect
-                displayX += (Math.random() - 0.5) * 5;
-                displayY += (Math.random() - 0.5) * 5;
-                laserDot.style.scale = 1.2 + Math.random() * 0.3;
             } else {
                 laserDot.style.scale = 1;
             }
