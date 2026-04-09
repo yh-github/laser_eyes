@@ -65,25 +65,35 @@
             position: absolute !important;
             top: 20px !important;
             left: 20px !important;
-            width: 140px !important;
-            height: 105px !important;
+            width: 160px !important;
+            height: 120px !important;
             z-index: 1000 !important;
-            border: 3px solid #00f2ff !important;
+            border: 2px solid #00f2ff !important;
             border-radius: 1rem !important;
             overflow: hidden !important;
             box-shadow: 0 10px 25px rgba(0,0,0,0.6) !important;
+            background: #000 !important;
         }
 
-        /* Hide the green bounding box but keep the wireframe mesh */
-        #webgazerVideoCanvas {
-            /* This is the face detection bounding box overlay — hide it */
-            display: none !important;
+        /* Hide the live video feed but keep the tracking overlays */
+        #webgazerVideoContainer video, 
+        #webgazerVideoFeed {
+            opacity: 0 !important;
+            visibility: hidden !important;
         }
-        #webgazerFaceOverlay {
-            /* This is the wireframe mesh — keep it visible */
+
+        /* Show the green bounding box and wireframe mesh */
+        #webgazerVideoCanvas, #webgazerFaceOverlay {
             display: block !important;
+            position: absolute !important;
+            top: 50% !important;
+            left: 50% !important;
+            transform: translate(-50%, -50%) !important;
+            width: auto !important;
+            height: 100% !important;
         }
-        /* Also hide WebGazer's default prediction point (we draw our own laser) */
+
+        /* Hide WebGazer's default prediction point */
         #webgazerGazeDot {
             display: none !important;
         }
@@ -114,9 +124,9 @@
             top: 50%;
             left: 50%;
             transform: translate(-50%, -50%);
-            width: 60px;
-            height: 60px;
-            border: 3px solid #00f2ff;
+            width: 80px;
+            height: 80px;
+            border: 4px solid #00f2ff;
             border-radius: 50%;
             animation: crosshair-pulse 1.2s ease-in-out infinite;
             z-index: 61;
@@ -211,16 +221,27 @@
             </div>
         </div>
 
-        <!-- Calibration Overlay -->
-        <div id="calib-overlay" class="absolute inset-0 z-[60] flex flex-col items-center justify-start bg-black/95 hidden">
-            <div id="nose-calib-ui" class="text-center p-10 mt-12 w-full">
-                <h2 id="calib-title" class="text-2xl font-bold text-cyan-400 mb-2">Nose Calibration</h2>
-                <p id="calib-status" class="text-white text-sm mb-2 font-semibold">Detecting your face...</p>
-                <div class="w-full h-1 bg-gray-800 rounded-full mx-auto overflow-hidden">
-                    <div id="nose-calib-progress" class="bg-cyan-500 h-full w-0 transition-all duration-100"></div>
+        <div id="calib-overlay" class="absolute inset-0 z-[60] flex flex-col items-center justify-center bg-black/95 hidden">
+            <div id="nose-calib-ui" class="flex flex-col items-center justify-center h-full w-full pointer-events-none">
+                <!-- Top Section (above crosshair) -->
+                <div class="text-center w-full px-10 mb-20 fade-in-up">
+                    <h2 id="calib-title" class="text-3xl font-bold text-cyan-400 mb-1">Calibration</h2>
+                    <p id="calib-status" class="text-white text-sm mb-4 font-semibold">Detecting face...</p>
+                    <div class="w-full h-1 bg-gray-800 rounded-full mx-auto overflow-hidden max-w-[200px]">
+                        <div id="nose-calib-progress" class="bg-cyan-500 h-full w-0 transition-all duration-100"></div>
+                    </div>
                 </div>
-                <p id="calib-pct" class="text-cyan-400/60 text-[10px] mt-1 font-mono">0%</p>
-                <p id="calib-hint" class="text-gray-500 mt-4 text-[10px] italic">Position your face in the camera & look at the center</p>
+
+                <!-- Center area (crosshair is here) -->
+                <div class="h-40"></div>
+
+                <!-- Bottom Section (below crosshair) -->
+                <div class="text-center w-full px-10 pointer-events-auto mt-20">
+                    <p id="calib-hint" class="text-gray-400 mb-8 text-[11px] italic">Look at the crosshair and hold still</p>
+                    <button id="skip-calib-btn" class="py-2.5 px-10 bg-cyan-900/20 hover:bg-cyan-900/40 text-cyan-400 rounded-full text-[11px] font-bold border border-cyan-500/30 transition-all active:scale-95 uppercase tracking-widest">
+                        Skip
+                    </button>
+                </div>
             </div>
         </div>
 
@@ -338,12 +359,10 @@
         function startNoseCalibration() {
             const calibStatus = document.getElementById('calib-status');
             const calibHint = document.getElementById('calib-hint');
-            const calibPct = document.getElementById('calib-pct');
             const progressBar = document.getElementById('nose-calib-progress');
             
             // Reset state
             progressBar.style.width = '0%';
-            calibPct.innerText = '0%';
             calibStatus.innerText = 'Detecting your face...';
             calibHint.innerText = 'Position your face in the camera';
             calibOverlay.classList.remove('hidden');
@@ -363,6 +382,8 @@
             let faceDetected = false;
             let waitingFrames = 0;
 
+            const skipBtn = document.getElementById('skip-calib-btn');
+            
             const calibInt = setInterval(() => {
                 let positions = null;
                 try {
@@ -400,7 +421,6 @@
                     
                     const pct = Math.round(noseCalibFrames / targetFrames * 100);
                     progressBar.style.width = pct + '%';
-                    calibPct.innerText = pct + '%';
 
                     if (noseCalibFrames >= Math.round(targetFrames * 0.5)) {
                         calibStatus.innerText = '⏳ Almost there...';
@@ -408,28 +428,35 @@
                 }
 
                 if (noseCalibFrames >= targetFrames) {
-                    clearInterval(calibInt);
-                    noseCenter.x = tempX / targetFrames;
-                    noseCenter.y = tempY / targetFrames;
-                    
-                    // Success feedback
-                    calibStatus.innerText = '🎯 Calibrated!';
-                    calibHint.innerText = 'Let\'s go!';
-                    progressBar.style.width = '100%';
-                    calibPct.innerText = '100%';
-                    
-                    // Haptic feedback on mobile
-                    if (navigator.vibrate) navigator.vibrate(50);
-
-                    // Brief pause to show success, then start
-                    setTimeout(() => {
-                        crosshair.remove();
-                        calibNoseDot.style.display = 'none';
-                        calibOverlay.classList.add('hidden');
-                        startGame();
-                    }, 500);
+                    finishCalib();
                 }
             }, 30);
+
+            const finishCalib = () => {
+                clearInterval(calibInt);
+                
+                // If we have some data, use even if incomplete. 
+                // WebGazer default resolution/center is usually around 320x240
+                noseCenter.x = (noseCalibFrames > 0) ? (tempX / noseCalibFrames) : 320;
+                noseCenter.y = (noseCalibFrames > 0) ? (tempY / noseCalibFrames) : 240;
+                
+                calibStatus.innerText = '🎯 Calibrated!';
+                calibHint.innerText = 'Let\'s go!';
+                progressBar.style.width = '100%';
+                
+                if (navigator.vibrate) navigator.vibrate(50);
+
+                setTimeout(() => {
+                    crosshair.remove();
+                    calibNoseDot.style.display = 'none';
+                    calibOverlay.classList.add('hidden');
+                    startGame();
+                }, 500);
+            };
+
+            skipBtn.onclick = () => {
+                finishCalib();
+            };
         }
 
         function startGame() {
