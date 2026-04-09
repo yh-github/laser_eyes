@@ -471,8 +471,8 @@
             justify-content: center;
         }
 
-        .boundary-line.top-10 { top: 10%; }
-        .boundary-line.bottom-10 { bottom: 10%; }
+        .boundary-line.top-15 { top: 15%; }
+        .boundary-line.bottom-15 { bottom: 15%; }
 
         .boundary-line span {
             font-size: 8px;
@@ -626,8 +626,8 @@
         </div>
 
         <!-- Vertical Boundaries -->
-        <div class="boundary-line top-10"><span>Off Limits</span></div>
-        <div class="boundary-line bottom-10"><span>Off Limits</span></div>
+        <div class="boundary-line top-15"></div>
+        <div class="boundary-line bottom-15"></div>
 
         <div id="game-container" class="relative w-full h-full"></div>
 
@@ -695,6 +695,7 @@
         let currentGameMode = 'standard'; // 'standard' or 'bigmouth'
         let goodPoints = 0;
         let badPoints = 0;
+        let allBadFoodsStartTime = 0;
 
         const healthyFoods = ['🍏', '🍎', '🍐', '🍊', '🍋', '🍌', '🍉', '🍇', '🍓', '🫐', '🍈', '🍒', '🍑', '🥭', '🍍', '🥥', '🥝', '🍅', '🍆', '🥑', '🥦', '🥬', '🥒', '🌽', '🥕', '🫑', '🥔', '🍠', '🥩', '🍗', '🍖', '🧀'];
         const badFoods = ['🍔', '🍟', '🍕', '🌭', '🥪', '🌮', '🌯', '🍿', '🍦', '🍧', '🍨', '🍩', '🍪', '🎂', '🍰', '🧁', '🥧', '🍫', '🍬', '🍭', '🍮'];
@@ -973,16 +974,11 @@
 
                         neutralBaselines.faceWidth = faceW;
                         neutralBaselines.faceHeight = faceH;
-                        neutralBaselines.mouthWidth = getDistance(positions[44], positions[50]) / faceW;
-                        neutralBaselines.mouthHeight = getDistance(positions[60], positions[57]) / faceW;
+                        neutralBaselines.mouthWidth = getDistance(positions[44], positions[50]);
+                        neutralBaselines.mouthHeight = getDistance(positions[60], positions[57]);
+                        neutralBaselines.baseMAR = neutralBaselines.mouthHeight / Math.max(neutralBaselines.mouthWidth, 1);
                         neutralBaselines.eyebrowDist = getDistance(positions[16], positions[24]) / faceH;
                         neutralBaselines.noseToChin = getDistance(positions[62], positions[7]) / faceH;
-                        
-                        // Capture neutral pitch ratio for correcting deformations when looking up/down
-                        const midEye = [(positions[27][0] + positions[32][0])/2, (positions[27][1] + positions[32][1])/2];
-                        const eyeToNose = getDistance(midEye, positions[62] || positions[37]);
-                        const noseToChin = getDistance(positions[62] || positions[37], positions[7]);
-                        neutralBaselines.pitchRatio = eyeToNose / Math.max(noseToChin, 1);
                         
                         const dy = positions[32][1] - positions[27][1];
                         const dx = positions[32][0] - positions[27][0];
@@ -1055,7 +1051,10 @@
 
             // Tutorial logic: only healthy food until minimum score reached
             const isTutorial = goodPoints < TUTORIAL_MIN_GOOD_SCORE;
-            const isHealthy = isTutorial || (Math.random() > 0.4);
+            
+            // Chances start heavily positive (90%), gradually shift towards 40% as game progresses
+            const healthyChance = Math.max(0.4, 0.9 - (goodPoints * 0.02));
+            const isHealthy = isTutorial || (Math.random() < healthyChance);
             const foodList = isHealthy ? healthyFoods : badFoods;
             const emoji = foodList[Math.floor(Math.random() * foodList.length)];
 
@@ -1066,8 +1065,8 @@
             food.dataset.type = isHealthy ? 'healthy' : 'bad';
 
             const rect = gameContainer.getBoundingClientRect();
-            const spawnMinY = rect.height * 0.1;
-            const spawnMaxY = rect.height * 0.9 - 70;
+            const spawnMinY = rect.height * 0.15;
+            const spawnMaxY = rect.height * 0.85 - 70;
             
             let x, y, dist;
             let attempts = 0;
@@ -1365,8 +1364,8 @@
                     let y = parseFloat(target.dataset.y) + parseFloat(target.dataset.vy) + jitterY;
 
                     // Bounce
-                    const minY = rect.height * 0.1;
-                    const maxY = rect.height * 0.9 - 70;
+                    const minY = rect.height * 0.15;
+                    const maxY = rect.height * 0.85 - 70;
 
                     if (x < 50 || x > rect.width - 100) target.dataset.vx *= -1;
                     if (y < minY || y > maxY) target.dataset.vy *= -1;
@@ -1417,6 +1416,31 @@
                         }
                     }
                 });
+
+                if (currentGameMode === 'bigmouth' && targets.length > 0) {
+                    const allBad = targets.every(t => t.dataset.type === 'bad');
+                    if (allBad) {
+                        if (allBadFoodsStartTime === 0) allBadFoodsStartTime = now;
+                        else if (now - allBadFoodsStartTime > 10000) {
+                            const numBad = targets.length;
+                            goodPoints += numBad;
+                            updateBigMouthScore();
+                            targets.forEach(t => {
+                                t.style.transition = 'all 0.3s ease-out';
+                                t.style.transform = 'scale(2)';
+                                t.style.opacity = '0';
+                                setTimeout(() => t.remove(), 300);
+                            });
+                            targets = [];
+                            allBadFoodsStartTime = 0;
+                            setTimeout(spawnFood, 500);
+                        }
+                    } else {
+                        allBadFoodsStartTime = 0;
+                    }
+                } else {
+                    allBadFoodsStartTime = 0;
+                }
             }
 
             updateFacialExpressions();
@@ -1452,28 +1476,14 @@
             const faceWidth = getDistance(positions[1], positions[13]);
             const faceHeight = getDistance(positions[33], positions[7]);
 
-            // 2. Roar (Mouth Open)
-            let currentMouthHeight = getDistance(positions[60], positions[57]) / faceWidth;
+            // 2. Roar (Mouth Open) Using MAR (Mouth Aspect Ratio)
+            const currentMouthHeight = getDistance(positions[60], positions[57]);
+            const currentMouthWidth = getDistance(positions[44], positions[50]);
+            const currentMAR = currentMouthHeight / Math.max(currentMouthWidth, 1);
             
-            // Apply pitch correction so looking UP (high false pos) or DOWN (high false neg) is compensated
-            if (neutralBaselines.captured && neutralBaselines.pitchRatio) {
-                const midEye = [(positions[27][0] + positions[32][0])/2, (positions[27][1] + positions[32][1])/2];
-                const eyeToNose = getDistance(midEye, positions[62] || positions[37]);
-                const noseToChin = getDistance(positions[62] || positions[37], positions[7]);
-                const currentPitchRatio = eyeToNose / Math.max(noseToChin, 1);
-                
-                // When looking down, pitchRatio increases (>1). We need a high multiplier to boost small mouth heights.
-                // When looking up, pitchRatio decreases (<1). We need a low multiplier to squash false positives.
-                let pitchCorrection = currentPitchRatio / neutralBaselines.pitchRatio;
-                
-                // Clamp correction to avoid wildly explosive values if landmarks glitch
-                pitchCorrection = Math.max(0.4, Math.min(pitchCorrection, 3.5));
-                
-                currentMouthHeight *= pitchCorrection;
-            }
-
-            const baseMouthH = neutralBaselines.captured ? neutralBaselines.mouthHeight : 0.05;
-            const targetMouthOpenness = Math.min(Math.max(currentMouthHeight - baseMouthH, 0) / 0.15, 1);
+            const baseMAR = neutralBaselines.captured ? neutralBaselines.baseMAR : 0.15;
+            // threshold of 0.35 above baseline required to be 100% "open"
+            const targetMouthOpenness = Math.min(Math.max(currentMAR - baseMAR, 0) / 0.35, 1);
             mouthOpenness = mouthOpenness * 0.7 + targetMouthOpenness * 0.3;
 
             // 3. Eyebrow Raise (Surprise)
@@ -1484,10 +1494,10 @@
             eyebrowRaise = eyebrowRaise * 0.7 + targetEyebrowRaise * 0.3;
 
             // 4. Pucker (O-Face)
-            const currentMouthWidth = getDistance(positions[44], positions[50]) / faceWidth;
-            const baseMouthW = neutralBaselines.captured ? neutralBaselines.mouthWidth : 0.35;
+            const puckerRatio = currentMouthWidth / faceWidth;
+            const basePuckerRatio = neutralBaselines.captured ? (neutralBaselines.mouthWidth / (neutralBaselines.faceWidth || faceWidth)) : 0.35;
             // threshold: 40% shrinkage (more deliberate)
-            const targetPuckerStrength = Math.min(Math.max(1 - (currentMouthWidth / baseMouthW), 0) / 0.4, 1);
+            const targetPuckerStrength = Math.min(Math.max(1 - (puckerRatio / basePuckerRatio), 0) / 0.4, 1);
             puckerStrength = puckerStrength * 0.7 + targetPuckerStrength * 0.3;
 
             // 5. Head Tilt
