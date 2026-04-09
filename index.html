@@ -1,26 +1,42 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>Laser Eyes</title>
     <script src="https://cdn.tailwindcss.com"></script>
-    <script src="https://cdn.jsdelivr.net/npm/webgazer@2.1.1/dist/webgazer.js" onerror="window.webgazerLoadError = true;"></script>
+    <script src="https://cdn.jsdelivr.net/npm/webgazer@2.1.1/dist/webgazer.js"
+        onerror="window.webgazerLoadError = true;"></script>
     <style>
-        body, html { 
+        body,
+        html {
             margin: 0;
             padding: 0;
             height: 100%;
             height: 100dvh;
             width: 100%;
-            touch-action: none; 
-            overflow: hidden; 
+            touch-action: none;
+            overflow: hidden;
         }
+
         @keyframes pulse-laser {
-            0% { transform: translate(-50%, -50%) scale(0.9); box-shadow: 0 0 10px 2px rgba(255, 0, 0, 0.6); }
-            50% { transform: translate(-50%, -50%) scale(1.2); box-shadow: 0 0 30px 10px rgba(255, 0, 0, 0.9); }
-            100% { transform: translate(-50%, -50%) scale(0.9); box-shadow: 0 0 10px 2px rgba(255, 0, 0, 0.6); }
+            0% {
+                transform: translate(-50%, -50%) scale(0.9);
+                box-shadow: 0 0 10px 2px rgba(255, 0, 0, 0.6);
+            }
+
+            50% {
+                transform: translate(-50%, -50%) scale(1.2);
+                box-shadow: 0 0 30px 10px rgba(255, 0, 0, 0.9);
+            }
+
+            100% {
+                transform: translate(-50%, -50%) scale(0.9);
+                box-shadow: 0 0 10px 2px rgba(255, 0, 0, 0.6);
+            }
         }
+
         #laser-dot {
             position: fixed;
             width: 16px;
@@ -31,12 +47,13 @@
             transform: translate(-50%, -50%);
             z-index: 10000;
             display: none;
-            box-shadow: 
+            box-shadow:
                 0 0 10px 2px #00f2ff,
                 0 0 25px 8px #00f2ff,
                 0 0 45px 15px rgba(0, 242, 255, 0.4);
             border: 1px solid #e0ffff;
         }
+
         .target {
             position: absolute;
             width: 70px;
@@ -51,14 +68,15 @@
             justify-content: center;
             border: 3px solid rgba(255, 255, 255, 0.2);
         }
+
         .target::after {
             content: '';
             width: 20px;
             height: 20px;
-            background: rgba(255,255,255,0.3);
+            background: rgba(255, 255, 255, 0.3);
             border-radius: 50%;
         }
-        
+
         /* Force WebGazer UI to be visible and styled */
         #webgazerVideoContainer {
             display: block !important;
@@ -71,19 +89,20 @@
             border: 2px solid #00f2ff !important;
             border-radius: 1rem !important;
             overflow: hidden !important;
-            box-shadow: 0 10px 25px rgba(0,0,0,0.6) !important;
+            box-shadow: 0 10px 25px rgba(0, 0, 0, 0.6) !important;
             background: #000 !important;
         }
 
         /* Hide the live video feed but keep the tracking overlays */
-        #webgazerVideoContainer video, 
+        #webgazerVideoContainer video,
         #webgazerVideoFeed {
             opacity: 0 !important;
             visibility: hidden !important;
         }
 
         /* Show the green bounding box and wireframe mesh */
-        #webgazerVideoCanvas, #webgazerFaceOverlay {
+        #webgazerVideoCanvas,
+        #webgazerFaceOverlay {
             display: block !important;
             position: absolute !important;
             top: 50% !important;
@@ -99,26 +118,38 @@
         }
 
         @keyframes target-flash {
-            0%, 100% { filter: brightness(1); }
-            50% { filter: brightness(1.8) saturate(1.5); }
+
+            0%,
+            100% {
+                filter: brightness(1);
+            }
+
+            50% {
+                filter: brightness(1.8) saturate(1.5);
+            }
         }
+
         .flashing {
             animation: target-flash 0.8s infinite ease-in-out;
         }
 
         /* Calibration crosshair */
         @keyframes crosshair-pulse {
-            0%, 100% { 
-                transform: translate(-50%, -50%) scale(1); 
+
+            0%,
+            100% {
+                transform: translate(-50%, -50%) scale(1);
                 opacity: 0.8;
                 box-shadow: 0 0 20px rgba(0, 242, 255, 0.3);
             }
-            50% { 
-                transform: translate(-50%, -50%) scale(1.15); 
+
+            50% {
+                transform: translate(-50%, -50%) scale(1.15);
                 opacity: 1;
                 box-shadow: 0 0 40px rgba(0, 242, 255, 0.6);
             }
         }
+
         .calib-crosshair {
             position: absolute;
             top: 50%;
@@ -131,12 +162,14 @@
             animation: crosshair-pulse 1.2s ease-in-out infinite;
             z-index: 61;
         }
+
         .calib-crosshair::before,
         .calib-crosshair::after {
             content: '';
             position: absolute;
             background: #00f2ff;
         }
+
         .calib-crosshair::before {
             width: 2px;
             height: 100%;
@@ -144,6 +177,7 @@
             top: 0;
             transform: translateX(-50%);
         }
+
         .calib-crosshair::after {
             height: 2px;
             width: 100%;
@@ -153,9 +187,17 @@
         }
 
         @keyframes fade-in-up {
-            from { opacity: 0; transform: translateY(10px); }
-            to { opacity: 1; transform: translateY(0); }
+            from {
+                opacity: 0;
+                transform: translateY(10px);
+            }
+
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
         }
+
         .fade-in-up {
             animation: fade-in-up 0.4s ease-out forwards;
         }
@@ -185,12 +227,13 @@
             transform: translate(-50%, -50%);
             z-index: 10000;
             display: none;
-            box-shadow: 
+            box-shadow:
                 0 0 10px 2px #00f2ff,
                 0 0 25px 8px #00f2ff,
                 0 0 45px 15px rgba(0, 242, 255, 0.4);
             border: 1px solid #e0ffff;
         }
+
         /* Snapping Menu Styles */
         #snap-menu {
             position: absolute;
@@ -204,17 +247,27 @@
             padding: 1.25rem;
             z-index: 100;
             display: none;
-            box-shadow: 0 15px 35px rgba(0,0,0,0.5);
+            box-shadow: 0 15px 35px rgba(0, 0, 0, 0.5);
             transform-origin: top right;
         }
+
         #snap-menu.active {
             display: block;
             animation: menu-pop 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
         }
+
         @keyframes menu-pop {
-            from { opacity: 0; transform: scale(0.8) translateY(-10px); }
-            to { opacity: 1; transform: scale(1) translateY(0); }
+            from {
+                opacity: 0;
+                transform: scale(0.8) translateY(-10px);
+            }
+
+            to {
+                opacity: 1;
+                transform: scale(1) translateY(0);
+            }
         }
+
         .menu-label {
             font-size: 0.7rem;
             text-transform: uppercase;
@@ -223,6 +276,7 @@
             margin-bottom: 0.5rem;
             display: block;
         }
+
         .snap-slider {
             -webkit-appearance: none;
             appearance: none;
@@ -233,6 +287,7 @@
             outline: none;
             margin-bottom: 1.25rem;
         }
+
         .snap-slider::-webkit-slider-thumb {
             -webkit-appearance: none;
             appearance: none;
@@ -243,32 +298,51 @@
             cursor: pointer;
             box-shadow: 0 0 10px rgba(34, 211, 238, 0.5);
         }
+
         .toggle-switch {
             position: relative;
             display: inline-block;
             width: 40px;
             height: 20px;
         }
-        .toggle-switch input { opacity: 0; width: 0; height: 0; }
+
+        .toggle-switch input {
+            opacity: 0;
+            width: 0;
+            height: 0;
+        }
+
         .slider-round {
             position: absolute;
             cursor: pointer;
-            top: 0; left: 0; right: 0; bottom: 0;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
             background-color: #334155;
             transition: .4s;
             border-radius: 20px;
         }
+
         .slider-round:before {
             position: absolute;
             content: "";
-            height: 14px; width: 14px;
-            left: 3px; bottom: 3px;
+            height: 14px;
+            width: 14px;
+            left: 3px;
+            bottom: 3px;
             background-color: white;
             transition: .4s;
             border-radius: 50%;
         }
-        input:checked + .slider-round { background-color: #22d3ee; }
-        input:checked + .slider-round:before { transform: translateX(20px); }
+
+        input:checked+.slider-round {
+            background-color: #22d3ee;
+        }
+
+        input:checked+.slider-round:before {
+            transform: translateX(20px);
+        }
 
         /* Facial Diagnostic HUD */
         #facial-hud {
@@ -286,9 +360,11 @@
             pointer-events: none;
             font-family: monospace;
         }
+
         .hud-gauge {
             margin-bottom: 8px;
         }
+
         .hud-label {
             font-size: 9px;
             color: #94a3b8;
@@ -296,6 +372,7 @@
             margin-bottom: 2px;
             text-transform: uppercase;
         }
+
         .hud-bar-bg {
             width: 100%;
             height: 4px;
@@ -303,6 +380,7 @@
             border-radius: 2px;
             overflow: hidden;
         }
+
         .hud-bar-fill {
             height: 100%;
             width: 0%;
@@ -310,32 +388,87 @@
             transition: width 0.1s ease-out;
             box-shadow: 0 0 10px rgba(34, 211, 238, 0.5);
         }
+
         .hud-bar-fill.active {
             background: #f43f5e;
             box-shadow: 0 0 15px rgba(244, 63, 94, 0.8);
         }
+        /* Charging Ring Styles */
+        .charging-ring {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            width: 40px;
+            height: 40px;
+            pointer-events: none;
+            opacity: 0;
+            transition: opacity 0.2s ease;
+        }
+
+        .charging-ring circle {
+            fill: none;
+            stroke: #00f2ff;
+            stroke-width: 3;
+            stroke-dasharray: 113.1; /* 2 * PI * 18 */
+            stroke-dashoffset: 113.1;
+            stroke-linecap: round;
+            transform: rotate(-90deg);
+            transform-origin: center;
+            transition: stroke-dashoffset 0.1s linear;
+        }
+
+        .chargeable {
+            position: relative;
+            transition: all 0.2s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+        }
+
+        .chargeable::before {
+            content: '';
+            position: absolute;
+            inset: -4px;
+            border: 2px solid transparent;
+            border-radius: inherit;
+            transition: border-color 0.2s ease;
+            pointer-events: none;
+        }
+
+        .chargeable.targeting::before {
+            border-color: rgba(0, 242, 255, 0.5);
+            animation: target-ring-pulse 1s infinite;
+        }
+
+        @keyframes target-ring-pulse {
+            0% { transform: scale(1); opacity: 1; }
+            100% { transform: scale(1.1); opacity: 0; }
+        }
     </style>
 </head>
+
 <body class="bg-black flex items-center justify-center text-white font-sans">
 
-    <div id="app-container" class="relative w-full h-full h-[100dvh] sm:h-[800px] sm:w-[400px] bg-gray-900 sm:rounded-[2.5rem] sm:border-8 sm:border-gray-800 overflow-hidden shadow-[0_0_50px_rgba(0,0,0,0.8)]">
-        
+    <div id="app-container"
+        class="relative w-full h-full h-[100dvh] sm:h-[800px] sm:w-[400px] bg-gray-900 sm:rounded-[2.5rem] sm:border-8 sm:border-gray-800 overflow-hidden shadow-[0_0_50px_rgba(0,0,0,0.8)]">
+
         <!-- UI Overlay -->
-        <div id="overlay" class="absolute inset-0 z-50 flex flex-col items-center justify-center bg-gray-900 bg-opacity-95 p-6 text-center">
+        <div id="overlay"
+            class="absolute inset-0 z-50 flex flex-col items-center justify-center bg-gray-900 bg-opacity-95 p-6 text-center">
             <h1 class="text-5xl font-black mb-2 text-cyan-400 uppercase tracking-tighter italic">Laser Eyes</h1>
             <p class="text-md mb-8 text-gray-400">
                 Destroy targets with your gaze. <br>
                 <span class="text-xs">Quick nose calibration required.</span>
             </p>
-            
+
             <div class="flex flex-col gap-3 w-full max-w-[280px] mb-4">
-                <button id="start-btn" class="w-full py-4 bg-cyan-600 hover:bg-cyan-500 rounded-xl text-xl font-bold shadow-2xl shadow-cyan-900/40 transition-all active:scale-95">
+                <button id="start-btn"
+                    class="w-full py-4 bg-cyan-600 hover:bg-cyan-500 rounded-xl text-xl font-bold shadow-2xl shadow-cyan-900/40 transition-all active:scale-95 chargeable">
                     START
                 </button>
             </div>
-            
+
             <!-- Dynamic Status / Error Box -->
-            <div id="status-box" class="mt-8 p-5 rounded-2xl bg-black/40 hidden max-w-sm border border-white/10 backdrop-blur-md">
+            <div id="status-box"
+                class="mt-8 p-5 rounded-2xl bg-black/40 hidden max-w-sm border border-white/10 backdrop-blur-md">
                 <div class="flex items-center gap-3 mb-2">
                     <div class="w-2 h-2 rounded-full bg-cyan-500 animate-ping"></div>
                     <p id="loading-msg" class="text-white text-sm font-semibold"></p>
@@ -344,7 +477,8 @@
             </div>
         </div>
 
-        <div id="calib-overlay" class="absolute inset-0 z-[60] flex flex-col items-center justify-center bg-black/95 hidden">
+        <div id="calib-overlay"
+            class="absolute inset-0 z-[60] flex flex-col items-center justify-center bg-black/95 hidden">
             <div id="nose-calib-ui" class="flex flex-col items-center justify-center h-full w-full pointer-events-none">
                 <!-- Top Section (above crosshair) -->
                 <div class="text-center w-full px-10 mb-20 fade-in-up">
@@ -360,8 +494,10 @@
 
                 <!-- Bottom Section (below crosshair) -->
                 <div class="text-center w-full px-10 pointer-events-auto mt-20">
-                    <p id="calib-hint" class="text-gray-400 mb-8 text-[11px] italic">Look at the crosshair and hold still</p>
-                    <button id="skip-calib-btn" class="py-2.5 px-10 bg-cyan-900/20 hover:bg-cyan-900/40 text-cyan-400 rounded-full text-[11px] font-bold border border-cyan-500/30 transition-all active:scale-95 uppercase tracking-widest">
+                    <p id="calib-hint" class="text-gray-400 mb-8 text-[11px] italic">Look at the crosshair and hold
+                        still</p>
+                    <button id="skip-calib-btn"
+                        class="py-2.5 px-10 bg-cyan-900/20 hover:bg-cyan-900/40 text-cyan-400 rounded-full text-[11px] font-bold border border-cyan-500/30 transition-all active:scale-95 uppercase tracking-widest chargeable">
                         Skip
                     </button>
                 </div>
@@ -369,34 +505,44 @@
         </div>
 
         <div class="absolute top-6 left-6 z-40 flex gap-2">
-            <button id="recalib-btn" class="bg-black/50 hover:bg-black/80 text-white/50 hover:text-white px-4 py-1 rounded-full text-xs font-bold border border-white/10 transition-all active:scale-95">
+            <button id="recalib-btn"
+                class="bg-black/50 hover:bg-black/80 text-white/50 hover:text-white px-4 py-1 rounded-full text-xs font-bold border border-white/10 transition-all active:scale-95 chargeable">
                 RE-CALIBRATE
             </button>
         </div>
 
         <div class="absolute top-6 right-6 z-40 flex flex-col items-end gap-2">
-            <div class="text-xl font-bold text-gray-300 bg-black/50 px-4 py-1 rounded-full pointer-events-none border border-white/10">
+            <div
+                class="text-xl font-bold text-gray-300 bg-black/50 px-4 py-1 rounded-full pointer-events-none border border-white/10">
                 Score: <span id="score" class="text-cyan-400">0</span>
             </div>
             <div class="flex gap-2">
-                <div id="mission-timer" class="text-xl font-bold text-gray-300 bg-black/50 px-4 py-1 rounded-full pointer-events-none border border-white/10 hidden">
+                <div id="mission-timer"
+                    class="text-xl font-bold text-gray-300 bg-black/50 px-4 py-1 rounded-full pointer-events-none border border-white/10 hidden">
                     Time: <span id="timer-val" class="text-rose-400">120</span>s
                 </div>
-                <button id="camera-toggle-btn" class="bg-black/50 hover:bg-black/80 text-white p-2 rounded-full text-lg border border-white/10 transition-all active:scale-95 shadow-lg" title="Toggle Camera Feed">
+                <button id="camera-toggle-btn"
+                    class="bg-black/50 hover:bg-black/80 text-white p-2 rounded-full text-lg border border-white/10 transition-all active:scale-95 shadow-lg chargeable"
+                    title="Toggle Camera Feed">
                     📷
                 </button>
-                <button id="snap-settings-btn" class="bg-black/50 hover:bg-black/80 text-white p-2 rounded-full text-lg border border-white/10 transition-all active:scale-95 shadow-lg" title="Snapping Settings">
+                <button id="snap-settings-btn"
+                    class="bg-black/50 hover:bg-black/80 text-white p-2 rounded-full text-lg border border-white/10 transition-all active:scale-95 shadow-lg chargeable"
+                    title="Snapping Settings">
                     🧲
                 </button>
             </div>
         </div>
 
-        <div id="rest-overlay" class="absolute inset-0 z-[70] flex flex-col items-center justify-center bg-gray-900 bg-opacity-98 p-6 text-center hidden">
+        <div id="rest-overlay"
+            class="absolute inset-0 z-[70] flex flex-col items-center justify-center bg-gray-900 bg-opacity-98 p-6 text-center hidden">
             <h2 class="text-4xl font-black mb-4 text-cyan-400 uppercase italic">Mission Complete</h2>
             <p class="text-lg mb-2 text-white">Great work, Hero.</p>
-            <p class="text-sm mb-8 text-gray-400">Take 30 seconds to relax your eyes and wrists. <br>Look away from the screen.</p>
+            <p class="text-sm mb-8 text-gray-400">Take 30 seconds to relax your eyes and neck. <br>Look away from the
+                screen.</p>
             <div id="rest-timer" class="text-6xl font-bold text-cyan-500 mb-8">30</div>
-            <button id="next-mission-btn" class="py-4 px-12 bg-cyan-600 hover:bg-cyan-500 rounded-xl text-xl font-bold shadow-2xl transition-all hidden">
+            <button id="next-mission-btn"
+                class="py-4 px-12 bg-cyan-600 hover:bg-cyan-500 rounded-xl text-xl font-bold shadow-2xl transition-all hidden chargeable">
                 START NEXT MISSION
             </button>
         </div>
@@ -409,13 +555,13 @@
                     <span class="slider-round"></span>
                 </label>
             </div>
-            
+
             <label class="menu-label">Strength</label>
             <input type="range" id="snap-strength" class="snap-slider" min="0" max="100" value="60">
-            
+
             <label class="menu-label">Range</label>
             <input type="range" id="snap-range" class="snap-slider" min="50" max="300" value="150">
-            
+
             <label class="menu-label">Diagnostic Tools</label>
             <div class="flex items-center justify-between mb-4">
                 <span class="text-[10px] text-gray-400">Show Tracking Dots</span>
@@ -425,7 +571,8 @@
                 </label>
             </div>
 
-            <p class="text-[9px] text-gray-500 italic mt-2 opacity-60">Higher range makes snapping initiate from further away.</p>
+            <p class="text-[9px] text-gray-500 italic mt-2 opacity-60">Higher range makes snapping initiate from further
+                away.</p>
         </div>
 
         <div id="game-container" class="relative w-full h-full"></div>
@@ -434,20 +581,30 @@
         <div id="facial-hud">
             <div class="hud-gauge">
                 <span class="hud-label">Mouth (Roar)</span>
-                <div class="hud-bar-bg"><div id="gauge-mouth" class="hud-bar-fill"></div></div>
+                <div class="hud-bar-bg">
+                    <div id="gauge-mouth" class="hud-bar-fill"></div>
+                </div>
             </div>
             <div class="hud-gauge">
                 <span class="hud-label">Smile</span>
-                <div class="hud-bar-bg"><div id="gauge-smile" class="hud-bar-fill"></div></div>
+                <div class="hud-bar-bg">
+                    <div id="gauge-smile" class="hud-bar-fill"></div>
+                </div>
             </div>
             <div class="hud-gauge">
                 <span class="hud-label">Eye Blink</span>
-                <div class="hud-bar-bg"><div id="gauge-eyes" class="hud-bar-fill"></div></div>
+                <div class="hud-bar-bg">
+                    <div id="gauge-eyes" class="hud-bar-fill"></div>
+                </div>
             </div>
         </div>
 
         <!-- Elements moved inside container -->
-        <div id="laser-dot"></div>
+        <div id="laser-dot">
+            <svg class="charging-ring" viewBox="0 0 40 40">
+                <circle cx="20" cy="20" r="18"></circle>
+            </svg>
+        </div>
         <div id="calib-nose-dot"></div>
     </div>
 
@@ -462,7 +619,7 @@
         const gameContainer = document.getElementById('game-container');
         const scoreEl = document.getElementById('score');
         const calibNoseDot = document.getElementById('calib-nose-dot');
-        
+
         let score = 0;
         let popCount = 0;
         let maxTargets = 1;
@@ -501,6 +658,13 @@
         let snappingEnabled = true;
         let snapStrength = 0.6;
         let snapRange = 150;
+        
+        // Charging State
+        let chargeState = {
+            target: null,
+            startTime: 0,
+            duration: 3000
+        };
 
         // UI Listeners
         const snapMenu = document.getElementById('snap-menu');
@@ -539,7 +703,7 @@
         snapRangeSlider.addEventListener('input', (e) => snapRange = parseInt(e.target.value));
 
         // Nose tracking state
-        let noseCenter = {x: 0, y: 0};
+        let noseCenter = { x: 0, y: 0 };
         let noseSensitivity = 3.5;
         let noseSmoothing = 0.4;
         let lastNoseX = -100;
@@ -581,23 +745,23 @@
                 webgazer.params.showPredictionPoints = false;
 
                 // We don't use gaze prediction for nose mode, but webgazer needs a listener
-                webgazer.setGazeListener(() => {});
+                webgazer.setGazeListener(() => { });
 
                 loadingMsg.innerText = "Downloading AI Models (15MB)...";
                 actionMsg.innerText = "This might take 10-20 seconds on first load.";
-                
+
                 await webgazer.begin();
-                
+
                 // Move video preview inside the phone container
                 const videoContainer = document.getElementById('webgazerVideoContainer');
                 if (videoContainer) {
                     appContainer.appendChild(videoContainer);
                     videoContainer.appendChild(debugCanvas);
                 }
-                
+
                 webgazer.showVideoPreview(true)
-                        .showPredictionPoints(false);
-                
+                    .showPredictionPoints(false);
+
                 facialHud.style.display = 'block';
 
                 loadingMsg.innerText = "Camera ready!";
@@ -605,6 +769,7 @@
 
                 setTimeout(() => {
                     overlay.classList.add('hidden');
+                    if (!loopInterval) loopInterval = setInterval(checkCollisions, 30);
                     startNoseCalibration();
                 }, 800);
 
@@ -626,7 +791,7 @@
             const calibStatus = document.getElementById('calib-status');
             const calibHint = document.getElementById('calib-hint');
             const progressBar = document.getElementById('nose-calib-progress');
-            
+
             // Reset state
             progressBar.style.width = '0%';
             calibStatus.innerText = 'Detecting your face...';
@@ -649,12 +814,12 @@
             let waitingFrames = 0;
 
             const skipBtn = document.getElementById('skip-calib-btn');
-            
+
             const calibInt = setInterval(() => {
                 let positions = null;
                 try {
                     positions = webgazer.getTracker().getPositions();
-                } catch(e) { /* tracker not ready yet */ }
+                } catch (e) { /* tracker not ready yet */ }
 
                 if (positions && positions.length > 60) {
                     if (!faceDetected) {
@@ -662,13 +827,13 @@
                         calibStatus.innerText = '✓ Face detected!';
                         calibStatus.classList.add('fade-in-up');
                         calibHint.innerText = 'Look at the crosshair — hold still...';
-                        
+
                         // Show live nose dot
                         calibNoseDot.style.display = 'block';
                     }
 
                     const nose = positions[62] || positions[37];
-                    
+
                     // Show live nose position as feedback (relative to container)
                     const screenW = appContainer.clientWidth;
                     const screenH = appContainer.clientHeight;
@@ -684,7 +849,7 @@
                     tempX += nose[0];
                     tempY += nose[1];
                     noseCalibFrames++;
-                    
+
                     const pct = Math.round(noseCalibFrames / targetFrames * 100);
                     progressBar.style.width = pct + '%';
 
@@ -700,16 +865,16 @@
 
             const finishCalib = () => {
                 clearInterval(calibInt);
-                
+
                 // If we have some data, use even if incomplete. 
                 // WebGazer default resolution/center is usually around 320x240
                 noseCenter.x = (noseCalibFrames > 0) ? (tempX / noseCalibFrames) : 320;
                 noseCenter.y = (noseCalibFrames > 0) ? (tempY / noseCalibFrames) : 240;
-                
+
                 calibStatus.innerText = '🎯 Calibrated!';
                 calibHint.innerText = 'Let\'s go!';
                 progressBar.style.width = '100%';
-                
+
                 if (navigator.vibrate) navigator.vibrate(50);
 
                 // Capture neutral baseline at the very end of calibration
@@ -718,14 +883,14 @@
                     if (positions && positions.length > 60) {
                         const p1 = positions[1];
                         const p13 = positions[13];
-                        const faceW = Math.sqrt(Math.pow(p13[0]-p1[0], 2) + Math.pow(p13[1]-p1[1], 2));
-                        
+                        const faceW = Math.sqrt(Math.pow(p13[0] - p1[0], 2) + Math.pow(p13[1] - p1[1], 2));
+
                         neutralBaselines.faceWidth = faceW;
-                        neutralBaselines.mouthWidth = Math.sqrt(Math.pow(positions[50][0]-positions[44][0], 2) + Math.pow(positions[50][1]-positions[44][1], 2)) / faceW;
+                        neutralBaselines.mouthWidth = Math.sqrt(Math.pow(positions[50][0] - positions[44][0], 2) + Math.pow(positions[50][1] - positions[44][1], 2)) / faceW;
                         neutralBaselines.mouthHeight = Math.abs(positions[60][1] - positions[57][1]) / faceW;
                         neutralBaselines.eyeHeight = (Math.abs(positions[24][1] - positions[28][1]) + Math.abs(positions[29][1] - positions[31][1])) / (2 * faceW);
                         neutralBaselines.captured = true;
-                        
+
                         console.log("Neutral baselines captured:", neutralBaselines);
                     }
 
@@ -747,8 +912,7 @@
             gameActive = true;
             gameTime = 120;
             spawnTarget();
-            if (!loopInterval) loopInterval = setInterval(checkCollisions, 30);
-            
+
             if (missionInterval) clearInterval(missionInterval);
             missionInterval = setInterval(() => {
                 gameTime--;
@@ -765,7 +929,7 @@
             const restCounter = document.getElementById('rest-timer');
             const nextBtn = document.getElementById('next-mission-btn');
             restCounter.innerText = restTime;
-            
+
             const restInt = setInterval(() => {
                 restTime--;
                 restCounter.innerText = restTime;
@@ -783,14 +947,12 @@
         }
 
         function updateLaser() {
-            // "Pilot Light" logic: The laser is ALWAYS visible if the game is active.
-            // But it's small/sharp when not roaring, and a big beam when roaring.
-            if (!gameActive) {
+            if (!isGazerStarted) {
                 laserDot.style.display = 'none';
                 return;
             }
             laserDot.style.display = 'block';
-            
+
             let displayX = cursorX;
             let displayY = cursorY;
 
@@ -814,36 +976,36 @@
                 if (nearestTarget) {
                     const tx = parseFloat(nearestTarget.dataset.vpX);
                     const ty = parseFloat(nearestTarget.dataset.vpY);
-                    
+
                     const distanceFactor = Math.pow(1 - (minDist / snapRange), 1.5);
                     const weight = snapStrength * distanceFactor;
-                    
+
                     displayX = cursorX * (1 - weight) + tx * weight;
                     displayY = cursorY * (1 - weight) + ty * weight;
 
                     displayX += (Math.random() - 0.5) * (5 * distanceFactor);
                     displayY += (Math.random() - 0.5) * (5 * distanceFactor);
-                    
+
                     // Beam expansion logic
-                    const expansion = isRoaring ? (1 + mouthOpenness*1.5) : 1;
+                    const expansion = isRoaring ? (1 + mouthOpenness * 1.5) : 1;
                     laserDot.style.scale = (1 + (0.5 * distanceFactor) + Math.random() * 0.2) * expansion;
                 } else {
-                    const expansion = isRoaring ? (1 + mouthOpenness*1.5) : 1;
+                    const expansion = isRoaring ? (1 + mouthOpenness * 1.5) : 1;
                     laserDot.style.scale = expansion;
                 }
             } else {
-                const expansion = isRoaring ? (1 + mouthOpenness*1.5) : 1;
+                const expansion = isRoaring ? (1 + mouthOpenness * 1.5) : 1;
                 laserDot.style.scale = expansion;
             }
 
             laserDot.style.left = displayX + 'px';
             laserDot.style.top = displayY + 'px';
-            
+
             // Visual feedback for firing strength
             if (isRoaring) {
                 // Large beam effect
                 const glow = 20 + (mouthOpenness * 40);
-                laserDot.style.boxShadow = `0 0 ${glow}px ${glow/3}px rgba(0, 242, 255, ${0.4 + mouthOpenness})`;
+                laserDot.style.boxShadow = `0 0 ${glow}px ${glow / 3}px rgba(0, 242, 255, ${0.4 + mouthOpenness})`;
                 laserDot.style.background = `#fff`;
                 laserDot.style.width = '20px';
                 laserDot.style.height = '20px';
@@ -862,16 +1024,16 @@
             const target = document.createElement('div');
             target.className = 'target';
             if (Math.random() > 0.5) target.classList.add('flashing');
-            
+
             const rect = gameContainer.getBoundingClientRect();
             const x = Math.random() * (rect.width - 100) + 50;
             const y = Math.random() * (rect.height - 100) + 50;
-            
+
             target.style.left = x + 'px';
             target.style.top = y + 'px';
-            
+
             target.addEventListener('pointerdown', (e) => {
-                e.preventDefault(); 
+                e.preventDefault();
                 destroyTarget(target);
             });
 
@@ -882,7 +1044,7 @@
             target.dataset.vy = (Math.random() - 0.5) * 4;
 
             updateTargetVirtualPos(target);
-            target.dataset.gazeStart = ""; 
+            target.dataset.gazeStart = "";
 
             gameContainer.appendChild(target);
             targets.push(target);
@@ -900,7 +1062,7 @@
             score += 10;
             popCount++;
             scoreEl.innerText = score;
-            
+
             // Progression: after 3 pops, allow a second target
             if (popCount >= 3) maxTargets = 2;
 
@@ -910,70 +1072,125 @@
             }
         }
 
+
+        function updateCharging() {
+            if (!isGazerStarted) return;
+
+            const ring = laserDot.querySelector('.charging-ring');
+            const circle = ring.querySelector('circle');
+
+            // Find element at cursor
+            const el = document.elementFromPoint(cursorX, cursorY);
+            const chargeable = el ? el.closest('.chargeable') : null;
+
+            if (chargeable && chargeable.offsetParent !== null) { // Check if visible
+                if (chargeState.target !== chargeable) {
+                    if (chargeState.target) chargeState.target.classList.remove('targeting');
+                    chargeState.target = chargeable;
+                    chargeState.startTime = Date.now();
+                    chargeable.classList.add('targeting');
+                    ring.style.opacity = '1';
+                }
+
+                const elapsed = Date.now() - chargeState.startTime;
+                const progress = Math.min(elapsed / chargeState.duration, 1);
+
+                // Update SVG ring
+                const offset = 113.1 * (1 - progress);
+                circle.style.strokeDashoffset = offset;
+
+                if (progress === 1) {
+                    if (navigator.vibrate) navigator.vibrate(100);
+                    chargeable.click();
+                    resetCharging();
+                }
+            } else if (chargeState.target) {
+                resetCharging();
+            }
+        }
+
+        function resetCharging() {
+            if (chargeState.target) {
+                chargeState.target.classList.remove('targeting');
+            }
+            chargeState.target = null;
+            chargeState.startTime = 0;
+            const ring = laserDot.querySelector('.charging-ring');
+            if (ring) {
+                ring.style.opacity = '0';
+                const circle = ring.querySelector('circle');
+                if (circle) circle.style.strokeDashoffset = '113.1';
+            }
+        }
+
         function checkCollisions() {
             const now = Date.now();
-            const requiredDuration = 1000;
-            const rect = gameContainer.getBoundingClientRect();
 
-            targets.forEach(target => {
-                // Move target with random jitter
-                const jitterX = (Math.random() - 0.5) * 2;
-                const jitterY = (Math.random() - 0.5) * 2;
-                
-                let x = parseFloat(target.dataset.x) + parseFloat(target.dataset.vx) + jitterX;
-                let y = parseFloat(target.dataset.y) + parseFloat(target.dataset.vy) + jitterY;
-                
-                // Bounce
-                if (x < 50 || x > rect.width - 100) target.dataset.vx *= -1;
-                if (y < 50 || y > rect.height - 100) target.dataset.vy *= -1;
-                
-                target.dataset.x = x;
-                target.dataset.y = y;
-                target.style.left = x + 'px';
-                target.style.top = y + 'px';
-                updateTargetVirtualPos(target);
+            if (gameActive) {
+                const requiredDuration = 1000;
+                const rect = gameContainer.getBoundingClientRect();
 
-                const tx = parseFloat(target.dataset.vpX);
-                const ty = parseFloat(target.dataset.vpY);
-                const dx = cursorX - tx;
-                const dy = cursorY - ty;
-                const distance = Math.sqrt(dx * dx + dy * dy);
-                
-                // Damage only if roaring
-                if (distance < 100 && isRoaring && gameActive) {
-                    if (!target.dataset.gazeStart) target.dataset.gazeStart = now;
-                    
-                    const elapsed = now - parseInt(target.dataset.gazeStart);
-                    const progress = Math.min(elapsed / requiredDuration, 1);
-                    
-                    const scale = 1 + (progress * 0.4); 
-                    const r = Math.round(59 + (180 * progress));
-                    const g = Math.round(130 - (62 * progress));
-                    const b = Math.round(246 - (178 * progress));
-                    
-                    target.style.transform = `scale(${scale})`;
-                    target.style.backgroundColor = `rgb(${r}, ${g}, ${b})`;
-                    target.style.boxShadow = `0 0 ${15 + (25 * progress)}px rgb(${r}, ${g}, ${b})`;
+                targets.forEach(target => {
+                    // Move target with random jitter
+                    const jitterX = (Math.random() - 0.5) * 2;
+                    const jitterY = (Math.random() - 0.5) * 2;
 
-                    if (progress === 1) destroyTarget(target);
-                } else {
-                    target.dataset.gazeStart = "";
-                    target.style.transform = 'scale(1)';
-                    target.style.backgroundColor = '#3b82f6';
-                    target.style.boxShadow = '0 0 15px #3b82f6';
-                }
-            });
-            
+                    let x = parseFloat(target.dataset.x) + parseFloat(target.dataset.vx) + jitterX;
+                    let y = parseFloat(target.dataset.y) + parseFloat(target.dataset.vy) + jitterY;
+
+                    // Bounce
+                    if (x < 50 || x > rect.width - 100) target.dataset.vx *= -1;
+                    if (y < 50 || y > rect.height - 100) target.dataset.vy *= -1;
+
+                    target.dataset.x = x;
+                    target.dataset.y = y;
+                    target.style.left = x + 'px';
+                    target.style.top = y + 'px';
+                    updateTargetVirtualPos(target);
+
+                    const tx = parseFloat(target.dataset.vpX);
+                    const ty = parseFloat(target.dataset.vpY);
+                    const dx = cursorX - tx;
+                    const dy = cursorY - ty;
+                    const distance = Math.sqrt(dx * dx + dy * dy);
+
+                    // Damage only if roaring
+                    if (distance < 100 && isRoaring) {
+                        if (!target.dataset.gazeStart) target.dataset.gazeStart = now;
+
+                        const elapsed = now - parseInt(target.dataset.gazeStart);
+                        const progress = Math.min(elapsed / requiredDuration, 1);
+
+                        const scale = 1 + (progress * 0.4);
+                        const r = Math.round(59 + (180 * progress));
+                        const g = Math.round(130 - (62 * progress));
+                        const b = Math.round(246 - (178 * progress));
+
+                        target.style.transform = `scale(${scale})`;
+                        target.style.backgroundColor = `rgb(${r}, ${g}, ${b})`;
+                        target.style.boxShadow = `0 0 ${15 + (25 * progress)}px rgb(${r}, ${g}, ${b})`;
+
+                        if (progress === 1) destroyTarget(target);
+                    } else {
+                        target.dataset.gazeStart = "";
+                        target.style.transform = 'scale(1)';
+                        target.style.backgroundColor = '#3b82f6';
+                        target.style.boxShadow = '0 0 15px #3b82f6';
+                    }
+                });
+            }
+
             updateFacialExpressions();
             updateNoseTracking();
             updateLaser();
+            updateCharging();
         }
 
         function updateFacialExpressions() {
             let positions = null;
             try {
                 positions = webgazer.getTracker().getPositions();
-            } catch(e) { return; }
+            } catch (e) { return; }
             if (!positions || positions.length < 65) return;
 
             // Debug landmarks
@@ -986,9 +1203,9 @@
                 ctx.font = "6px sans-serif";
                 positions.forEach((p, i) => {
                     ctx.beginPath();
-                    ctx.arc(p[0], p[1], 1, 0, Math.PI*2);
+                    ctx.arc(p[0], p[1], 1, 0, Math.PI * 2);
                     ctx.fill();
-                    ctx.fillText(i, p[0]+2, p[1]);
+                    ctx.fillText(i, p[0] + 2, p[1]);
                 });
             }
 
@@ -996,13 +1213,13 @@
             // Points 1 and 13 are jaw corners
             const p1 = positions[1];
             const p13 = positions[13];
-            const faceWidth = Math.sqrt(Math.pow(p13[0]-p1[0], 2) + Math.pow(p13[1]-p1[1], 2));
+            const faceWidth = Math.sqrt(Math.pow(p13[0] - p1[0], 2) + Math.pow(p13[1] - p1[1], 2));
 
             // 2. Mouth Openness (Roar)
             const p60 = positions[60];
             const p57 = positions[57];
             const currentMouthHeight = Math.abs(p60[1] - p57[1]) / faceWidth;
-            
+
             // Use baseline if available
             const baseMouthH = neutralBaselines.captured ? neutralBaselines.mouthHeight : 0.05;
             mouthOpenness = Math.min(Math.max(currentMouthHeight - baseMouthH, 0) / 0.15, 1);
@@ -1010,16 +1227,16 @@
             // 3. Smile Strength
             const p44 = positions[44];
             const p50 = positions[50];
-            const currentMouthWidth = Math.sqrt(Math.pow(p50[0]-p44[0], 2) + Math.pow(p50[1]-p44[1], 2)) / faceWidth;
-            
+            const currentMouthWidth = Math.sqrt(Math.pow(p50[0] - p44[0], 2) + Math.pow(p50[1] - p44[1], 2)) / faceWidth;
+
             const baseMouthW = neutralBaselines.captured ? neutralBaselines.mouthWidth : 0.35;
             smileStrength = Math.min(Math.max(currentMouthWidth - baseMouthW, 0) / 0.1, 1);
-            
+
             // 4. Squint/Blink
             // Left eye: 24 (top), 28 (bottom). Right eye: 29 (top), 31 (bottom)
             const eyeH = (Math.abs(positions[24][1] - positions[28][1]) + Math.abs(positions[29][1] - positions[31][1])) / (2 * faceWidth);
             const baseEyeH = neutralBaselines.captured ? neutralBaselines.eyeHeight : 0.04;
-            
+
             // eyeRatio: 1 is wide open, close to 0 is shut.
             // We flip it for the progress bar logic: active when closed.
             const rawEyeRatio = eyeH / baseEyeH;
@@ -1046,7 +1263,7 @@
             let positions = null;
             try {
                 positions = webgazer.getTracker().getPositions();
-            } catch(e) { return; }
+            } catch (e) { return; }
             if (!positions || positions.length < 60) return;
 
             const nose = positions[62] || positions[37];
@@ -1073,7 +1290,7 @@
             lastNoseX = cursorX;
             lastNoseY = cursorY;
         }
-        
+
         window.addEventListener('resize', () => {
             targets.forEach(target => {
                 updateTargetVirtualPos(target);
@@ -1081,4 +1298,5 @@
         });
     </script>
 </body>
+
 </html>
