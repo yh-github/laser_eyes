@@ -577,24 +577,35 @@
 
         <div id="game-container" class="relative w-full h-full"></div>
 
-        <!-- Facial Diagnostic HUD -->
         <div id="facial-hud">
             <div class="hud-gauge">
-                <span class="hud-label">Mouth (Roar)</span>
+                <span class="hud-label">Roar (Mouth Open)</span>
                 <div class="hud-bar-bg">
                     <div id="gauge-mouth" class="hud-bar-fill"></div>
                 </div>
             </div>
             <div class="hud-gauge">
-                <span class="hud-label">Smile</span>
+                <span class="hud-label">Eyebrows (Raise)</span>
                 <div class="hud-bar-bg">
-                    <div id="gauge-smile" class="hud-bar-fill"></div>
+                    <div id="gauge-eyebrows" class="hud-bar-fill"></div>
                 </div>
             </div>
             <div class="hud-gauge">
-                <span class="hud-label">Eye Blink</span>
+                <span class="hud-label">Pucker (Kiss)</span>
                 <div class="hud-bar-bg">
-                    <div id="gauge-eyes" class="hud-bar-fill"></div>
+                    <div id="gauge-pucker" class="hud-bar-fill"></div>
+                </div>
+            </div>
+            <div class="hud-gauge">
+                <span class="hud-label">Tilt (L/R)</span>
+                <div class="hud-bar-bg">
+                    <div id="gauge-tilt" class="hud-bar-fill"></div>
+                </div>
+            </div>
+            <div class="hud-gauge">
+                <span class="hud-label">Nod (Depth)</span>
+                <div class="hud-bar-bg">
+                    <div id="gauge-nod" class="hud-bar-fill"></div>
                 </div>
             </div>
         </div>
@@ -634,12 +645,19 @@
         let gameActive = false;
         let missionInterval;
 
+        // Helper to calculate 2D distance
+        function getDistance(p1, p2) {
+            return Math.sqrt(Math.pow(p1[0] - p2[0], 2) + Math.pow(p1[1] - p2[1], 2));
+        }
+
         // Facial Expression Baselines (Neutral Face)
         const neutralBaselines = {
+            faceWidth: 0,
+            faceHeight: 0,
             mouthWidth: 0,
             mouthHeight: 0,
-            eyeHeight: 0,
-            faceWidth: 0,
+            eyebrowDist: 0,
+            noseToChin: 0,
             captured: false
         };
 
@@ -711,14 +729,18 @@
 
         // Facial Expression State
         let mouthOpenness = 0;
-        let smileStrength = 0;
-        let eyeRatio = 0;
+        let puckerStrength = 0;
+        let eyebrowRaise = 0;
+        let headTilt = 0;
+        let nodStrength = 0;
         let isRoaring = false;
 
         const facialHud = document.getElementById('facial-hud');
         const gaugeMouth = document.getElementById('gauge-mouth');
-        const gaugeSmile = document.getElementById('gauge-smile');
-        const gaugeEyes = document.getElementById('gauge-eyes');
+        const gaugeEyebrows = document.getElementById('gauge-eyebrows');
+        const gaugePucker = document.getElementById('gauge-pucker');
+        const gaugeTilt = document.getElementById('gauge-tilt');
+        const gaugeNod = document.getElementById('gauge-nod');
 
         // Persist model data across sessions (prevents re-training on reload)
         window.saveDataAcrossSessions = true;
@@ -883,12 +905,15 @@
                     if (positions && positions.length > 60) {
                         const p1 = positions[1];
                         const p13 = positions[13];
-                        const faceW = Math.sqrt(Math.pow(p13[0] - p1[0], 2) + Math.pow(p13[1] - p1[1], 2));
+                        const faceW = getDistance(positions[1], positions[13]);
+                        const faceH = getDistance(positions[33], positions[7]);
 
                         neutralBaselines.faceWidth = faceW;
-                        neutralBaselines.mouthWidth = Math.sqrt(Math.pow(positions[50][0] - positions[44][0], 2) + Math.pow(positions[50][1] - positions[44][1], 2)) / faceW;
+                        neutralBaselines.faceHeight = faceH;
+                        neutralBaselines.mouthWidth = getDistance(positions[44], positions[50]) / faceW;
                         neutralBaselines.mouthHeight = Math.abs(positions[60][1] - positions[57][1]) / faceW;
-                        neutralBaselines.eyeHeight = (Math.abs(positions[24][1] - positions[28][1]) + Math.abs(positions[29][1] - positions[31][1])) / (2 * faceW);
+                        neutralBaselines.eyebrowDist = getDistance(positions[16], positions[24]) / faceH;
+                        neutralBaselines.noseToChin = getDistance(positions[62], positions[7]) / faceH;
                         neutralBaselines.captured = true;
 
                         console.log("Neutral baselines captured:", neutralBaselines);
@@ -1002,10 +1027,11 @@
             laserDot.style.top = displayY + 'px';
 
             // Visual feedback for firing strength
+            const firingStrength = Math.max(mouthOpenness, eyebrowRaise, puckerStrength);
             if (isRoaring) {
                 // Large beam effect
-                const glow = 20 + (mouthOpenness * 40);
-                laserDot.style.boxShadow = `0 0 ${glow}px ${glow / 3}px rgba(0, 242, 255, ${0.4 + mouthOpenness})`;
+                const glow = 20 + (firingStrength * 40);
+                laserDot.style.boxShadow = `0 0 ${glow}px ${glow / 3}px rgba(0, 242, 255, ${0.4 + firingStrength})`;
                 laserDot.style.background = `#fff`;
                 laserDot.style.width = '20px';
                 laserDot.style.height = '20px';
@@ -1209,54 +1235,61 @@
                 });
             }
 
-            // 1. Face Width (Normalization anchor)
-            // Points 1 and 13 are jaw corners
-            const p1 = positions[1];
-            const p13 = positions[13];
-            const faceWidth = Math.sqrt(Math.pow(p13[0] - p1[0], 2) + Math.pow(p13[1] - p1[1], 2));
+            // 1. Current Face Measurements
+            const faceWidth = getDistance(positions[1], positions[13]);
+            const faceHeight = getDistance(positions[33], positions[7]);
 
-            // 2. Mouth Openness (Roar)
-            const p60 = positions[60];
-            const p57 = positions[57];
-            const currentMouthHeight = Math.abs(p60[1] - p57[1]) / faceWidth;
-
-            // Use baseline if available
+            // 2. Roar (Mouth Open)
+            const currentMouthHeight = Math.abs(positions[60][1] - positions[57][1]) / faceWidth;
             const baseMouthH = neutralBaselines.captured ? neutralBaselines.mouthHeight : 0.05;
             mouthOpenness = Math.min(Math.max(currentMouthHeight - baseMouthH, 0) / 0.15, 1);
 
-            // 3. Smile Strength
-            const p44 = positions[44];
-            const p50 = positions[50];
-            const currentMouthWidth = Math.sqrt(Math.pow(p50[0] - p44[0], 2) + Math.pow(p50[1] - p44[1], 2)) / faceWidth;
+            // 3. Eyebrow Raise (Surprise)
+            const currentEyebrowDist = getDistance(positions[16], positions[24]) / faceHeight;
+            const baseEyebrowDist = neutralBaselines.captured ? neutralBaselines.eyebrowDist : 0.08;
+            // threshold: 20%+ increase
+            eyebrowRaise = Math.min(Math.max((currentEyebrowDist / baseEyebrowDist) - 1, 0) / 0.25, 1);
 
+            // 4. Pucker (O-Face)
+            const currentMouthWidth = getDistance(positions[44], positions[50]) / faceWidth;
             const baseMouthW = neutralBaselines.captured ? neutralBaselines.mouthWidth : 0.35;
-            smileStrength = Math.min(Math.max(currentMouthWidth - baseMouthW, 0) / 0.1, 1);
+            // threshold: shrinks significantly (25-30%)
+            puckerStrength = Math.min(Math.max(1 - (currentMouthWidth / baseMouthW), 0) / 0.3, 1);
 
-            // 4. Squint/Blink
-            // Left eye: 24 (top), 28 (bottom). Right eye: 29 (top), 31 (bottom)
-            const eyeH = (Math.abs(positions[24][1] - positions[28][1]) + Math.abs(positions[29][1] - positions[31][1])) / (2 * faceWidth);
-            const baseEyeH = neutralBaselines.captured ? neutralBaselines.eyeHeight : 0.04;
+            // 5. Head Tilt
+            const dy = positions[32][1] - positions[27][1];
+            const dx = positions[32][0] - positions[27][0];
+            const angleDegrees = Math.atan2(dy, dx) * (180 / Math.PI);
+            // Threshold +/- 15 degrees
+            headTilt = Math.min(Math.max(Math.abs(angleDegrees) / 15, 0), 1);
 
-            // eyeRatio: 1 is wide open, close to 0 is shut.
-            // We flip it for the progress bar logic: active when closed.
-            const rawEyeRatio = eyeH / baseEyeH;
-            eyeRatio = 1 - Math.min(Math.max(rawEyeRatio - 0.3, 0) / 0.7, 1);
+            // 6. Deep Nod
+            const currentNoseToChin = getDistance(positions[62], positions[7]) / faceHeight;
+            const baseNoseToChin = neutralBaselines.captured ? neutralBaselines.noseToChin : 0.22;
+            // threshold: compresses heavily
+            nodStrength = Math.min(Math.max(1 - (currentNoseToChin / baseNoseToChin), 0) / 0.2, 1);
 
             // Update UI Gauges
             gaugeMouth.style.width = (mouthOpenness * 100) + '%';
-            gaugeSmile.style.width = (smileStrength * 100) + '%';
-            gaugeEyes.style.width = (eyeRatio * 100) + '%';
+            gaugeEyebrows.style.width = (eyebrowRaise * 100) + '%';
+            gaugePucker.style.width = (puckerStrength * 100) + '%';
+            gaugeTilt.style.width = (headTilt * 100) + '%';
+            gaugeNod.style.width = (nodStrength * 100) + '%';
 
-            // Active States
-            isRoaring = mouthOpenness > 0.3; // Lowered threshold for sensitivity
-            if (isRoaring) gaugeMouth.classList.add('active');
-            else gaugeMouth.classList.remove('active');
+            // Active States (Trigger Firing)
+            const isEyebrowRaised = eyebrowRaise > 0.5;
+            const isPuckering = puckerStrength > 0.5;
+            const isMouthOpen = mouthOpenness > 0.3;
+            
+            // Firing is triggered by any of these deliberate actions
+            isRoaring = isMouthOpen || isEyebrowRaised || isPuckering;
 
-            if (smileStrength > 0.5) gaugeSmile.classList.add('active');
-            else gaugeSmile.classList.remove('active');
-
-            if (eyeRatio > 0.7) gaugeEyes.classList.add('active'); // "Blink Active" when highly closed
-            else gaugeEyes.classList.remove('active');
+            // Highlight active gauges
+            if (isMouthOpen) gaugeMouth.classList.add('active'); else gaugeMouth.classList.remove('active');
+            if (isEyebrowRaised) gaugeEyebrows.classList.add('active'); else gaugeEyebrows.classList.remove('active');
+            if (isPuckering) gaugePucker.classList.add('active'); else gaugePucker.classList.remove('active');
+            if (headTilt > 0.8) gaugeTilt.classList.add('active'); else gaugeTilt.classList.remove('active');
+            if (nodStrength > 0.8) gaugeNod.classList.add('active'); else gaugeNod.classList.remove('active');
         }
 
         function updateNoseTracking() {
