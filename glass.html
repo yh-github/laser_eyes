@@ -252,6 +252,8 @@
         // THREE.js Scene Setup
         const canvas = document.getElementById('three-canvas');
         const renderer = new THREE.WebGLRenderer({ canvas, alpha: true, antialias: true });
+        renderer.shadowMap.enabled = true;
+        renderer.shadowMap.type = THREE.PCFSoftShadowMap;
         
         const scene = new THREE.Scene();
         
@@ -264,29 +266,59 @@
         
         const dirLight = new THREE.DirectionalLight(0xffffff, 0.8);
         dirLight.position.set(200, 500, 300);
+        // ART TECHNIQUE 1: Directional Shadows
+        dirLight.castShadow = true;
+        dirLight.shadow.mapSize.width = 1024;
+        dirLight.shadow.mapSize.height = 1024;
+        dirLight.shadow.camera.left = -250;
+        dirLight.shadow.camera.right = 250;
+        dirLight.shadow.camera.top = 250;
+        dirLight.shadow.camera.bottom = -250;
+        dirLight.shadow.camera.near = 100;
+        dirLight.shadow.camera.far = 1000;
         scene.add(dirLight);
+
+        // ART TECHNIQUE 1: The Anchor Plane (Glass Screen)
+        // Invisible plane at Z=0 that only receives shadows, anchoring the 3D space.
+        const planeGeo = new THREE.PlaneGeometry(2000, 2000);
+        const planeMat = new THREE.ShadowMaterial({ opacity: 0.7 });
+        const plane = new THREE.Mesh(planeGeo, planeMat);
+        plane.receiveShadow = true;
+        scene.add(plane);
+
+        // Subtle Reference Grid at Z=0
+        const grid = new THREE.GridHelper(800, 40, 0x00f2ff, 0x00f2ff);
+        grid.rotation.x = Math.PI / 2;
+        grid.material.opacity = 0.15;
+        grid.material.transparent = true;
+        scene.add(grid);
 
         
         // Create Hologram Bullseye (Protruding)
         const poleGroup = new THREE.Group();
-        const poleGeo = new THREE.CylinderGeometry(4, 4, 300, 32);
+        // ART TECHNIQUE 2: Forced Perspective & Clipping Mitigation
+        // Tapered cylinder (wider at base, narrower at tip) to exaggerate depth.
+        // Shortened length to prevent extreme monitor-bezel clipping.
+        const poleGeo = new THREE.CylinderGeometry(4, 12, 160, 32);
         poleGeo.rotateX(Math.PI / 2); // align with Z axis
         const poleMat = new THREE.MeshPhongMaterial({ color: 0x3b82f6, specular: 0xffffff, shininess: 100 });
         const pole = new THREE.Mesh(poleGeo, poleMat);
-        pole.position.set(0, 0, 150);
+        pole.position.set(0, 0, 80);
+        pole.castShadow = true;
 
         const ringsGroup = new THREE.Group();
         const colors = [0xf43f5e, 0xffffff, 0xf43f5e, 0xffffff, 0x3b82f6];
         for(let i=0; i<5; i++) {
-            const r = 20 - i*3.5;
+            const r = 16 - i*2.8;
             const c = new THREE.Mesh(
                 new THREE.CircleGeometry(r, 32), 
                 new THREE.MeshBasicMaterial({color: colors[i]})
             );
             c.position.z = i * 0.5;
+            c.castShadow = true;
             ringsGroup.add(c);
         }
-        ringsGroup.position.set(0, 0, 305);
+        ringsGroup.position.set(0, 0, 165);
         poleGroup.add(pole);
         poleGroup.add(ringsGroup);
 
@@ -343,13 +375,23 @@
                 // Multiply by a parallax strength factor
                 const strength = 1.0; 
                 
-                // Pan the camera based on head position
+                // MATH TECHNIQUE 1: Off-Axis Projection (Asymmetric Frustum)
+                // Pan the camera linearly without rotating it (no lookAt).
                 camera.position.x = dx * strength;
                 camera.position.y = -dy * strength; 
                 camera.position.z = 500;
                 
-                // Look statically at the screen center to create off-axis window illusion
-                camera.lookAt(0, 0, 0);
+                // Calculate how many pixels the physical camera shift corresponds to at Z=0
+                const dist = camera.position.z;
+                const vFov = THREE.MathUtils.degToRad(camera.fov);
+                const worldHeight = 2 * Math.tan(vFov / 2) * dist;
+                const worldWidth = worldHeight * camera.aspect;
+
+                // Shift the projection matrix in the opposite direction to lock Z=0 perfectly still
+                const pixelOffsetX = (camera.position.x / worldWidth) * w;
+                const pixelOffsetY = (-camera.position.y / worldHeight) * h;
+                
+                camera.setViewOffset(w, h, -pixelOffsetX, -pixelOffsetY, w, h);
             }
 
             renderer.render(scene, camera);
