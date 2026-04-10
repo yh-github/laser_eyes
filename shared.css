@@ -237,38 +237,118 @@
             border: 1px solid #e0ffff;
         }
 
-        /* Snapping Menu Styles */
-        #snap-menu {
+        /* Side Menu Styles */
+        #side-menu {
             position: absolute;
-            top: 110px;
+            top: 24px;
             right: 24px;
-            width: 200px;
+            width: 220px;
             background: rgba(0, 0, 0, 0.85);
-            backdrop-filter: blur(12px);
+            backdrop-filter: blur(20px);
             border: 1px solid rgba(255, 255, 255, 0.1);
-            border-radius: 1.5rem;
-            padding: 1.25rem;
-            z-index: 100;
+            border-radius: 2rem;
+            padding: 1.5rem;
+            z-index: 200;
             display: none;
-            box-shadow: 0 15px 35px rgba(0, 0, 0, 0.5);
+            box-shadow: 0 25px 50px rgba(0, 0, 0, 0.6);
             transform-origin: top right;
         }
 
-        #snap-menu.active {
+        #side-menu.active {
             display: block;
-            animation: menu-pop 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+            animation: menu-slide-in 0.4s cubic-bezier(0.16, 1, 0.3, 1);
         }
 
-        @keyframes menu-pop {
+        @keyframes menu-slide-in {
             from {
                 opacity: 0;
-                transform: scale(0.8) translateY(-10px);
+                transform: scale(0.95) translateX(20px);
             }
-
             to {
                 opacity: 1;
-                transform: scale(1) translateY(0);
+                transform: scale(1) translateX(0);
             }
+        }
+
+        .menu-section {
+            margin-bottom: 1.5rem;
+        }
+
+        .menu-header {
+            font-size: 0.65rem;
+            font-weight: 900;
+            text-transform: uppercase;
+            letter-spacing: 0.15em;
+            color: #22d3ee;
+            margin-bottom: 1rem;
+            opacity: 0.8;
+        }
+
+        .menu-divider {
+            height: 1px;
+            background: rgba(255, 255, 255, 0.1);
+            margin: 1rem 0;
+        }
+
+        .return-btn {
+            width: 100%;
+            padding: 0.75rem;
+            background: rgba(244, 63, 94, 0.1);
+            border: 1px solid rgba(244, 63, 94, 0.3);
+            border-radius: 1rem;
+            color: #f43f5e;
+            font-size: 0.75rem;
+            font-weight: 700;
+            text-transform: uppercase;
+            transition: all 0.2s ease;
+            cursor: pointer;
+        }
+
+        .return-btn:hover {
+            background: rgba(244, 63, 94, 0.2);
+            border-color: #f43f5e;
+        }
+
+        .return-btn.confirm {
+            background: #f43f5e;
+            color: white;
+            animation: pulse-danger 1s infinite;
+        }
+
+        @keyframes pulse-danger {
+            0% { box-shadow: 0 0 0 0 rgba(244, 63, 94, 0.7); }
+            70% { box-shadow: 0 0 0 10px rgba(244, 63, 94, 0); }
+            100% { box-shadow: 0 0 0 0 rgba(244, 63, 94, 0); }
+        }
+
+        /* Menu Button in Forbidden Zone */
+        #menu-btn {
+            width: 44px;
+            height: 44px;
+            background: rgba(0, 0, 0, 0.5);
+            backdrop-filter: blur(8px);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 14px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: rgba(255, 255, 255, 0.6);
+            font-size: 1.25rem;
+            transition: all 0.2s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+            cursor: pointer;
+        }
+
+        #menu-btn:hover {
+            background: rgba(0, 0, 0, 0.8);
+            color: white;
+            transform: scale(1.05);
+            border-color: #22d3ee;
+        }
+
+        #menu-btn.active {
+            background: #22d3ee;
+            color: #000;
+            transform: rotate(90deg);
         }
 
         .menu-label {

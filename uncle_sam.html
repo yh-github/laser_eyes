@@ -124,6 +124,57 @@
 <body class="bg-black flex items-center justify-center text-white font-sans">
     <div id="app-container" class="relative w-full h-full h-[100dvh] sm:h-[800px] sm:w-[400px] bg-gray-900 sm:rounded-[2.5rem] sm:border-8 sm:border-gray-800 overflow-hidden shadow-[0_0_50px_rgba(0,0,0,0.8)]">
         
+        <div class="absolute top-6 right-6 z-40 flex flex-col items-end gap-3">
+            <button id="menu-btn" class="chargeable" title="Settings Menu">⚙️</button>
+        </div>
+
+        <div id="side-menu" class="hidden">
+            <div class="menu-section">
+                <div class="menu-header">Sensors</div>
+                <div class="flex items-center justify-between mb-2">
+                    <span class="text-xs text-gray-300">Camera Feed</span>
+                    <label class="toggle-switch">
+                        <input type="checkbox" id="camera-feed-toggle" checked>
+                        <span class="slider-round"></span>
+                    </label>
+                </div>
+                <div class="flex items-center justify-between mb-4">
+                    <span class="text-xs text-gray-300">Landmarks</span>
+                    <label class="toggle-switch">
+                        <input type="checkbox" id="debug-landmarks-toggle">
+                        <span class="slider-round"></span>
+                    </label>
+                </div>
+            </div>
+
+            <div class="menu-divider"></div>
+
+            <div id="magnet-settings" class="menu-section">
+                <div class="menu-header">Magnetism</div>
+                <div class="flex items-center justify-between mb-3">
+                    <span class="text-xs text-gray-300">Enabled</span>
+                    <label class="toggle-switch">
+                        <input type="checkbox" id="snap-toggle" checked>
+                        <span class="slider-round"></span>
+                    </label>
+                </div>
+
+                <label class="menu-label">Sensitivity</label>
+                <input type="range" id="snap-strength" class="snap-slider" min="0" max="100" value="60">
+
+                <label class="menu-label">Smoothing</label>
+                <input type="range" id="snap-range" class="snap-slider" min="0" max="100" value="40">
+            </div>
+
+            <div class="menu-divider"></div>
+
+            <div class="menu-section mb-0">
+                <button id="return-main-btn" class="return-btn chargeable">
+                    Back to Menu
+                </button>
+            </div>
+        </div>
+
         <div id="overlay" class="absolute inset-0 z-50 flex flex-col items-center justify-center bg-gray-900 bg-opacity-95 p-6 text-center">
             <h1 class="text-5xl font-black mb-2 text-rose-400 uppercase tracking-tighter italic">Uncle Sam</h1>
             <p class="text-md mb-8 text-gray-400">
@@ -288,6 +339,59 @@
                 }
             });
         });
+
+        // UI Listeners
+        const sideMenu = document.getElementById('side-menu');
+        const menuBtn = document.getElementById('menu-btn');
+        const camToggle = document.getElementById('camera-feed-toggle');
+        const returnBtn = document.getElementById('return-main-btn');
+        const debugToggle = document.getElementById('debug-landmarks-toggle');
+        const snapStrengthSlider = document.getElementById('snap-strength');
+        const snapRangeSlider = document.getElementById('snap-range');
+
+        debugToggle.addEventListener('change', (e) => FaceTracker.showDebugLandmarks = e.target.checked);
+
+        menuBtn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            menuBtn.classList.toggle('active');
+            sideMenu.classList.toggle('active');
+        });
+
+        camToggle.addEventListener('change', () => {
+            const videoContainer = document.getElementById('webgazerVideoContainer');
+            if (videoContainer) {
+                videoContainer.style.setProperty('display', camToggle.checked ? 'block' : 'none', 'important');
+            }
+        });
+
+        document.addEventListener('click', (e) => {
+            if (!sideMenu.contains(e.target) && e.target !== menuBtn) {
+                sideMenu.classList.remove('active');
+                menuBtn.classList.remove('active');
+                resetReturnBtn();
+            }
+        });
+
+        let returnConfirm = false;
+        returnBtn.addEventListener('click', () => {
+            if (!returnConfirm) {
+                returnConfirm = true;
+                returnBtn.innerText = "Back to list?";
+                returnBtn.classList.add('confirm');
+                setTimeout(resetReturnBtn, 3000);
+            } else {
+                window.location.href = 'index.html';
+            }
+        });
+
+        function resetReturnBtn() {
+            returnConfirm = false;
+            returnBtn.innerText = "Back to Menu";
+            returnBtn.classList.remove('confirm');
+        }
+
+        snapStrengthSlider.addEventListener('input', (e) => FaceTracker.noseSensitivity = (e.target.value / 100) * 8);
+        snapRangeSlider.addEventListener('input', (e) => FaceTracker.noseSmoothing = e.target.value / 100);
     </script>
 </body>
 </html>

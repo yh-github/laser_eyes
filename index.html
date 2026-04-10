@@ -115,7 +115,8 @@
             </button>
         </div>
 
-        <div class="absolute top-6 right-6 z-40 flex flex-col items-end gap-2">
+        <div class="absolute top-6 right-6 z-40 flex flex-col items-end gap-3">
+            <button id="menu-btn" class="chargeable" title="Settings Menu">⚙️</button>
             <div id="standard-score"
                 class="text-xl font-bold text-gray-300 bg-black/50 px-4 py-1 rounded-full pointer-events-none border border-white/10">
                 Score: <span id="score" class="text-cyan-400">0</span>
@@ -125,21 +126,9 @@
                 <div class="text-green-400">Good: <span id="good-points">0</span></div>
                 <div class="text-red-400">Bad: <span id="bad-points">0</span></div>
             </div>
-            <div class="flex gap-2">
-                <div id="mission-timer"
-                    class="text-xl font-bold text-gray-300 bg-black/50 px-4 py-1 rounded-full pointer-events-none border border-white/10 hidden">
-                    Time: <span id="timer-val" class="text-rose-400">120</span>s
-                </div>
-                <button id="camera-toggle-btn"
-                    class="bg-black/50 hover:bg-black/80 text-white p-2 rounded-full text-lg border border-white/10 transition-all active:scale-95 shadow-lg chargeable"
-                    title="Toggle Camera Feed">
-                    📷
-                </button>
-                <button id="snap-settings-btn"
-                    class="bg-black/50 hover:bg-black/80 text-white p-2 rounded-full text-lg border border-white/10 transition-all active:scale-95 shadow-lg chargeable"
-                    title="Snapping Settings">
-                    🧲
-                </button>
+            <div id="mission-timer"
+                class="text-xl font-bold text-gray-300 bg-black/50 px-4 py-1 rounded-full pointer-events-none border border-white/10 hidden">
+                Time: <span id="timer-val" class="text-rose-400">120</span>s
             </div>
         </div>
 
@@ -156,31 +145,51 @@
             </button>
         </div>
 
-        <div id="snap-menu" class="hidden">
-            <div class="flex items-center justify-between mb-6">
-                <span class="text-xs font-bold tracking-widest uppercase text-cyan-400">Settings</span>
-                <label class="toggle-switch">
-                    <input type="checkbox" id="snap-toggle" checked>
-                    <span class="slider-round"></span>
-                </label>
+        <div id="side-menu" class="hidden">
+            <div class="menu-section">
+                <div class="menu-header">Sensors</div>
+                <div class="flex items-center justify-between mb-2">
+                    <span class="text-xs text-gray-300">Camera Feed</span>
+                    <label class="toggle-switch">
+                        <input type="checkbox" id="camera-feed-toggle" checked>
+                        <span class="slider-round"></span>
+                    </label>
+                </div>
+                <div class="flex items-center justify-between mb-4">
+                    <span class="text-xs text-gray-300">Landmarks</span>
+                    <label class="toggle-switch">
+                        <input type="checkbox" id="debug-landmarks-toggle">
+                        <span class="slider-round"></span>
+                    </label>
+                </div>
             </div>
 
-            <label class="menu-label">Strength</label>
-            <input type="range" id="snap-strength" class="snap-slider" min="0" max="100" value="60">
+            <div class="menu-divider"></div>
 
-            <label class="menu-label">Range</label>
-            <input type="range" id="snap-range" class="snap-slider" min="50" max="300" value="150">
+            <div id="magnet-settings" class="menu-section">
+                <div class="menu-header">Magnetism</div>
+                <div class="flex items-center justify-between mb-3">
+                    <span class="text-xs text-gray-300">Enabled</span>
+                    <label class="toggle-switch">
+                        <input type="checkbox" id="snap-toggle" checked>
+                        <span class="slider-round"></span>
+                    </label>
+                </div>
 
-            <label class="menu-label">Diagnostic Tools</label>
-            <div class="flex items-center justify-between mb-4">
-                <span class="text-[10px] text-gray-400">Show Tracking Dots</span>
-                <label class="toggle-switch">
-                    <input type="checkbox" id="debug-landmarks-toggle">
-                    <span class="slider-round"></span>
-                </label>
+                <label class="menu-label">Strength</label>
+                <input type="range" id="snap-strength" class="snap-slider" min="0" max="100" value="60">
+
+                <label class="menu-label">Range</label>
+                <input type="range" id="snap-range" class="snap-slider" min="50" max="300" value="150">
             </div>
 
-            <p class="text-[9px] text-gray-500 italic mt-2 opacity-60">Higher range makes snapping initiate from further away.</p>
+            <div class="menu-divider"></div>
+
+            <div class="menu-section mb-0">
+                <button id="return-main-btn" class="return-btn chargeable">
+                    Exit to Menu
+                </button>
+            </div>
         </div>
 
         <!-- Vertical Boundaries -->
@@ -271,9 +280,10 @@
         };
 
         // UI Listeners
-        const snapMenu = document.getElementById('snap-menu');
-        const snapBtn = document.getElementById('snap-settings-btn');
-        const camBtn = document.getElementById('camera-toggle-btn');
+        const sideMenu = document.getElementById('side-menu');
+        const menuBtn = document.getElementById('menu-btn');
+        const camToggle = document.getElementById('camera-feed-toggle');
+        const returnBtn = document.getElementById('return-main-btn');
         const snapToggle = document.getElementById('snap-toggle');
         const snapStrengthSlider = document.getElementById('snap-strength');
         const snapRangeSlider = document.getElementById('snap-range');
@@ -281,26 +291,71 @@
 
         debugToggle.addEventListener('change', (e) => FaceTracker.showDebugLandmarks = e.target.checked);
 
-        snapBtn.addEventListener('click', (e) => {
+        menuBtn.addEventListener('click', (e) => {
             e.stopPropagation();
-            snapMenu.classList.toggle('active');
-            snapMenu.classList.toggle('hidden');
+            menuBtn.classList.toggle('active');
+            sideMenu.classList.toggle('active');
         });
 
-        camBtn.addEventListener('click', () => {
+        camToggle.addEventListener('change', () => {
             const videoContainer = document.getElementById('webgazerVideoContainer');
             if (videoContainer) {
-                const isHidden = videoContainer.style.getPropertyValue('display') === 'none';
-                videoContainer.style.setProperty('display', isHidden ? 'block' : 'none', 'important');
+                videoContainer.style.setProperty('display', camToggle.checked ? 'block' : 'none', 'important');
             }
         });
 
         document.addEventListener('click', (e) => {
-            if (!snapMenu.contains(e.target) && e.target !== snapBtn) {
-                snapMenu.classList.remove('active');
-                snapMenu.classList.add('hidden');
+            if (!sideMenu.contains(e.target) && e.target !== menuBtn) {
+                sideMenu.classList.remove('active');
+                menuBtn.classList.remove('active');
+                resetReturnBtn();
             }
         });
+
+        let returnConfirm = false;
+        returnBtn.addEventListener('click', () => {
+            if (!returnConfirm) {
+                returnConfirm = true;
+                returnBtn.innerText = "Are you sure?";
+                returnBtn.classList.add('confirm');
+                setTimeout(resetReturnBtn, 3000);
+            } else {
+                exitToMainMenu();
+            }
+        });
+
+        function resetReturnBtn() {
+            returnConfirm = false;
+            returnBtn.innerText = "Exit to Menu";
+            returnBtn.classList.remove('confirm');
+        }
+
+        function exitToMainMenu() {
+            gameActive = false;
+            clearInterval(missionInterval);
+            
+            // Clear current targets
+            targets.forEach(t => t.remove());
+            targets = [];
+            
+            // Reset scores
+            score = 0;
+            popCount = 0;
+            goodPoints = 0;
+            badPoints = 0;
+            scoreEl.innerText = 0;
+            updateBigMouthScore();
+            
+            // Hide all overlays and HUD
+            document.querySelectorAll('#game-container, #rest-overlay, #facial-hud, #side-menu').forEach(el => {
+                if(el.id === 'facial-hud') el.style.display = 'none';
+                else el.classList.add('hidden');
+            });
+            
+            menuBtn.classList.remove('active');
+            overlay.classList.remove('hidden');
+            resetReturnBtn();
+        }
 
         snapToggle.addEventListener('change', (e) => snappingEnabled = e.target.checked);
         snapStrengthSlider.addEventListener('input', (e) => snapStrength = e.target.value / 100);
