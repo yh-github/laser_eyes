@@ -61,8 +61,12 @@
                     PoC
                 </button>
                 <button id="big-mouth-btn"
-                    class="w-full py-4 bg-purple-600 hover:bg-purple-500 rounded-xl text-xl font-bold shadow-2xl shadow-purple-900/40 transition-all active:scale-95 chargeable">
+                    class="w-full py-4 bg-purple-600 hover:bg-purple-500 rounded-xl text-xl font-bold shadow-2xl shadow-purple-900/40 transition-all active:scale-95 chargeable hidden">
                     Big Mouth
+                </button>
+                <button id="uncle-sam-btn"
+                    class="w-full py-4 bg-rose-600 hover:bg-rose-500 rounded-xl text-xl font-bold shadow-2xl shadow-rose-900/40 transition-all active:scale-95 chargeable hidden">
+                    Uncle Sam
                 </button>
             </div>
 
@@ -325,6 +329,10 @@
         document.getElementById('big-mouth-btn').addEventListener('click', () => {
             currentGameMode = 'bigmouth';
             FaceTracker.startCalibration(startGame);
+        });
+
+        document.getElementById('uncle-sam-btn').addEventListener('click', () => {
+            window.location.href = 'uncle_sam.html';
         });
 
         document.getElementById('recalib-btn').addEventListener('click', () => {

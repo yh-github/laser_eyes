@@ -128,8 +128,10 @@ const FaceTracker = {
                 
                 const startBtn = document.getElementById('start-btn');
                 const bigMouthBtn = document.getElementById('big-mouth-btn');
+                const uncleSamBtn = document.getElementById('uncle-sam-btn');
                 if(startBtn) startBtn.classList.remove('hidden');
                 if(bigMouthBtn) bigMouthBtn.classList.remove('hidden');
+                if(uncleSamBtn) uncleSamBtn.classList.remove('hidden');
             }, 800);
 
             return true;
