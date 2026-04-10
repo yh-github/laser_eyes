@@ -389,13 +389,16 @@
             // Reset scores
             score = 0;
             popCount = 0;
+            maxTargets = 1;
             goodPoints = 0;
             badPoints = 0;
             scoreEl.innerText = 0;
             updateBigMouthScore();
             
+            allBadFoodsStartTime = 0;
+            
             // Hide all overlays and HUD
-            document.querySelectorAll('#game-container, #rest-overlay, #facial-hud, #side-menu').forEach(el => {
+            document.querySelectorAll('#rest-overlay, #facial-hud, #side-menu').forEach(el => {
                 if(el.id === 'facial-hud') el.style.display = 'none';
                 else el.classList.add('hidden');
             });
@@ -679,6 +682,7 @@
         }
 
         function spawnTarget() {
+            if (!gameActive || currentGameMode !== 'standard') return;
             if (targets.length >= maxTargets) return;
 
             const target = document.createElement('div');
