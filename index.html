@@ -146,29 +146,55 @@
         </div>
 
         <div id="side-menu" class="hidden">
-            <div class="menu-section">
-                <div class="menu-header">Sensors</div>
-                <div class="flex items-center justify-between mb-2">
-                    <span class="text-xs text-gray-300">Camera Feed</span>
-                    <label class="toggle-switch">
-                        <input type="checkbox" id="camera-feed-toggle" checked>
-                        <span class="slider-round"></span>
-                    </label>
+            <div id="main-menu-view">
+                <div class="menu-section">
+                    <div class="menu-header">Sensors</div>
+                    <div class="flex items-center justify-between mb-2">
+                        <span class="text-xs text-gray-300">Camera Feed</span>
+                        <label class="toggle-switch">
+                            <input type="checkbox" id="camera-feed-toggle" checked>
+                            <span class="slider-round"></span>
+                        </label>
+                    </div>
+                    <div class="flex items-center justify-between">
+                        <div class="flex flex-col">
+                            <span class="text-xs text-gray-300">Face Landmarks</span>
+                            <span class="text-[9px] text-gray-500">Show AI tracking dots</span>
+                        </div>
+                        <label class="toggle-switch">
+                            <input type="checkbox" id="debug-landmarks-toggle">
+                            <span class="slider-round"></span>
+                        </label>
+                    </div>
                 </div>
-                <div class="flex items-center justify-between mb-4">
-                    <span class="text-xs text-gray-300">Landmarks</span>
-                    <label class="toggle-switch">
-                        <input type="checkbox" id="debug-landmarks-toggle">
-                        <span class="slider-round"></span>
-                    </label>
+
+                <div class="menu-divider"></div>
+
+                <div class="menu-section">
+                    <button id="open-magnet-btn" class="w-full text-left text-xs font-bold text-gray-300 py-2 flex justify-between items-center hover:text-cyan-400 chargeable transition-colors">
+                        MAGNETISM SETTINGS <span class="opacity-50">&gt;</span>
+                    </button>
+                </div>
+
+                <div class="menu-divider"></div>
+
+                <div class="menu-section mb-0 flex flex-col gap-2">
+                    <button id="resume-game-btn" class="return-btn chargeable" style="background: rgba(34, 211, 238, 0.1); border-color: rgba(34, 211, 238, 0.3); color: #22d3ee;">
+                        Resume Game
+                    </button>
+                    <button id="return-main-btn" class="return-btn chargeable">
+                        Exit to Menu
+                    </button>
                 </div>
             </div>
 
-            <div class="menu-divider"></div>
+            <div id="magnet-menu-view" class="hidden">
+                <div class="flex items-center mb-6">
+                    <button id="close-magnet-btn" class="text-xs font-bold text-gray-400 hover:text-white mr-3 chargeable py-1 transition-colors uppercase tracking-wider">&lt; Back</button>
+                    <div class="menu-header mb-0">Magnetism</div>
+                </div>
 
-            <div id="magnet-settings" class="menu-section">
-                <div class="menu-header">Magnetism</div>
-                <div class="flex items-center justify-between mb-3">
+                <div class="flex items-center justify-between mb-4">
                     <span class="text-xs text-gray-300">Enabled</span>
                     <label class="toggle-switch">
                         <input type="checkbox" id="snap-toggle" checked>
@@ -181,14 +207,6 @@
 
                 <label class="menu-label">Range</label>
                 <input type="range" id="snap-range" class="snap-slider" min="50" max="300" value="150">
-            </div>
-
-            <div class="menu-divider"></div>
-
-            <div class="menu-section mb-0">
-                <button id="return-main-btn" class="return-btn chargeable">
-                    Exit to Menu
-                </button>
             </div>
         </div>
 
@@ -281,6 +299,11 @@
 
         // UI Listeners
         const sideMenu = document.getElementById('side-menu');
+        const mainMenuBtn = document.getElementById('main-menu-view');
+        const magnetMenuBtn = document.getElementById('magnet-menu-view');
+        const openMagnetBtn = document.getElementById('open-magnet-btn');
+        const closeMagnetBtn = document.getElementById('close-magnet-btn');
+        const resumeBtn = document.getElementById('resume-game-btn');
         const menuBtn = document.getElementById('menu-btn');
         const camToggle = document.getElementById('camera-feed-toggle');
         const returnBtn = document.getElementById('return-main-btn');
@@ -295,6 +318,27 @@
             e.stopPropagation();
             menuBtn.classList.toggle('active');
             sideMenu.classList.toggle('active');
+            // reset to main view
+            mainMenuBtn.classList.remove('hidden');
+            magnetMenuBtn.classList.add('hidden');
+        });
+
+        openMagnetBtn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            mainMenuBtn.classList.add('hidden');
+            magnetMenuBtn.classList.remove('hidden');
+        });
+
+        closeMagnetBtn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            magnetMenuBtn.classList.add('hidden');
+            mainMenuBtn.classList.remove('hidden');
+        });
+
+        resumeBtn.addEventListener('click', () => {
+            sideMenu.classList.remove('active');
+            menuBtn.classList.remove('active');
+            resetReturnBtn();
         });
 
         camToggle.addEventListener('change', () => {
