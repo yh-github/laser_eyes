@@ -1,0 +1,464 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Through The Glass - Laser Eyes PoC</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="shared.css">
+    <!-- Load WebGazer and Three.js -->
+    <script src="https://cdn.jsdelivr.net/npm/webgazer@2.1.1/dist/webgazer.js" onerror="window.webgazerLoadError = true;"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <!-- Load shared face tracking logic -->
+    <script src="tracker.js"></script>
+    <style>
+        body, html {
+            margin: 0;
+            padding: 0;
+            height: 100%;
+            height: 100dvh;
+            width: 100%;
+            touch-action: none;
+            overflow: hidden;
+            background: #000;
+        }
+
+        #three-canvas {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            z-index: 10;
+            pointer-events: none;
+        }
+
+        /* Essential Calibration UI Styles missing from shared */
+        #calib-nose-dot {
+            position: absolute;
+            width: 10px;
+            height: 10px;
+            background: #22d3ee;
+            border-radius: 50%;
+            pointer-events: none;
+            transform: translate(-50%, -50%);
+            z-index: 62;
+            display: none;
+            box-shadow: 0 0 8px #22d3ee;
+            transition: left 0.08s ease-out, top 0.08s ease-out;
+        }
+        
+        .fade-in-up {
+            animation: fade-in-up 0.4s ease-out forwards;
+        }
+
+        @keyframes fade-in-up {
+            from { opacity: 0; transform: translateY(10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        .calib-crosshair {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            width: 80px;
+            height: 80px;
+            border: 4px solid #00f2ff;
+            border-radius: 50%;
+            animation: crosshair-pulse 1.2s ease-in-out infinite;
+            z-index: 61;
+        }
+
+        .calib-crosshair::before,
+        .calib-crosshair::after {
+            content: '';
+            position: absolute;
+            background: #00f2ff;
+        }
+
+        .calib-crosshair::before { width: 2px; height: 100%; left: 50%; top: 0; transform: translateX(-50%); }
+        .calib-crosshair::after { height: 2px; width: 100%; top: 50%; left: 0; transform: translateY(-50%); }
+
+        @keyframes crosshair-pulse {
+            0%, 100% { transform: translate(-50%, -50%) scale(1); opacity: 0.8; box-shadow: 0 0 20px rgba(0, 242, 255, 0.3); }
+            50% { transform: translate(-50%, -50%) scale(1.15); opacity: 1; box-shadow: 0 0 40px rgba(0, 242, 255, 0.6); }
+        }
+
+        /* Force WebGazer UI to be visible and styled */
+        #webgazerVideoContainer {
+            display: block !important;
+            position: absolute !important;
+            top: 20px !important;
+            left: 20px !important;
+            width: 160px !important;
+            height: 120px !important;
+            z-index: 1000 !important;
+            border: 2px solid #00f2ff !important;
+            border-radius: 1rem !important;
+            overflow: hidden !important;
+            box-shadow: 0 10px 25px rgba(0, 0, 0, 0.6) !important;
+            background: #000 !important;
+        }
+
+        /* Hide the live video feed but keep the tracking overlays */
+        #webgazerVideoContainer video,
+        #webgazerVideoFeed {
+            opacity: 0 !important;
+            visibility: hidden !important;
+        }
+
+        /* Show the green bounding box and wireframe mesh */
+        #webgazerVideoCanvas,
+        #webgazerFaceOverlay {
+            display: block !important;
+            position: absolute !important;
+            top: 50% !important;
+            left: 50% !important;
+            transform: translate(-50%, -50%) !important;
+            width: auto !important;
+            height: 100% !important;
+        }
+    </style>
+</head>
+<body class="bg-black flex items-center justify-center text-white font-sans">
+    <div id="app-container" class="relative w-full h-full h-[100dvh] sm:h-[800px] sm:w-[400px] bg-gray-900 sm:rounded-[2.5rem] sm:border-8 sm:border-gray-800 overflow-hidden shadow-[0_0_50px_rgba(0,0,0,0.8)]">
+        
+        <div class="absolute top-6 right-6 z-40 flex flex-col items-end gap-3">
+            <button id="menu-btn" class="chargeable" title="Settings Menu">⚙️</button>
+        </div>
+
+        <div id="side-menu" class="hidden">
+            <div id="main-menu-view">
+                <div class="menu-section">
+                    <div class="menu-header">Sensors</div>
+                    <div class="flex items-center justify-between mb-2">
+                        <span class="text-xs text-gray-300">Camera Feed</span>
+                        <label class="toggle-switch">
+                            <input type="checkbox" id="camera-feed-toggle" checked>
+                            <span class="slider-round"></span>
+                        </label>
+                    </div>
+                    <div class="flex items-center justify-between">
+                        <div class="flex flex-col">
+                            <span class="text-xs text-gray-300">Face Landmarks</span>
+                            <span class="text-[9px] text-gray-500">Show AI tracking dots</span>
+                        </div>
+                        <label class="toggle-switch">
+                            <input type="checkbox" id="debug-landmarks-toggle">
+                            <span class="slider-round"></span>
+                        </label>
+                    </div>
+                </div>
+
+                <div class="menu-divider"></div>
+
+                <div class="menu-section">
+                    <button id="open-shape-btn" class="w-full text-left text-xs font-bold text-gray-300 py-2 flex justify-between items-center hover:text-cyan-400 chargeable transition-colors">
+                        SHAPE SETTINGS <span class="opacity-50">&gt;</span>
+                    </button>
+                </div>
+
+                <div class="menu-divider"></div>
+
+                <div class="menu-section mb-0 flex flex-col gap-2">
+                    <button id="resume-game-btn" class="return-btn chargeable" style="background: rgba(34, 211, 238, 0.1); border-color: rgba(34, 211, 238, 0.3); color: #22d3ee;">
+                        Resume Game
+                    </button>
+                    <button id="return-main-btn" class="return-btn chargeable">
+                        Back to Menu
+                    </button>
+                </div>
+            </div>
+
+            <div id="shape-menu-view" class="hidden">
+                <div class="flex items-center mb-6">
+                    <button id="close-shape-btn" class="text-xs font-bold text-gray-400 hover:text-white mr-3 chargeable py-1 transition-colors uppercase tracking-wider">&lt; Back</button>
+                    <div class="menu-header mb-0">Shape Options</div>
+                </div>
+
+                <div class="flex items-center justify-between mb-4">
+                    <span class="text-xs text-gray-300">Enabled</span>
+                    <label class="toggle-switch">
+                        <input type="checkbox" id="snap-toggle" checked>
+                        <span class="slider-round"></span>
+                    </label>
+                </div>
+
+                
+<label class="menu-label">Shape Type</label>
+<div class="flex items-center gap-2 mt-2">
+    <select id="shape-select" class="w-full bg-gray-800 text-cyan-400 border border-cyan-900 rounded px-2 py-1 text-xs">
+        <option value="pole">Protruding Bullseye (Out)</option>
+        <option value="tunnel">Deep Tunnel (In)</option>
+    </select>
+</div>
+
+            </div>
+        </div>
+
+        <div id="overlay" class="absolute inset-0 z-50 flex flex-col items-center justify-center bg-gray-900 bg-opacity-95 p-6 text-center">
+            <h1 class="text-5xl font-black mb-2 text-rose-400 uppercase tracking-tighter italic">Through Glass</h1>
+            <p class="text-md mb-8 text-gray-400">
+                Look around the 3D space with your head.
+            </p>
+
+            <div class="flex flex-col gap-3 w-full max-w-[280px] mb-4">
+                <button id="start-btn" class="w-full py-4 bg-rose-600 hover:bg-rose-500 rounded-xl text-xl font-bold shadow-2xl shadow-rose-900/40 transition-all active:scale-95 hidden">
+                    START TRACKING
+                </button>
+            </div>
+
+            <div id="status-box" class="mt-8 p-5 rounded-2xl bg-black/40 hidden max-w-sm border border-white/10 backdrop-blur-md">
+                <div class="flex items-center gap-3 mb-2">
+                    <div class="w-2 h-2 rounded-full bg-cyan-500 animate-ping"></div>
+                    <p id="loading-msg" class="text-white text-sm font-semibold"></p>
+                </div>
+                <p id="action-msg" class="text-gray-500 text-xs text-left leading-relaxed"></p>
+            </div>
+        </div>
+
+        <div id="calib-overlay" class="absolute inset-0 z-[60] flex flex-col items-center justify-center bg-black/95 hidden">
+            <div id="nose-calib-ui" class="flex flex-col items-center justify-center h-full w-full pointer-events-none">
+                <div class="text-center w-full px-10 mb-20 fade-in-up">
+                    <h2 id="calib-title" class="text-3xl font-bold text-cyan-400 mb-1">Calibration</h2>
+                    <p id="calib-status" class="text-white text-sm mb-4 font-semibold">Detecting face...</p>
+                    <div class="w-full h-1 bg-gray-800 rounded-full mx-auto overflow-hidden max-w-[200px]">
+                        <div id="nose-calib-progress" class="bg-cyan-500 h-full w-0 transition-all duration-100"></div>
+                    </div>
+                </div>
+
+                <div class="h-40"></div>
+
+                <div class="text-center w-full px-10 pointer-events-auto mt-20">
+                    <p id="calib-hint" class="text-gray-400 mb-8 text-[11px] italic">Look at the crosshair and hold still</p>
+                    <button id="skip-calib-btn" class="py-2.5 px-10 bg-cyan-900/20 hover:bg-cyan-900/40 text-cyan-400 rounded-full text-[11px] font-bold border border-cyan-500/30 transition-all active:scale-95 uppercase tracking-widest">
+                        Skip
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <div id="calib-nose-dot"></div>
+        <canvas id="three-canvas"></canvas>
+    </div>
+
+    <script>
+        const appContainer = document.getElementById('app-container');
+        const overlay = document.getElementById('overlay');
+        const startBtn = document.getElementById('start-btn');
+        let requestAnimId;
+
+        // THREE.js Scene Setup
+        const canvas = document.getElementById('three-canvas');
+        const renderer = new THREE.WebGLRenderer({ canvas, alpha: true, antialias: true });
+        
+        const scene = new THREE.Scene();
+        
+        // Camera perspective matches a typical screen layout
+        let camera = new THREE.PerspectiveCamera(45, window.innerWidth / window.innerHeight, 1, 3000);
+        camera.position.set(0, 0, 500); 
+        
+        const ambientLight = new THREE.AmbientLight(0xffffff, 0.4);
+        scene.add(ambientLight);
+        
+        const dirLight = new THREE.DirectionalLight(0xffffff, 0.8);
+        dirLight.position.set(200, 500, 300);
+        scene.add(dirLight);
+
+        
+        // Create Hologram Bullseye (Protruding)
+        const poleGroup = new THREE.Group();
+        const poleGeo = new THREE.CylinderGeometry(15, 15, 300, 32);
+        poleGeo.rotateX(Math.PI / 2); // align with Z axis
+        const poleMat = new THREE.MeshPhongMaterial({ color: 0x3b82f6, specular: 0xffffff, shininess: 100 });
+        const pole = new THREE.Mesh(poleGeo, poleMat);
+        pole.position.set(0, 0, 150);
+
+        const ringsGroup = new THREE.Group();
+        const colors = [0xf43f5e, 0xffffff, 0xf43f5e, 0xffffff, 0x3b82f6];
+        for(let i=0; i<5; i++) {
+            const r = 50 - i*10;
+            const c = new THREE.Mesh(
+                new THREE.CircleGeometry(r, 32), 
+                new THREE.MeshBasicMaterial({color: colors[i]})
+            );
+            c.position.z = i * 0.5;
+            ringsGroup.add(c);
+        }
+        ringsGroup.position.set(0, 0, 305);
+        poleGroup.add(pole);
+        poleGroup.add(ringsGroup);
+
+        // Create Deep Tunnel (Inwards)
+        const tunnelGroup = new THREE.Group();
+        for(let i=0; i<15; i++) {
+            // Give tunnel some perspective tapering by making far rings smaller
+            const size = 200 - (i * 5); 
+            const geo = new THREE.EdgesGeometry(new THREE.PlaneGeometry(size, size));
+            const color = new THREE.Color().setHSL(0.5 + (i * 0.03), 1.0, 0.5);
+            const mat = new THREE.LineBasicMaterial({ color: color });
+            const rect = new THREE.LineSegments(geo, mat);
+            rect.position.z = -i * 80;
+            tunnelGroup.add(rect);
+        }
+        const coreGeo = new THREE.SphereGeometry(20, 16, 16);
+        const coreMat = new THREE.MeshBasicMaterial({ color: 0xffffff });
+        const core = new THREE.Mesh(coreGeo, coreMat);
+        core.position.z = -15 * 80;
+        tunnelGroup.add(core);
+
+        scene.add(poleGroup);
+        scene.add(tunnelGroup);
+        tunnelGroup.visible = false; // default to pole
+
+        
+        function resize() {
+            const w = appContainer.clientWidth;
+            const h = appContainer.clientHeight;
+            renderer.setSize(w, h);
+            camera.aspect = w / h;
+            camera.updateProjectionMatrix();
+        }
+        window.addEventListener('resize', resize);
+        resize();
+
+        function mapRange(val, inMin, inMax, outMin, outMax) {
+            return outMin + (val - inMin) * (outMax - outMin) / (inMax - inMin);
+        }
+
+        function animate() {
+            requestAnimId = requestAnimationFrame(animate);
+            FaceTracker.update();
+
+            const w = appContainer.clientWidth;
+            const h = appContainer.clientHeight;
+            
+            
+            if (FaceTracker.cursorX !== -100) {
+                // Determine dx and dy representing head offset
+                const dx = FaceTracker.cursorX - (w / 2);
+                const dy = FaceTracker.cursorY - (h / 2);
+
+                // Multiply by a parallax strength factor
+                const strength = 1.0; 
+                
+                // Pan the camera based on head position
+                camera.position.x = dx * strength;
+                camera.position.y = -dy * strength; 
+                camera.position.z = 500;
+                
+                // Look statically at the screen center to create off-axis window illusion
+                camera.lookAt(0, 0, 0);
+            }
+
+            renderer.render(scene, camera);
+
+        }
+
+        window.addEventListener('load', () => {
+            FaceTracker.init().then(success => {
+                if(success) {
+                    startBtn.onclick = () => {
+                        FaceTracker.startCalibration(() => {
+                            overlay.classList.add('hidden');
+                            animate();
+                        });
+                    };
+                }
+            });
+        });
+
+        // UI Listeners
+        const sideMenu = document.getElementById('side-menu');
+        const mainMenuBtn = document.getElementById('main-menu-view');
+        const shapeMenuBtn = document.getElementById('shape-menu-view');
+        const openShapeBtn = document.getElementById('open-shape-btn');
+        const closeShapeBtn = document.getElementById('close-shape-btn');
+        const resumeBtn = document.getElementById('resume-game-btn');
+        const menuBtn = document.getElementById('menu-btn');
+        const camToggle = document.getElementById('camera-feed-toggle');
+        const returnBtn = document.getElementById('return-main-btn');
+        const debugToggle = document.getElementById('debug-landmarks-toggle');
+        
+        
+
+        debugToggle.addEventListener('change', (e) => FaceTracker.showDebugLandmarks = e.target.checked);
+
+        menuBtn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            menuBtn.classList.toggle('active');
+            sideMenu.classList.toggle('active');
+            // reset to main view
+            mainMenuBtn.classList.remove('hidden');
+            shapeMenuBtn.classList.add('hidden');
+        });
+
+        openShapeBtn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            mainMenuBtn.classList.add('hidden');
+            shapeMenuBtn.classList.remove('hidden');
+        });
+
+        closeShapeBtn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            shapeMenuBtn.classList.add('hidden');
+            mainMenuBtn.classList.remove('hidden');
+        });
+
+        resumeBtn.addEventListener('click', () => {
+            sideMenu.classList.remove('active');
+            menuBtn.classList.remove('active');
+            resetReturnBtn();
+        });
+
+        camToggle.addEventListener('change', () => {
+            const videoContainer = document.getElementById('webgazerVideoContainer');
+            if (videoContainer) {
+                videoContainer.style.setProperty('display', camToggle.checked ? 'block' : 'none', 'important');
+            }
+        });
+
+        document.addEventListener('click', (e) => {
+            if (!sideMenu.contains(e.target) && e.target !== menuBtn) {
+                sideMenu.classList.remove('active');
+                menuBtn.classList.remove('active');
+                resetReturnBtn();
+            }
+        });
+
+        let returnConfirm = false;
+        returnBtn.addEventListener('click', () => {
+            if (!returnConfirm) {
+                returnConfirm = true;
+                returnBtn.innerText = "Back to list?";
+                returnBtn.classList.add('confirm');
+                setTimeout(resetReturnBtn, 3000);
+            } else {
+                window.location.href = 'index.html';
+            }
+        });
+
+        function resetReturnBtn() {
+            returnConfirm = false;
+            returnBtn.innerText = "Back to Menu";
+            returnBtn.classList.remove('confirm');
+        }
+
+        // removed('input', (e) => FaceTracker.noseSensitivity = (e.target.value / 100) * 8);
+        // removed('input', (e) => FaceTracker.noseSmoothing = e.target.value / 100);
+        const shapeSelect = document.getElementById('shape-select');
+        if (shapeSelect) {
+            shapeSelect.addEventListener('change', (e) => {
+                if (e.target.value === 'pole') {
+                    poleGroup.visible = true;
+                    tunnelGroup.visible = false;
+                } else {
+                    poleGroup.visible = false;
+                    tunnelGroup.visible = true;
+                }
+            });
+        }
+    </script>
+</body>
+</html>
