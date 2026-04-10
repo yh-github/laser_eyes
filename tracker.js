@@ -50,39 +50,52 @@ const FaceTracker = {
         const statusBox = document.getElementById('status-box');
         const loadingMsg = document.getElementById('loading-msg');
         const actionMsg = document.getElementById('action-msg');
+        
+        // Main menu status box (fallback)
         if (statusBox && loadingMsg && actionMsg) {
             statusBox.classList.remove('hidden');
             loadingMsg.innerText = title;
             actionMsg.innerText = action;
-            const startBtn = document.getElementById('start-btn');
-            if(startBtn) startBtn.classList.remove('hidden');
-        } else {
-            console.error(title, action);
         }
+
+        // Intro screen error box
+        const introErrorBox = document.getElementById('intro-error-box');
+        const introErrorMsg = document.getElementById('intro-error-msg');
+        const introStatusBox = document.getElementById('intro-status-box');
+        
+        if (introErrorBox && introErrorMsg) {
+            introErrorBox.classList.remove('hidden');
+            introErrorMsg.innerText = title + ": " + action;
+            if (introStatusBox) introStatusBox.classList.add('hidden');
+        }
+
+        const startBtn = document.getElementById('start-btn');
+        if(startBtn) startBtn.classList.remove('hidden');
     },
 
     async init() {
-        const statusBox = document.getElementById('status-box');
-        const loadingMsg = document.getElementById('loading-msg');
-        const actionMsg = document.getElementById('action-msg');
+        const introLoadingMsg = document.getElementById('intro-loading-msg');
+        const introActionMsg = document.getElementById('intro-action-msg');
         
-        if (statusBox) statusBox.classList.remove('hidden');
-        if (loadingMsg) loadingMsg.innerText = "Initializing AI & Camera...";
-        if (actionMsg) actionMsg.innerText = "Please accept camera permissions if prompted.";
+        if (introLoadingMsg) introLoadingMsg.innerText = "Initializing AI...";
+        if (introActionMsg) introActionMsg.innerText = "Preparing neural engine.";
 
         try {
             if (window.webgazerLoadError || typeof webgazer === 'undefined') {
-                throw new Error("LibraryLoadError");
+                throw new Error("Face tracking library failed to load. Please check your connection.");
             }
 
             webgazer.params.showVideo = true;
             webgazer.params.showPredictionPoints = false;
             webgazer.setGazeListener(() => { });
 
-            if (loadingMsg) loadingMsg.innerText = "Downloading AI Models (15MB)...";
-            if (actionMsg) actionMsg.innerText = "This might take 10-20 seconds on first load.";
+            if (introLoadingMsg) introLoadingMsg.innerText = "Awaiting Camera...";
+            if (introActionMsg) introActionMsg.innerText = "Please accept camera permissions if prompted.";
 
             await webgazer.begin();
+
+            if (introLoadingMsg) introLoadingMsg.innerText = "Downloading Models...";
+            if (introActionMsg) introActionMsg.innerText = "Initializing neural weights (15MB).";
 
             const appContainer = document.getElementById(this.appContainerId) || document.body;
             const videoContainer = document.getElementById('webgazerVideoContainer');
@@ -105,13 +118,19 @@ const FaceTracker = {
             webgazer.showVideoPreview(true).showPredictionPoints(false);
 
             this.isStarted = true;
-            if (loadingMsg) loadingMsg.innerText = "AI Ready!";
-            if (actionMsg) actionMsg.innerText = "Model loaded and camera active.";
             
-            const startBtn = document.getElementById('start-btn');
-            const bigMouthBtn = document.getElementById('big-mouth-btn');
-            if(startBtn) startBtn.classList.remove('hidden');
-            if(bigMouthBtn) bigMouthBtn.classList.remove('hidden');
+            // Transition to main menu
+            setTimeout(() => {
+                const introOverlay = document.getElementById('intro-overlay');
+                const mainMenu = document.getElementById('overlay');
+                if (introOverlay) introOverlay.classList.add('hidden');
+                if (mainMenu) mainMenu.classList.remove('hidden');
+                
+                const startBtn = document.getElementById('start-btn');
+                const bigMouthBtn = document.getElementById('big-mouth-btn');
+                if(startBtn) startBtn.classList.remove('hidden');
+                if(bigMouthBtn) bigMouthBtn.classList.remove('hidden');
+            }, 800);
 
             return true;
         } catch (err) {

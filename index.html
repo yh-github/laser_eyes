@@ -17,9 +17,38 @@
     <div id="app-container"
         class="relative w-full h-full h-[100dvh] sm:h-[800px] sm:w-[400px] bg-gray-900 sm:rounded-[2.5rem] sm:border-8 sm:border-gray-800 overflow-hidden shadow-[0_0_50px_rgba(0,0,0,0.8)]">
 
-        <!-- UI Overlay -->
+        <!-- Intro / Permission Screen -->
+        <div id="intro-overlay" class="absolute inset-0 z-[100] flex flex-col items-center justify-center bg-black p-6 text-center">
+            <div class="intro-card">
+                <div class="intro-icon-container">
+                    <span class="text-4xl">👁️</span>
+                </div>
+                <h2 class="text-2xl font-bold text-white mb-4">Face Tracking Required</h2>
+                <p class="text-gray-400 text-sm leading-relaxed mb-6">
+                    This game uses advanced AI face tracking to control your laser eyes. 
+                    It requires your <span class="text-cyan-400 font-bold">selfie camera</span> to "see you" and track your nose movements.
+                </p>
+                
+                <div id="intro-status-box" class="w-full">
+                    <p id="intro-loading-msg" class="text-cyan-400 text-xs font-bold uppercase tracking-widest mb-2">Initializing AI...</p>
+                    <p id="intro-action-msg" class="text-gray-500 text-[10px]">Please allow camera access when prompted.</p>
+                    <div class="loading-bar-container">
+                        <div id="intro-loading-bar" class="loading-bar-fill"></div>
+                    </div>
+                </div>
+
+                <div id="intro-error-box" class="hidden mt-6">
+                    <p id="intro-error-msg" class="text-rose-500 text-xs mb-4"></p>
+                    <button onclick="location.reload()" class="px-6 py-2 bg-rose-600 hover:bg-rose-500 text-white text-xs font-bold rounded-full transition-all active:scale-95">
+                        RETRY
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- UI Overlay (Main Menu) -->
         <div id="overlay"
-            class="absolute inset-0 z-50 flex flex-col items-center justify-center bg-gray-900 bg-opacity-95 p-6 text-center">
+            class="absolute inset-0 z-50 flex flex-col items-center justify-center bg-gray-900 bg-opacity-95 p-6 text-center hidden">
             <h1 class="text-5xl font-black mb-2 text-cyan-400 uppercase tracking-tighter italic">Laser Eyes</h1>
             <p class="text-md mb-8 text-gray-400">
                 Destroy targets with your gaze. <br>
@@ -225,10 +254,6 @@
         const TUTORIAL_MIN_GOOD_SCORE = 3;
         const MIN_SPAWN_DIST = 200;
 
-        
-        
-                debugCanvas.style.pointerEvents = 'none';
-
         // Snapping Config
         let snappingEnabled = true;
         let snapStrength = 0.6;
@@ -288,41 +313,6 @@
         // Persist model data across sessions (prevents re-training on reload)
         window.saveDataAcrossSessions = true;
 
-        
-        
-                webgazer.params.showVideo = true;
-                webgazer.params.showPredictionPoints = false;
-                webgazer.setGazeListener(() => { });
-
-                loadingMsg.innerText = "Downloading AI Models (15MB)...";
-                actionMsg.innerText = "This might take 10-20 seconds on first load.";
-
-                await webgazer.begin();
-
-                const videoContainer = document.getElementById('webgazerVideoContainer');
-                if (videoContainer) {
-                    appContainer.appendChild(videoContainer);
-                    videoContainer.appendChild(debugCanvas);
-                }
-
-                webgazer.showVideoPreview(true).showPredictionPoints(false);
-                // facialHud visibility moved to startGame
-
-                FaceTracker.isStarted = true;
-                loadingMsg.innerText = "AI Ready!";
-                actionMsg.innerText = "Model loaded and camera active.";
-                
-                // Keep overlay showing but buttons enabled
-                document.getElementById('start-btn').classList.remove('hidden');
-                document.getElementById('big-mouth-btn').classList.remove('hidden');
-
-                if (!loopInterval) loopInterval = setInterval(checkCollisions, 30);
-            } catch (err) {
-                console.error(err);
-                if (typeof webgazer !== 'undefined') webgazer.end();
-                showError("Initialization Failed", err.message);
-            }
-        }
 
         // Run AI initialization immediately
         window.addEventListener('load', () => FaceTracker.init().then(success => { if(success) { if (!loopInterval) loopInterval = setInterval(checkCollisions, 30); } }));
@@ -787,11 +777,6 @@
             FaceTracker.update();
             updateLaser();
             updateCharging();
-        }
-
-        
-            lastNoseX = FaceTracker.cursorX;
-            lastNoseY = FaceTracker.cursorY;
         }
 
         window.addEventListener('resize', () => {
