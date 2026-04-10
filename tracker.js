@@ -200,7 +200,7 @@ const FaceTracker = {
                 const appContainer = document.getElementById(this.appContainerId) || document.body;
                 const screenW = appContainer.clientWidth;
                 const screenH = appContainer.clientHeight;
-                const liveX = screenW / 2 - (nose[0] - (tempX / Math.max(noseCalibFrames, 1))) * this.noseSensitivity;
+                const liveX = screenW / 2 + (nose[0] - (tempX / Math.max(noseCalibFrames, 1))) * this.noseSensitivity;
                 const liveY = screenH / 2 + (nose[1] - (tempY / Math.max(noseCalibFrames, 1))) * this.noseSensitivity;
                 
                 if (calibNoseDot) {
@@ -379,7 +379,7 @@ const FaceTracker = {
         const screenW = appContainer.clientWidth;
         const screenH = appContainer.clientHeight;
 
-        const targetX = (screenW / 2) - (dx * this.noseSensitivity);
+        const targetX = (screenW / 2) + (dx * this.noseSensitivity);
         const targetY = (screenH / 2) + (dy * this.noseSensitivity);
 
         if (this.lastNoseX === -100) {

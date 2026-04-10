@@ -463,7 +463,10 @@
                 
                 // Keep camera hidden in Big Mouth
                 const videoContainer = document.getElementById('webgazerVideoContainer');
-                if (videoContainer) videoContainer.style.setProperty('display', 'none', 'important');
+                if (videoContainer) {
+                    videoContainer.style.setProperty('display', 'none', 'important');
+                    camToggle.checked = false;
+                }
                 
                 goodPoints = 0;
                 badPoints = 0;
@@ -475,6 +478,13 @@
                 document.getElementById('standard-score').classList.remove('hidden');
                 document.getElementById('bigmouth-score').classList.add('hidden');
                 document.getElementById('recalib-btn').classList.remove('hidden');
+                
+                // Show camera by default in Standard
+                const videoContainer = document.getElementById('webgazerVideoContainer');
+                if (videoContainer) {
+                    videoContainer.style.setProperty('display', 'block', 'important');
+                    camToggle.checked = true;
+                }
                 
                 facialHud.style.display = 'block';
                 spawnTarget();

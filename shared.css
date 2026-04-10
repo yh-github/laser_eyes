@@ -94,6 +94,7 @@
             overflow: hidden !important;
             box-shadow: 0 10px 25px rgba(0, 0, 0, 0.6) !important;
             background: #000 !important;
+            transform: scaleX(-1) !important;
         }
 
         /* Hide the live video feed but keep the tracking overlays */
