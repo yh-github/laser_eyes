@@ -285,8 +285,9 @@
         dirLight.shadow.camera.right = 250;
         dirLight.shadow.camera.top = 250;
         dirLight.shadow.camera.bottom = -250;
-        dirLight.shadow.camera.near = 100;
-        dirLight.shadow.camera.far = 1000;
+        dirLight.shadow.camera.near = 1;
+        dirLight.shadow.camera.far = 1500;
+        dirLight.shadow.bias = -0.001;
         scene.add(dirLight);
 
         // ART TECHNIQUE 1: The Anchor Plane (Glass Screen)
@@ -338,7 +339,12 @@
                     const r = 16 - j*2.8;
                     const c = new THREE.Mesh(
                         new THREE.CircleGeometry(r, 32), 
-                        new THREE.MeshBasicMaterial({color: colors[j]})
+                        new THREE.MeshPhongMaterial({
+                            color: colors[j],
+                            emissive: colors[j],
+                            emissiveIntensity: 0.5,
+                            side: THREE.DoubleSide
+                        })
                     );
                     c.position.z = j * 0.5;
                     c.castShadow = true;
