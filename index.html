@@ -6,485 +6,10 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>Laser Eyes</title>
     <script src="https://cdn.tailwindcss.com"></script>
+    <script src="tracker.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/webgazer@2.1.1/dist/webgazer.js"
         onerror="window.webgazerLoadError = true;"></script>
-    <style>
-        body,
-        html {
-            margin: 0;
-            padding: 0;
-            height: 100%;
-            height: 100dvh;
-            width: 100%;
-            touch-action: none;
-            overflow: hidden;
-        }
-
-        @keyframes pulse-laser {
-            0% {
-                transform: translate(-50%, -50%) scale(0.9);
-                box-shadow: 0 0 10px 2px rgba(255, 0, 0, 0.6);
-            }
-
-            50% {
-                transform: translate(-50%, -50%) scale(1.2);
-                box-shadow: 0 0 30px 10px rgba(255, 0, 0, 0.9);
-            }
-
-            100% {
-                transform: translate(-50%, -50%) scale(0.9);
-                box-shadow: 0 0 10px 2px rgba(255, 0, 0, 0.6);
-            }
-        }
-
-        #laser-dot {
-            position: fixed;
-            width: 16px;
-            height: 16px;
-            background: #fff;
-            border-radius: 50%;
-            pointer-events: none;
-            transform: translate(-50%, -50%);
-            z-index: 10000;
-            display: none;
-            box-shadow:
-                0 0 10px 2px #00f2ff,
-                0 0 25px 8px #00f2ff,
-                0 0 45px 15px rgba(0, 242, 255, 0.4);
-            border: 1px solid #e0ffff;
-        }
-
-        .target {
-            position: absolute;
-            width: 70px;
-            height: 70px;
-            border-radius: 50%;
-            cursor: pointer;
-            transition: all 0.1s cubic-bezier(0.175, 0.885, 0.32, 1.275);
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            border: 3px solid rgba(255, 255, 255, 0.2);
-        }
-
-        .target.food-item {
-            border: 3px solid rgba(255, 255, 255, 0.1);
-            box-shadow: none;
-            background: transparent !important;
-        }
-
-        .food-healthy {
-            border-color: rgba(34, 211, 238, 0.6) !important;
-            box-shadow: 0 0 20px rgba(34, 211, 238, 0.4) !important;
-        }
-
-        .food-bad {
-            border-color: rgba(244, 63, 94, 0.6) !important;
-            box-shadow: 0 0 20px rgba(244, 63, 94, 0.4) !important;
-        }
-
-        .target::after {
-            content: '';
-            width: 20px;
-            height: 20px;
-            background: rgba(255, 255, 255, 0.3);
-            border-radius: 50%;
-        }
-
-        /* Force WebGazer UI to be visible and styled */
-        #webgazerVideoContainer {
-            display: block !important;
-            position: absolute !important;
-            top: 20px !important;
-            left: 20px !important;
-            width: 160px !important;
-            height: 120px !important;
-            z-index: 1000 !important;
-            border: 2px solid #00f2ff !important;
-            border-radius: 1rem !important;
-            overflow: hidden !important;
-            box-shadow: 0 10px 25px rgba(0, 0, 0, 0.6) !important;
-            background: #000 !important;
-        }
-
-        /* Hide the live video feed but keep the tracking overlays */
-        #webgazerVideoContainer video,
-        #webgazerVideoFeed {
-            opacity: 0 !important;
-            visibility: hidden !important;
-        }
-
-        /* Show the green bounding box and wireframe mesh */
-        #webgazerVideoCanvas,
-        #webgazerFaceOverlay {
-            display: block !important;
-            position: absolute !important;
-            top: 50% !important;
-            left: 50% !important;
-            transform: translate(-50%, -50%) !important;
-            width: auto !important;
-            height: 100% !important;
-        }
-
-        /* Hide WebGazer's default prediction point */
-        #webgazerGazeDot {
-            display: none !important;
-        }
-
-        @keyframes target-flash {
-
-            0%,
-            100% {
-                filter: brightness(1);
-            }
-
-            50% {
-                filter: brightness(1.8) saturate(1.5);
-            }
-        }
-
-        .flashing {
-            animation: target-flash 0.8s infinite ease-in-out;
-        }
-
-        /* Calibration crosshair */
-        @keyframes crosshair-pulse {
-
-            0%,
-            100% {
-                transform: translate(-50%, -50%) scale(1);
-                opacity: 0.8;
-                box-shadow: 0 0 20px rgba(0, 242, 255, 0.3);
-            }
-
-            50% {
-                transform: translate(-50%, -50%) scale(1.15);
-                opacity: 1;
-                box-shadow: 0 0 40px rgba(0, 242, 255, 0.6);
-            }
-        }
-
-        .calib-crosshair {
-            position: absolute;
-            top: 50%;
-            left: 50%;
-            transform: translate(-50%, -50%);
-            width: 80px;
-            height: 80px;
-            border: 4px solid #00f2ff;
-            border-radius: 50%;
-            animation: crosshair-pulse 1.2s ease-in-out infinite;
-            z-index: 61;
-        }
-
-        .calib-crosshair::before,
-        .calib-crosshair::after {
-            content: '';
-            position: absolute;
-            background: #00f2ff;
-        }
-
-        .calib-crosshair::before {
-            width: 2px;
-            height: 100%;
-            left: 50%;
-            top: 0;
-            transform: translateX(-50%);
-        }
-
-        .calib-crosshair::after {
-            height: 2px;
-            width: 100%;
-            top: 50%;
-            left: 0;
-            transform: translateY(-50%);
-        }
-
-        @keyframes fade-in-up {
-            from {
-                opacity: 0;
-                transform: translateY(10px);
-            }
-
-            to {
-                opacity: 1;
-                transform: translateY(0);
-            }
-        }
-
-        .fade-in-up {
-            animation: fade-in-up 0.4s ease-out forwards;
-        }
-
-        /* Live nose indicator during calibration */
-        #calib-nose-dot {
-            position: absolute;
-            width: 10px;
-            height: 10px;
-            background: #22d3ee;
-            border-radius: 50%;
-            pointer-events: none;
-            transform: translate(-50%, -50%);
-            z-index: 62;
-            display: none;
-            box-shadow: 0 0 8px #22d3ee;
-            transition: left 0.08s ease-out, top 0.08s ease-out;
-        }
-
-        #laser-dot {
-            position: absolute;
-            width: 16px;
-            height: 16px;
-            background: #fff;
-            border-radius: 50%;
-            pointer-events: none;
-            transform: translate(-50%, -50%);
-            z-index: 10000;
-            display: none;
-            box-shadow:
-                0 0 10px 2px #00f2ff,
-                0 0 25px 8px #00f2ff,
-                0 0 45px 15px rgba(0, 242, 255, 0.4);
-            border: 1px solid #e0ffff;
-        }
-
-        /* Snapping Menu Styles */
-        #snap-menu {
-            position: absolute;
-            top: 110px;
-            right: 24px;
-            width: 200px;
-            background: rgba(0, 0, 0, 0.85);
-            backdrop-filter: blur(12px);
-            border: 1px solid rgba(255, 255, 255, 0.1);
-            border-radius: 1.5rem;
-            padding: 1.25rem;
-            z-index: 100;
-            display: none;
-            box-shadow: 0 15px 35px rgba(0, 0, 0, 0.5);
-            transform-origin: top right;
-        }
-
-        #snap-menu.active {
-            display: block;
-            animation: menu-pop 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
-        }
-
-        @keyframes menu-pop {
-            from {
-                opacity: 0;
-                transform: scale(0.8) translateY(-10px);
-            }
-
-            to {
-                opacity: 1;
-                transform: scale(1) translateY(0);
-            }
-        }
-
-        .menu-label {
-            font-size: 0.7rem;
-            text-transform: uppercase;
-            letter-spacing: 0.1em;
-            color: #94a3b8;
-            margin-bottom: 0.5rem;
-            display: block;
-        }
-
-        .snap-slider {
-            -webkit-appearance: none;
-            appearance: none;
-            width: 100%;
-            height: 4px;
-            border-radius: 2px;
-            background: #334155;
-            outline: none;
-            margin-bottom: 1.25rem;
-        }
-
-        .snap-slider::-webkit-slider-thumb {
-            -webkit-appearance: none;
-            appearance: none;
-            width: 16px;
-            height: 16px;
-            border-radius: 50%;
-            background: #22d3ee;
-            cursor: pointer;
-            box-shadow: 0 0 10px rgba(34, 211, 238, 0.5);
-        }
-
-        .toggle-switch {
-            position: relative;
-            display: inline-block;
-            width: 40px;
-            height: 20px;
-        }
-
-        .toggle-switch input {
-            opacity: 0;
-            width: 0;
-            height: 0;
-        }
-
-        .slider-round {
-            position: absolute;
-            cursor: pointer;
-            top: 0;
-            left: 0;
-            right: 0;
-            bottom: 0;
-            background-color: #334155;
-            transition: .4s;
-            border-radius: 20px;
-        }
-
-        .slider-round:before {
-            position: absolute;
-            content: "";
-            height: 14px;
-            width: 14px;
-            left: 3px;
-            bottom: 3px;
-            background-color: white;
-            transition: .4s;
-            border-radius: 50%;
-        }
-
-        input:checked+.slider-round {
-            background-color: #22d3ee;
-        }
-
-        input:checked+.slider-round:before {
-            transform: translateX(20px);
-        }
-
-        /* Facial Diagnostic HUD */
-        #facial-hud {
-            position: absolute;
-            bottom: 30px;
-            left: 24px;
-            width: 150px;
-            background: rgba(0, 0, 0, 0.7);
-            backdrop-filter: blur(8px);
-            border: 1px solid rgba(255, 255, 255, 0.1);
-            border-radius: 1rem;
-            padding: 12px;
-            z-index: 100;
-            display: none;
-            pointer-events: none;
-            font-family: monospace;
-        }
-
-        .hud-gauge {
-            margin-bottom: 8px;
-        }
-
-        .hud-label {
-            font-size: 9px;
-            color: #94a3b8;
-            display: block;
-            margin-bottom: 2px;
-            text-transform: uppercase;
-        }
-
-        .hud-bar-bg {
-            width: 100%;
-            height: 4px;
-            background: #1e293b;
-            border-radius: 2px;
-            overflow: hidden;
-        }
-
-        .hud-bar-fill {
-            height: 100%;
-            width: 0%;
-            background: #22d3ee;
-            transition: width 0.1s ease-out;
-            box-shadow: 0 0 10px rgba(34, 211, 238, 0.5);
-        }
-
-        .hud-bar-fill.active {
-            background: #f43f5e;
-            box-shadow: 0 0 15px rgba(244, 63, 94, 0.8);
-        }
-        /* Charging Ring Styles */
-        .charging-ring {
-            position: absolute;
-            top: 50%;
-            left: 50%;
-            transform: translate(-50%, -50%);
-            width: 40px;
-            height: 40px;
-            pointer-events: none;
-            opacity: 0;
-            transition: opacity 0.2s ease;
-        }
-
-        .charging-ring circle {
-            fill: none;
-            stroke: #00f2ff;
-            stroke-width: 3;
-            stroke-dasharray: 113.1; /* 2 * PI * 18 */
-            stroke-dashoffset: 113.1;
-            stroke-linecap: round;
-            transform: rotate(-90deg);
-            transform-origin: center;
-            transition: stroke-dashoffset 0.1s linear;
-        }
-
-        .chargeable {
-            position: relative;
-            transition: all 0.2s cubic-bezier(0.175, 0.885, 0.32, 1.275);
-        }
-
-        .chargeable::before {
-            content: '';
-            position: absolute;
-            inset: -4px;
-            border: 2px solid transparent;
-            border-radius: inherit;
-            transition: border-color 0.2s ease;
-            pointer-events: none;
-        }
-
-        .chargeable.targeting::before {
-            border-color: rgba(0, 242, 255, 0.5);
-            animation: target-ring-pulse 1s infinite;
-        }
-
-        @keyframes target-ring-pulse {
-            0% { transform: scale(1); opacity: 1; }
-            100% { transform: scale(1.1); opacity: 0; }
-        }
-
-        .boundary-line {
-            position: absolute;
-            left: 0;
-            right: 0;
-            height: 1px;
-            background: rgba(255, 255, 255, 0.1);
-            border-top: 1px dashed rgba(255, 255, 255, 0.2);
-            z-index: 5;
-            pointer-events: none;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-        }
-
-        .boundary-line.top-15 { top: 15%; }
-        .boundary-line.bottom-15 { bottom: 15%; }
-
-        .boundary-line span {
-            font-size: 8px;
-            color: rgba(255, 255, 255, 0.2);
-            letter-spacing: 3px;
-            font-weight: 900;
-            text-transform: uppercase;
-            background: #111827;
-            padding: 2px 10px;
-            border-radius: 4px;
-        }
-    </style>
+    <link rel="stylesheet" href="shared.css">
 </head>
 
 <body class="bg-black flex items-center justify-center text-white font-sans">
@@ -683,10 +208,7 @@
         let popCount = 0;
         let maxTargets = 1;
         let targets = [];
-        let cursorX = -100;
-        let cursorY = -100;
         let loopInterval;
-        let isGazerStarted = false;
 
         // Game State
         let gameTime = 120;
@@ -703,33 +225,9 @@
         const TUTORIAL_MIN_GOOD_SCORE = 3;
         const MIN_SPAWN_DIST = 200;
 
-        // Helper to calculate 2D distance
-        function getDistance(p1, p2) {
-            return Math.sqrt(Math.pow(p1[0] - p2[0], 2) + Math.pow(p1[1] - p2[1], 2));
-        }
-
-        // Facial Expression Baselines (Neutral Face)
-        const neutralBaselines = {
-            faceWidth: 0,
-            faceHeight: 0,
-            mouthWidth: 0,
-            mouthHeight: 0,
-            eyebrowDist: 0,
-            noseToChin: 0,
-            baseTiltAngle: 0,
-            captured: false
-        };
-
-        let showDebugLandmarks = false;
-        const debugCanvas = document.createElement('canvas');
-        debugCanvas.id = 'debug-landmark-canvas';
-        debugCanvas.style.position = 'absolute';
-        debugCanvas.style.top = '0';
-        debugCanvas.style.left = '0';
-        debugCanvas.style.width = '100%';
-        debugCanvas.style.height = '100%';
-        debugCanvas.style.zIndex = '5';
-        debugCanvas.style.pointerEvents = 'none';
+        
+        
+                debugCanvas.style.pointerEvents = 'none';
 
         // Snapping Config
         let snappingEnabled = true;
@@ -752,7 +250,7 @@
         const snapRangeSlider = document.getElementById('snap-range');
         const debugToggle = document.getElementById('debug-landmarks-toggle');
 
-        debugToggle.addEventListener('change', (e) => showDebugLandmarks = e.target.checked);
+        debugToggle.addEventListener('change', (e) => FaceTracker.showDebugLandmarks = e.target.checked);
 
         snapBtn.addEventListener('click', (e) => {
             e.stopPropagation();
@@ -779,20 +277,8 @@
         snapStrengthSlider.addEventListener('input', (e) => snapStrength = e.target.value / 100);
         snapRangeSlider.addEventListener('input', (e) => snapRange = parseInt(e.target.value));
 
-        // Nose tracking state
-        let noseCenter = { x: 0, y: 0 };
-        let noseSensitivity = 3.5;
-        let noseSmoothing = 0.4;
-        let lastNoseX = -100;
-        let lastNoseY = -100;
-
-        // Facial Expression State
-        let mouthOpenness = 0;
-        let puckerStrength = 0;
-        let eyebrowRaise = 0;
-        let headTilt = 0;
-        let isRoaring = false;
-
+        
+        
         const facialHud = document.getElementById('facial-hud');
         const gaugeMouth = document.getElementById('gauge-mouth');
         const gaugeEyebrows = document.getElementById('gauge-eyebrows');
@@ -802,24 +288,8 @@
         // Persist model data across sessions (prevents re-training on reload)
         window.saveDataAcrossSessions = true;
 
-        function showError(title, action) {
-            statusBox.classList.remove('hidden');
-            loadingMsg.innerText = title;
-            actionMsg.innerText = action;
-            document.getElementById('start-btn').classList.remove('hidden');
-        }
-
-        async function initAI() {
-            // Only show status box if we're not ready
-            statusBox.classList.remove('hidden');
-            loadingMsg.innerText = "Initializing AI & Camera...";
-            actionMsg.innerText = "Please accept camera permissions if prompted.";
-
-            try {
-                if (window.webgazerLoadError || typeof webgazer === 'undefined') {
-                    throw new Error("LibraryLoadError");
-                }
-
+        
+        
                 webgazer.params.showVideo = true;
                 webgazer.params.showPredictionPoints = false;
                 webgazer.setGazeListener(() => { });
@@ -838,7 +308,7 @@
                 webgazer.showVideoPreview(true).showPredictionPoints(false);
                 // facialHud visibility moved to startGame
 
-                isGazerStarted = true;
+                FaceTracker.isStarted = true;
                 loadingMsg.innerText = "AI Ready!";
                 actionMsg.innerText = "Model loaded and camera active.";
                 
@@ -855,151 +325,22 @@
         }
 
         // Run AI initialization immediately
-        window.addEventListener('load', initAI);
+        window.addEventListener('load', () => FaceTracker.init().then(success => { if(success) { if (!loopInterval) loopInterval = setInterval(checkCollisions, 30); } }));
 
         document.getElementById('start-btn').addEventListener('click', () => {
             currentGameMode = 'standard';
-            startNoseCalibration();
+            FaceTracker.startCalibration(startGame);
         });
 
         document.getElementById('big-mouth-btn').addEventListener('click', () => {
             currentGameMode = 'bigmouth';
-            startNoseCalibration();
+            FaceTracker.startCalibration(startGame);
         });
 
         document.getElementById('recalib-btn').addEventListener('click', () => {
-            if (!isGazerStarted) return;
-            startNoseCalibration();
+            if (!FaceTracker.isStarted) return;
+            FaceTracker.startCalibration(startGame);
         });
-
-        function startNoseCalibration() {
-            const calibStatus = document.getElementById('calib-status');
-            const calibHint = document.getElementById('calib-hint');
-            const progressBar = document.getElementById('nose-calib-progress');
-
-            facialHud.style.display = 'none';
-            // Reset state
-            progressBar.style.width = '0%';
-            calibStatus.innerText = 'Detecting your face...';
-            calibHint.innerText = 'Position your face in the camera';
-            calibOverlay.classList.remove('hidden');
-            calibNoseDot.style.display = 'none';
-            lastNoseX = -100;
-            lastNoseY = -100;
-
-            // Add crosshair target at center
-            const crosshair = document.createElement('div');
-            crosshair.className = 'calib-crosshair';
-            document.body.appendChild(crosshair);
-
-            let noseCalibFrames = 0;
-            const targetFrames = 30; // ~1 second at 30ms interval (down from 60)
-            let tempX = 0;
-            let tempY = 0;
-            let faceDetected = false;
-            let waitingFrames = 0;
-
-            const skipBtn = document.getElementById('skip-calib-btn');
-
-            const calibInt = setInterval(() => {
-                let positions = null;
-                try {
-                    positions = webgazer.getTracker().getPositions();
-                } catch (e) { /* tracker not ready yet */ }
-
-                if (positions && positions.length > 60) {
-                    if (!faceDetected) {
-                        faceDetected = true;
-                        calibStatus.innerText = '✓ Face detected!';
-                        calibStatus.classList.add('fade-in-up');
-                        calibHint.innerText = 'Look at the crosshair — hold still...';
-
-                        // Show live nose dot
-                        calibNoseDot.style.display = 'block';
-                    }
-
-                    const nose = positions[62] || positions[37];
-
-                    // Show live nose position as feedback (relative to container)
-                    const screenW = appContainer.clientWidth;
-                    const screenH = appContainer.clientHeight;
-                    const liveX = screenW / 2 - (nose[0] - (tempX / Math.max(noseCalibFrames, 1))) * noseSensitivity;
-                    const liveY = screenH / 2 + (nose[1] - (tempY / Math.max(noseCalibFrames, 1))) * noseSensitivity;
-                    calibNoseDot.style.left = (noseCalibFrames > 0 ? liveX : screenW / 2) + 'px';
-                    calibNoseDot.style.top = (noseCalibFrames > 0 ? liveY : screenH / 2) + 'px';
-
-                    // Wait a couple frames after detection before starting calibration
-                    waitingFrames++;
-                    if (waitingFrames < 5) return;
-
-                    tempX += nose[0];
-                    tempY += nose[1];
-                    noseCalibFrames++;
-
-                    const pct = Math.round(noseCalibFrames / targetFrames * 100);
-                    progressBar.style.width = pct + '%';
-
-                    if (noseCalibFrames >= Math.round(targetFrames * 0.5)) {
-                        calibStatus.innerText = '⏳ Almost there...';
-                    }
-                }
-
-                if (noseCalibFrames >= targetFrames) {
-                    finishCalib();
-                }
-            }, 30);
-
-            const finishCalib = () => {
-                clearInterval(calibInt);
-
-                // If we have some data, use even if incomplete. 
-                // WebGazer default resolution/center is usually around 320x240
-                noseCenter.x = (noseCalibFrames > 0) ? (tempX / noseCalibFrames) : 320;
-                noseCenter.y = (noseCalibFrames > 0) ? (tempY / noseCalibFrames) : 240;
-
-                calibStatus.innerText = '🎯 Calibrated!';
-                calibHint.innerText = 'Let\'s go!';
-                progressBar.style.width = '100%';
-
-                if (navigator.vibrate) navigator.vibrate(50);
-
-                // Capture neutral baseline at the very end of calibration
-                setTimeout(() => {
-                    const positions = webgazer.getTracker().getPositions();
-                    if (positions && positions.length > 60) {
-                        const p1 = positions[1];
-                        const p13 = positions[13];
-                        const faceW = getDistance(positions[1], positions[13]);
-                        const faceH = getDistance(positions[33], positions[7]);
-
-                        neutralBaselines.faceWidth = faceW;
-                        neutralBaselines.faceHeight = faceH;
-                        neutralBaselines.mouthWidth = getDistance(positions[44], positions[50]);
-                        neutralBaselines.mouthHeight = getDistance(positions[60], positions[57]);
-                        neutralBaselines.baseMAR = neutralBaselines.mouthHeight / Math.max(neutralBaselines.mouthWidth, 1);
-                        neutralBaselines.eyebrowDist = getDistance(positions[16], positions[24]) / faceH;
-                        neutralBaselines.noseToChin = getDistance(positions[62], positions[7]) / faceH;
-                        
-                        const dy = positions[32][1] - positions[27][1];
-                        const dx = positions[32][0] - positions[27][0];
-                        neutralBaselines.baseTiltAngle = Math.atan2(dy, dx) * (180 / Math.PI);
-
-                        neutralBaselines.captured = true;
-
-                        console.log("Neutral baselines captured:", neutralBaselines);
-                    }
-
-                    crosshair.remove();
-                    calibNoseDot.style.display = 'none';
-                    calibOverlay.classList.add('hidden');
-                    startGame();
-                }, 500);
-            };
-
-            skipBtn.onclick = () => {
-                finishCalib();
-            };
-        }
 
         function startGame() {
             overlay.classList.add('hidden');
@@ -1073,7 +414,7 @@
             do {
                 x = Math.random() * (rect.width - 100) + 50;
                 y = Math.random() * (spawnMaxY - spawnMinY) + spawnMinY;
-                dist = Math.sqrt(Math.pow(x + 35 - cursorX, 2) + Math.pow(y + 35 - cursorY, 2));
+                dist = Math.sqrt(Math.pow(x + 35 - FaceTracker.cursorX, 2) + Math.pow(y + 35 - FaceTracker.cursorY, 2));
                 attempts++;
             } while (dist < MIN_SPAWN_DIST && attempts < 10);
 
@@ -1159,14 +500,14 @@
         }
 
         function updateLaser() {
-            if (!isGazerStarted) {
+            if (!FaceTracker.isStarted) {
                 laserDot.style.display = 'none';
                 return;
             }
             laserDot.style.display = 'block';
 
-            let displayX = cursorX;
-            let displayY = cursorY;
+            let displayX = FaceTracker.cursorX;
+            let displayY = FaceTracker.cursorY;
 
             if (snappingEnabled && currentGameMode !== 'bigmouth') {
                 // Find nearest target for visual snapping
@@ -1179,8 +520,8 @@
 
                     const tx = parseFloat(target.dataset.vpX);
                     const ty = parseFloat(target.dataset.vpY);
-                    const dx = cursorX - tx;
-                    const dy = cursorY - ty;
+                    const dx = FaceTracker.cursorX - tx;
+                    const dy = FaceTracker.cursorY - ty;
                     const dist = Math.sqrt(dx * dx + dy * dy);
                     if (dist < minDist) {
                         minDist = dist;
@@ -1195,21 +536,21 @@
                     const distanceFactor = Math.pow(1 - (minDist / snapRange), 1.5);
                     const weight = snapStrength * distanceFactor;
 
-                    displayX = cursorX * (1 - weight) + tx * weight;
-                    displayY = cursorY * (1 - weight) + ty * weight;
+                    displayX = FaceTracker.cursorX * (1 - weight) + tx * weight;
+                    displayY = FaceTracker.cursorY * (1 - weight) + ty * weight;
 
                     displayX += (Math.random() - 0.5) * (5 * distanceFactor);
                     displayY += (Math.random() - 0.5) * (5 * distanceFactor);
 
                     // Beam expansion logic
-                    const expansion = isRoaring ? (1 + mouthOpenness * 1.5) : 1;
+                    const expansion = FaceTracker.isRoaring ? (1 + FaceTracker.mouthOpenness * 1.5) : 1;
                     laserDot.style.scale = (1 + (0.5 * distanceFactor) + Math.random() * 0.2) * expansion;
                 } else {
-                    const expansion = isRoaring ? (1 + mouthOpenness * 1.5) : 1;
+                    const expansion = FaceTracker.isRoaring ? (1 + FaceTracker.mouthOpenness * 1.5) : 1;
                     laserDot.style.scale = expansion;
                 }
             } else {
-                const expansion = isRoaring ? (1 + mouthOpenness * 1.5) : 1;
+                const expansion = FaceTracker.isRoaring ? (1 + FaceTracker.mouthOpenness * 1.5) : 1;
                 laserDot.style.scale = expansion;
             }
 
@@ -1217,8 +558,8 @@
             laserDot.style.top = displayY + 'px';
 
             // Visual feedback for firing strength
-            const firingStrength = Math.max(mouthOpenness, eyebrowRaise, puckerStrength);
-            if (isRoaring) {
+            const firingStrength = Math.max(FaceTracker.mouthOpenness, FaceTracker.eyebrowRaise, FaceTracker.puckerStrength);
+            if (FaceTracker.isRoaring) {
                 // Large beam effect
                 const glow = 20 + (firingStrength * 40);
                 laserDot.style.boxShadow = `0 0 ${glow}px ${glow / 3}px rgba(0, 242, 255, ${0.4 + firingStrength})`;
@@ -1250,7 +591,7 @@
             do {
                 x = Math.random() * (rect.width - 100) + 50;
                 y = Math.random() * (spawnMaxY - spawnMinY) + spawnMinY;
-                dist = Math.sqrt(Math.pow(x + 35 - cursorX, 2) + Math.pow(y + 35 - cursorY, 2));
+                dist = Math.sqrt(Math.pow(x + 35 - FaceTracker.cursorX, 2) + Math.pow(y + 35 - FaceTracker.cursorY, 2));
                 attempts++;
             } while (dist < MIN_SPAWN_DIST && attempts < 10);
 
@@ -1299,13 +640,13 @@
 
 
         function updateCharging() {
-            if (!isGazerStarted) return;
+            if (!FaceTracker.isStarted) return;
 
             const ring = laserDot.querySelector('.charging-ring');
             const circle = ring.querySelector('circle');
 
             // Find element at cursor
-            const el = document.elementFromPoint(cursorX, cursorY);
+            const el = document.elementFromPoint(FaceTracker.cursorX, FaceTracker.cursorY);
             const chargeable = el ? el.closest('.chargeable') : null;
 
             if (chargeable && chargeable.offsetParent !== null) { // Check if visible
@@ -1378,20 +719,20 @@
 
                     const tx = parseFloat(target.dataset.vpX);
                     const ty = parseFloat(target.dataset.vpY);
-                    const dx = cursorX - tx;
-                    const dy = cursorY - ty;
+                    const dx = FaceTracker.cursorX - tx;
+                    const dy = FaceTracker.cursorY - ty;
                     const distance = Math.sqrt(dx * dx + dy * dy);
 
                     if (currentGameMode === 'bigmouth') {
                         // Big Mouth eating mechanic: hover + mouth open
                         // Using a slightly lower threshold for "open" to feel more responsive
                         // but requires the mouth to actually be open (not just smoothed towards it)
-                        if (distance < 70 && mouthOpenness > 0.35) {
+                        if (distance < 70 && FaceTracker.mouthOpenness > 0.35) {
                             destroyFood(target, true);
                         }
                     } else {
                         // Standard mode: damage only if roaring
-                        if (distance < 100 && isRoaring) {
+                        if (distance < 100 && FaceTracker.isRoaring) {
                             if (!target.dataset.gazeStart) target.dataset.gazeStart = now;
 
                             const elapsed = now - parseInt(target.dataset.gazeStart);
@@ -1443,123 +784,14 @@
                 }
             }
 
-            updateFacialExpressions();
-            updateNoseTracking();
+            FaceTracker.update();
             updateLaser();
             updateCharging();
         }
 
-        function updateFacialExpressions() {
-            let positions = null;
-            try {
-                positions = webgazer.getTracker().getPositions();
-            } catch (e) { return; }
-            if (!positions || positions.length < 65) return;
-
-            // Debug landmarks
-            if (showDebugLandmarks) {
-                const ctx = debugCanvas.getContext('2d');
-                debugCanvas.width = debugCanvas.clientWidth;
-                debugCanvas.height = debugCanvas.clientHeight;
-                ctx.clearRect(0, 0, debugCanvas.width, debugCanvas.height);
-                ctx.fillStyle = "#00f2ff";
-                ctx.font = "6px sans-serif";
-                positions.forEach((p, i) => {
-                    ctx.beginPath();
-                    ctx.arc(p[0], p[1], 1, 0, Math.PI * 2);
-                    ctx.fill();
-                    ctx.fillText(i, p[0] + 2, p[1]);
-                });
-            }
-
-            // 1. Current Face Measurements
-            const faceWidth = getDistance(positions[1], positions[13]);
-            const faceHeight = getDistance(positions[33], positions[7]);
-
-            // 2. Roar (Mouth Open) Using MAR (Mouth Aspect Ratio)
-            const currentMouthHeight = getDistance(positions[60], positions[57]);
-            const currentMouthWidth = getDistance(positions[44], positions[50]);
-            const currentMAR = currentMouthHeight / Math.max(currentMouthWidth, 1);
-            
-            const baseMAR = neutralBaselines.captured ? neutralBaselines.baseMAR : 0.15;
-            // threshold of 0.35 above baseline required to be 100% "open"
-            const targetMouthOpenness = Math.min(Math.max(currentMAR - baseMAR, 0) / 0.35, 1);
-            mouthOpenness = mouthOpenness * 0.7 + targetMouthOpenness * 0.3;
-
-            // 3. Eyebrow Raise (Surprise)
-            const currentEyebrowDist = getDistance(positions[16], positions[24]) / faceHeight;
-            const baseEyebrowDist = neutralBaselines.captured ? neutralBaselines.eyebrowDist : 0.08;
-            // threshold: 35%+ increase (more deliberate)
-            const targetEyebrowRaise = Math.min(Math.max((currentEyebrowDist / baseEyebrowDist) - 1, 0) / 0.35, 1);
-            eyebrowRaise = eyebrowRaise * 0.7 + targetEyebrowRaise * 0.3;
-
-            // 4. Pucker (O-Face)
-            const puckerRatio = currentMouthWidth / faceWidth;
-            const basePuckerRatio = neutralBaselines.captured ? (neutralBaselines.mouthWidth / (neutralBaselines.faceWidth || faceWidth)) : 0.35;
-            // threshold: 40% shrinkage (more deliberate)
-            const targetPuckerStrength = Math.min(Math.max(1 - (puckerRatio / basePuckerRatio), 0) / 0.4, 1);
-            puckerStrength = puckerStrength * 0.7 + targetPuckerStrength * 0.3;
-
-            // 5. Head Tilt
-            const dy = positions[32][1] - positions[27][1];
-            const dx = positions[32][0] - positions[27][0];
-            const currentAngle = Math.atan2(dy, dx) * (180 / Math.PI);
-            const relativeAngle = currentAngle - (neutralBaselines.captured ? neutralBaselines.baseTiltAngle : 0);
-            // Threshold +/- 20 degrees
-            const targetHeadTilt = Math.min(Math.max(Math.abs(relativeAngle) / 20, 0), 1);
-            headTilt = headTilt * 0.8 + targetHeadTilt * 0.2; // Extra smooth
-
-            // Update UI Gauges
-            gaugeMouth.style.width = (mouthOpenness * 100) + '%';
-            gaugeEyebrows.style.width = (eyebrowRaise * 100) + '%';
-            gaugePucker.style.width = (puckerStrength * 100) + '%';
-            gaugeTilt.style.width = (headTilt * 100) + '%';
-
-            // Active States (Trigger Firing)
-            const isEyebrowRaised = eyebrowRaise > 0.6;
-            const isPuckering = puckerStrength > 0.7;
-            const isMouthOpen = mouthOpenness > 0.3;
-            
-            // Firing is triggered by any of these deliberate actions
-            isRoaring = isMouthOpen || isEyebrowRaised || isPuckering;
-
-            // Highlight active gauges
-            if (isMouthOpen) gaugeMouth.classList.add('active'); else gaugeMouth.classList.remove('active');
-            if (isEyebrowRaised) gaugeEyebrows.classList.add('active'); else gaugeEyebrows.classList.remove('active');
-            if (isPuckering) gaugePucker.classList.add('active'); else gaugePucker.classList.remove('active');
-            if (headTilt > 0.8) gaugeTilt.classList.add('active'); else gaugeTilt.classList.remove('active');
-        }
-
-        function updateNoseTracking() {
-            let positions = null;
-            try {
-                positions = webgazer.getTracker().getPositions();
-            } catch (e) { return; }
-            if (!positions || positions.length < 60) return;
-
-            const nose = positions[62] || positions[37];
-            const rawX = nose[0];
-            const rawY = nose[1];
-
-            const dx = (rawX - noseCenter.x);
-            const dy = (rawY - noseCenter.y);
-
-            const screenW = appContainer.clientWidth;
-            const screenH = appContainer.clientHeight;
-
-            const targetX = (screenW / 2) - (dx * noseSensitivity);
-            const targetY = (screenH / 2) + (dy * noseSensitivity);
-
-            if (lastNoseX === -100) {
-                cursorX = targetX;
-                cursorY = targetY;
-            } else {
-                cursorX = cursorX * (1 - noseSmoothing) + targetX * noseSmoothing;
-                cursorY = cursorY * (1 - noseSmoothing) + targetY * noseSmoothing;
-            }
-
-            lastNoseX = cursorX;
-            lastNoseY = cursorY;
+        
+            lastNoseX = FaceTracker.cursorX;
+            lastNoseY = FaceTracker.cursorY;
         }
 
         window.addEventListener('resize', () => {
