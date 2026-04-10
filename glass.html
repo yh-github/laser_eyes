@@ -196,11 +196,13 @@
 
 <div id="pole-settings" class="mt-4">
     <label class="menu-label">Bullseye Length</label>
-    <input type="range" id="pole-length-slider" min="50" max="400" value="160" class="w-full h-1 bg-gray-800 rounded-lg appearance-none cursor-pointer accent-cyan-400 mt-2">
-    <div class="flex justify-between text-[10px] text-gray-500 mt-1">
-        <span>Short</span>
-        <span>Long</span>
-    </div>
+    <input type="range" id="pole-length-slider" min="5" max="160" value="160" class="w-full h-1 bg-gray-800 rounded-lg appearance-none cursor-pointer accent-cyan-400 mt-2">
+    
+    <label class="menu-label mt-4">Number of Bullseyes</label>
+    <input type="range" id="pole-count-slider" min="1" max="6" value="2" class="w-full h-1 bg-gray-800 rounded-lg appearance-none cursor-pointer accent-cyan-400 mt-2">
+    
+    <label class="menu-label mt-4">Vertical Spacing</label>
+    <input type="range" id="pole-spacing-slider" min="20" max="300" value="100" class="w-full h-1 bg-gray-800 rounded-lg appearance-none cursor-pointer accent-cyan-400 mt-2">
 </div>
 
             </div>
@@ -304,42 +306,52 @@
 
         
         // --- Bullseye Creation ---
-        const bullseyes = [];
-        const poleGroup = new THREE.Group();
-        const secondPoleGroup = new THREE.Group();
+        const bullseyesGroup = new THREE.Group();
+        scene.add(bullseyesGroup);
 
-        function createBullseye(group, yOffset = 0) {
-            group.clear();
+        function updateBullseyes() {
+            bullseyesGroup.clear();
             const length = parseInt(document.getElementById('pole-length-slider')?.value || 160);
+            const count = parseInt(document.getElementById('pole-count-slider')?.value || 2);
+            const spacing = parseInt(document.getElementById('pole-spacing-slider')?.value || 100);
             
-            // Tapered cylinder
-            const poleGeo = new THREE.CylinderGeometry(4, 12, length, 32);
-            poleGeo.rotateX(Math.PI / 2);
-            const poleMat = new THREE.MeshPhongMaterial({ color: 0x3b82f6, specular: 0xffffff, shininess: 100 });
-            const pole = new THREE.Mesh(poleGeo, poleMat);
-            pole.position.set(0, yOffset, length / 2);
-            pole.castShadow = true;
-            group.add(pole);
+            // Calculate total height to center them
+            const totalHeight = (count - 1) * spacing;
+            const startY = totalHeight / 2;
 
-            const ringsGroup = new THREE.Group();
-            const colors = [0xf43f5e, 0xffffff, 0xf43f5e, 0xffffff, 0x3b82f6];
-            for(let i=0; i<5; i++) {
-                const r = 16 - i*2.8;
-                const c = new THREE.Mesh(
-                    new THREE.CircleGeometry(r, 32), 
-                    new THREE.MeshBasicMaterial({color: colors[i]})
-                );
-                c.position.z = i * 0.5;
-                c.castShadow = true;
-                ringsGroup.add(c);
+            for (let i = 0; i < count; i++) {
+                const group = new THREE.Group();
+                const yOffset = startY - (i * spacing);
+                
+                // Tapered cylinder
+                const poleGeo = new THREE.CylinderGeometry(4, 12, length, 32);
+                poleGeo.rotateX(Math.PI / 2);
+                const poleMat = new THREE.MeshPhongMaterial({ color: 0x3b82f6, specular: 0xffffff, shininess: 100 });
+                const pole = new THREE.Mesh(poleGeo, poleMat);
+                pole.position.set(0, yOffset, length / 2);
+                pole.castShadow = true;
+                group.add(pole);
+
+                const ringsGroup = new THREE.Group();
+                const colors = [0xf43f5e, 0xffffff, 0xf43f5e, 0xffffff, 0x3b82f6];
+                for(let j=0; j<5; j++) {
+                    const r = 16 - j*2.8;
+                    const c = new THREE.Mesh(
+                        new THREE.CircleGeometry(r, 32), 
+                        new THREE.MeshBasicMaterial({color: colors[j]})
+                    );
+                    c.position.z = j * 0.5;
+                    c.castShadow = true;
+                    ringsGroup.add(c);
+                }
+                ringsGroup.position.set(0, yOffset, length + 2);
+                group.add(ringsGroup);
+                
+                bullseyesGroup.add(group);
             }
-            ringsGroup.position.set(0, yOffset, length + 5);
-            group.add(ringsGroup);
         }
 
-        createBullseye(poleGroup, 0);
-        // Halfway to bottom (approx -200 if height is 800)
-        createBullseye(secondPoleGroup, -200);
+        updateBullseyes();
 
         // Create Deep Tunnel (Inwards)
         const tunnelGroup = new THREE.Group();
@@ -359,8 +371,6 @@
         core.position.z = -15 * 80;
         tunnelGroup.add(core);
 
-        scene.add(poleGroup);
-        scene.add(secondPoleGroup);
         scene.add(tunnelGroup);
         tunnelGroup.visible = false; // default to pole
 
@@ -511,30 +521,30 @@
         // removed('input', (e) => FaceTracker.noseSmoothing = e.target.value / 100);
         const shapeSelect = document.getElementById('shape-select');
         const poleLengthSlider = document.getElementById('pole-length-slider');
+        const poleCountSlider = document.getElementById('pole-count-slider');
+        const poleSpacingSlider = document.getElementById('pole-spacing-slider');
         const poleSettings = document.getElementById('pole-settings');
 
         if (shapeSelect) {
             shapeSelect.addEventListener('change', (e) => {
                 if (e.target.value === 'pole') {
-                    poleGroup.visible = true;
-                    secondPoleGroup.visible = true;
+                    bullseyesGroup.visible = true;
                     tunnelGroup.visible = false;
                     poleSettings.classList.remove('hidden');
                 } else {
-                    poleGroup.visible = false;
-                    secondPoleGroup.visible = false;
+                    bullseyesGroup.visible = false;
                     tunnelGroup.visible = true;
                     poleSettings.classList.add('hidden');
                 }
             });
         }
 
-        if (poleLengthSlider) {
-            poleLengthSlider.addEventListener('input', () => {
-                createBullseye(poleGroup, 0);
-                createBullseye(secondPoleGroup, -200);
-            });
-        }
+        const updateEvents = [poleLengthSlider, poleCountSlider, poleSpacingSlider];
+        updateEvents.forEach(slider => {
+            if (slider) {
+                slider.addEventListener('input', updateBullseyes);
+            }
+        });
     </script>
 </body>
 </html>
