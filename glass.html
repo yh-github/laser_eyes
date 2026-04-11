@@ -275,20 +275,29 @@
         const ambientLight = new THREE.AmbientLight(0xffffff, 0.4);
         scene.add(ambientLight);
         
-        const dirLight = new THREE.DirectionalLight(0xffffff, 0.8);
-        dirLight.position.set(200, 500, 300);
-        // ART TECHNIQUE 1: Directional Shadows
-        dirLight.castShadow = true;
-        dirLight.shadow.mapSize.width = 1024;
-        dirLight.shadow.mapSize.height = 1024;
-        dirLight.shadow.camera.left = -250;
-        dirLight.shadow.camera.right = 250;
-        dirLight.shadow.camera.top = 250;
-        dirLight.shadow.camera.bottom = -250;
-        dirLight.shadow.camera.near = 1;
-        dirLight.shadow.camera.far = 1500;
-        dirLight.shadow.bias = -0.001;
-        scene.add(dirLight);
+        // ART TECHNIQUE 1: Room Lighting & Shadows
+        // Switched from Directional to SpotLight to simulate an indoor overhead light.
+        // This provides natural perspective (diverging rays) to the shadows and fixes clipping.
+        const mainLight = new THREE.SpotLight(0xffffff, 1.2);
+        // Positioned top-center, slightly forward
+        mainLight.position.set(0, 800, 400);
+        mainLight.angle = Math.PI / 3; // 60 degree wide cone
+        mainLight.penumbra = 0.8; // Soft edges for the light cone
+        mainLight.decay = Math.PI > 3.1 ? 0 : 0; // Prevent decay turning pitch black in basic setup, keep simple. Wait, r128 decay = 1 is physical, but 0 is safe.
+        mainLight.distance = 3000;
+        
+        mainLight.castShadow = true;
+        // High-res shadow map to handle multiple long poles
+        mainLight.shadow.mapSize.width = 2048;
+        mainLight.shadow.mapSize.height = 2048;
+        // SpotLight shadow uses a PerspectiveCamera
+        mainLight.shadow.camera.near = 50;
+        mainLight.shadow.camera.far = 2000;
+        mainLight.shadow.camera.fov = 70; // Slightly larger than light angle to be safe
+        mainLight.shadow.bias = -0.0005;
+        // Add a blur radius to mimic distance-based softness (PCFSoftShadowMap uses this)
+        mainLight.shadow.radius = 4; 
+        scene.add(mainLight);
 
         // ART TECHNIQUE 1: The Anchor Plane (Glass Screen)
         // Invisible plane at Z=0 that only receives shadows, anchoring the 3D space.
