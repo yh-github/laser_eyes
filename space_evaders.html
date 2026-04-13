@@ -1,0 +1,613 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Space Evaders - Laser Eyes</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="shared.css">
+    
+    <!-- Load WebGazer and tracker.js -->
+    <script src="https://cdn.jsdelivr.net/npm/webgazer@2.1.1/dist/webgazer.js" onerror="window.webgazerLoadError = true;"></script>
+    <script src="tracker.js"></script>
+
+    <style>
+        body, html {
+            margin: 0;
+            padding: 0;
+            height: 100%;
+            height: 100dvh;
+            width: 100%;
+            touch-action: none;
+            overflow: hidden;
+            background: #000;
+        }
+
+        #game-canvas {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            z-index: 10;
+            pointer-events: none;
+        }
+
+        /* Calibration UI */
+        #calib-nose-dot {
+            position: absolute;
+            width: 10px;
+            height: 10px;
+            background: #22d3ee;
+            border-radius: 50%;
+            pointer-events: none;
+            transform: translate(-50%, -50%);
+            z-index: 62;
+            display: none;
+            box-shadow: 0 0 8px #22d3ee;
+            transition: left 0.08s ease-out, top 0.08s ease-out;
+        }
+
+        .fade-in-up {
+            animation: fade-in-up 0.4s ease-out forwards;
+        }
+
+        @keyframes fade-in-up {
+            from { opacity: 0; transform: translateY(10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        .calib-crosshair {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            width: 80px;
+            height: 80px;
+            border: 4px solid #00f2ff;
+            border-radius: 50%;
+            animation: crosshair-pulse 1.2s ease-in-out infinite;
+            z-index: 61;
+        }
+
+        .calib-crosshair::before,
+        .calib-crosshair::after {
+            content: '';
+            position: absolute;
+            background: #00f2ff;
+        }
+        .calib-crosshair::before { width: 2px; height: 100%; left: 50%; top: 0; transform: translateX(-50%); }
+        .calib-crosshair::after { height: 2px; width: 100%; top: 50%; left: 0; transform: translateY(-50%); }
+
+        @keyframes crosshair-pulse {
+            0%, 100% { transform: translate(-50%, -50%) scale(1); opacity: 0.8; box-shadow: 0 0 20px rgba(0, 242, 255, 0.3); }
+            50% { transform: translate(-50%, -50%) scale(1.15); opacity: 1; box-shadow: 0 0 40px rgba(0, 242, 255, 0.6); }
+        }
+
+        /* WebGazer Overrides */
+        #webgazerVideoContainer {
+            display: block !important;
+            position: absolute !important;
+            top: 20px !important;
+            left: 20px !important;
+            width: 160px !important;
+            height: 120px !important;
+            z-index: 1000 !important;
+            border: 2px solid #00f2ff !important;
+            border-radius: 1rem !important;
+            overflow: hidden !important;
+            box-shadow: 0 10px 25px rgba(0, 0, 0, 0.6) !important;
+            background: #000 !important;
+        }
+        #webgazerVideoContainer video, #webgazerVideoFeed {
+            opacity: 0 !important; visibility: hidden !important;
+        }
+        #webgazerVideoCanvas, #webgazerFaceOverlay {
+            display: block !important; position: absolute !important;
+            top: 50% !important; left: 50% !important;
+            transform: translate(-50%, -50%) !important;
+            width: auto !important; height: 100% !important;
+        }
+        
+        .hud-top {
+            position: absolute;
+            top: 20px;
+            right: 20px;
+            z-index: 40;
+            display: flex;
+            gap: 15px;
+            align-items: center;
+        }
+        
+        .hearts-container {
+            display: flex;
+            gap: 5px;
+        }
+        
+        .heart {
+            color: #f43f5e;
+            font-size: 24px;
+            filter: drop-shadow(0 0 5px rgba(244, 63, 94, 0.8));
+            transition: transform 0.2s, opacity 0.2s;
+        }
+        .heart.lost {
+            opacity: 0.2 !important;
+            transform: scale(0.8) !important;
+            filter: none !important;
+        }
+    </style>
+</head>
+<body class="bg-black flex items-center justify-center text-white font-sans">
+    <div id="app-container" class="relative w-full h-full h-[100dvh] sm:h-[800px] sm:w-[400px] bg-gray-900 sm:rounded-[2.5rem] sm:border-8 sm:border-gray-800 overflow-hidden shadow-[0_0_50px_rgba(0,0,0,0.8)]">
+        
+        <!-- HUD -->
+        <div id="hud" class="hud-top hidden">
+            <div class="hearts-container" id="hearts-display">
+                <span class="heart">❤️</span>
+                <span class="heart">❤️</span>
+                <span class="heart">❤️</span>
+            </div>
+            <div class="text-xl font-bold text-gray-300 bg-black/50 px-4 py-1 rounded-full border border-white/10 shadow-[0_0_10px_rgba(34,211,238,0.2)]">
+                Lvl <span id="level-display" class="text-cyan-400">1</span>
+            </div>
+            <div class="text-xl font-bold text-gray-300 bg-black/50 px-4 py-1 rounded-full border border-white/10 shadow-[0_0_10px_rgba(34,211,238,0.2)]">
+                <span id="score-display" class="text-amber-400">0</span>
+            </div>
+            <div class="text-xl font-bold text-gray-300 bg-black/50 px-3 py-1 rounded-full border border-white/10">
+                <span id="time-display" class="text-rose-400">120</span>s
+            </div>
+        </div>
+
+        <!-- Overlays -->
+        <div id="main-menu-overlay" class="absolute inset-0 z-50 flex flex-col items-center justify-center bg-gray-900 bg-opacity-95 p-6 text-center">
+            <h1 class="text-5xl font-black mb-2 text-cyan-400 uppercase tracking-tighter italic shadow-cyan-500/50 drop-shadow-[0_0_15px_rgba(34,211,238,0.8)]">Space Evaders</h1>
+            <p class="text-md mb-8 text-gray-400">
+                Evade the red triangles.<br>Catch stars for points & green orbs for shield/HP.
+            </p>
+            <button id="start-btn" class="w-full max-w-[280px] py-4 bg-cyan-600 hover:bg-cyan-500 rounded-xl text-xl font-bold shadow-2xl shadow-cyan-900/40 transition-all active:scale-95 hidden">
+                START TRACKING
+            </button>
+            <div class="mt-4">
+                <button onclick="window.location.href='index.html'" class="text-xs text-gray-500 hover:text-white uppercase tracking-wider">Back to Menu</button>
+            </div>
+        </div>
+
+        <!-- Level Up Overlay (shows briefly without pausing heavily) -->
+        <div id="level-up-toast" class="absolute inset-0 z-40 flex items-center justify-center pointer-events-none opacity-0 transition-opacity duration-300">
+            <h2 class="text-6xl font-black text-white italic drop-shadow-[0_0_20px_rgba(34,211,238,1)]">LEVEL UP!</h2>
+        </div>
+
+        <!-- Game Over Overlay -->
+        <div id="game-over-overlay" class="absolute inset-0 z-50 flex flex-col items-center justify-center bg-gray-900 bg-opacity-98 p-6 text-center hidden">
+            <h2 class="text-5xl font-black mb-4 text-rose-500 uppercase italic drop-shadow-[0_0_15px_rgba(244,63,94,0.8)]">MISSION FAILED</h2>
+            <p class="text-lg mb-2 text-white">Final Score: <span id="final-score" class="text-amber-400 font-bold">0</span></p>
+            <p class="text-md mb-8 text-gray-400">You reached Level <span id="final-level" class="text-cyan-400">1</span>.</p>
+            
+            <button id="restart-btn" class="w-full max-w-[280px] py-4 bg-rose-600 hover:bg-rose-500 rounded-xl text-xl font-bold shadow-2xl transition-all active:scale-95 mb-4">
+                TRY AGAIN
+            </button>
+            <button onclick="window.location.href='index.html'" class="text-sm text-gray-400 hover:text-white uppercase tracking-wider">Back to Menu</button>
+        </div>
+
+        <!-- Calibration Overlay -->
+        <div id="calib-overlay" class="absolute inset-0 z-[60] flex flex-col items-center justify-center bg-black/95 hidden">
+            <div id="nose-calib-ui" class="flex flex-col items-center justify-center h-full w-full pointer-events-none">
+                <div class="text-center w-full px-10 mb-20 fade-in-up">
+                    <h2 id="calib-title" class="text-3xl font-bold text-cyan-400 mb-1">Calibration</h2>
+                    <p id="calib-status" class="text-white text-sm mb-4 font-semibold">Detecting face...</p>
+                    <div class="w-full h-1 bg-gray-800 rounded-full mx-auto overflow-hidden max-w-[200px]">
+                        <div id="nose-calib-progress" class="bg-cyan-500 h-full w-0 transition-all duration-100"></div>
+                    </div>
+                </div>
+                <div class="h-40"></div>
+                <div class="text-center w-full px-10 pointer-events-auto mt-20">
+                    <p id="calib-hint" class="text-gray-400 mb-8 text-[11px] italic">Look at the crosshair and hold still</p>
+                </div>
+            </div>
+        </div>
+
+        <div id="calib-nose-dot"></div>
+        <canvas id="game-canvas"></canvas>
+    </div>
+
+    <script>
+        const appContainer = document.getElementById('app-container');
+        const canvas = document.getElementById('game-canvas');
+        const ctx = canvas.getContext('2d');
+        
+        let width = appContainer.clientWidth;
+        let height = appContainer.clientHeight;
+        canvas.width = width;
+        canvas.height = height;
+
+        window.addEventListener('resize', () => {
+            width = appContainer.clientWidth;
+            height = appContainer.clientHeight;
+            canvas.width = width;
+            canvas.height = height;
+        });
+
+        // UI Elements
+        const mainMenuOverlay = document.getElementById('main-menu-overlay');
+        const startBtn = document.getElementById('start-btn');
+        const hud = document.getElementById('hud');
+        const scoreDisplay = document.getElementById('score-display');
+        const timeDisplay = document.getElementById('time-display');
+        const levelDisplay = document.getElementById('level-display');
+        const gameOverOverlay = document.getElementById('game-over-overlay');
+        const restartBtn = document.getElementById('restart-btn');
+        const heartsDisplay = document.getElementById('hearts-display').children;
+        const levelUpToast = document.getElementById('level-up-toast');
+
+        // Game State
+        let gameState = 'menu'; // menu, playing, gameover
+        let score = 0;
+        let level = 1;
+        let hp = 3;
+        let timeRemaining = 120;
+        let timeAccumulator = 0; // for 1-second ticks
+        let lastTime = 0;
+        let framesCount = 0;
+        
+        // Settings
+        const LEVEL_DURATION = 120;
+        const BASE_SPAWN_RATE = 60; // frames between spawns at level 1
+        let currentSpawnRate = BASE_SPAWN_RATE;
+        const BASE_SPEED = 2;
+
+        let player = {
+            x: width / 2, y: height / 2,
+            radius: 15,
+            shieldTime: 0,
+            color: '#22d3ee'
+        };
+
+        const entities = [];
+        const particles = [];
+
+        // Entity Types
+        const TYPE_ENEMY = 0;
+        const TYPE_BONUS = 1; // Star (score)
+        const TYPE_SHIELD = 2; // Shield/HP
+        
+        function rnd(min, max) { return Math.random() * (max - min) + min; }
+
+        function spawnEntity() {
+            // Determine type
+            let r = Math.random();
+            let type = TYPE_ENEMY;
+            
+            // Powerups chance decreases slightly as level goes up, but always present
+            const bonusChance = Math.max(0.05, 0.15 - (level * 0.01));
+            const shieldChance = Math.max(0.02, 0.05 - (level * 0.005));
+
+            if (r < shieldChance) type = TYPE_SHIELD;
+            else if (r < shieldChance + bonusChance) type = TYPE_BONUS;
+
+            // Spawn on edges
+            let ex, ey;
+            if (Math.random() > 0.5) {
+                ex = Math.random() > 0.5 ? -30 : width + 30;
+                ey = rnd(0, height);
+            } else {
+                ex = rnd(0, width);
+                ey = Math.random() > 0.5 ? -30 : height + 30;
+            }
+
+            // Target (center mostly for enemies, wider for powerups)
+            let tx = width / 2;
+            let ty = height / 2;
+            let offsetMult = type === TYPE_ENEMY ? 100 : 300;
+            tx += rnd(-offsetMult, offsetMult);
+            ty += rnd(-offsetMult, offsetMult);
+
+            let dx = tx - ex;
+            let dy = ty - ey;
+            let dist = Math.hypot(dx, dy);
+            
+            // Speed scaling
+            let speed = BASE_SPEED + (level * 0.5) + rnd(-0.5, 1.5);
+            if (type !== TYPE_ENEMY) speed *= 0.8; // powerups slightly slower
+
+            entities.push({
+                x: ex, y: ey,
+                vx: (dx / dist) * speed,
+                vy: (dy / dist) * speed,
+                type: type,
+                radius: type === TYPE_ENEMY ? rnd(10, 20) : 12,
+                rot: rnd(0, Math.PI * 2),
+                vrot: rnd(-0.1, 0.1)
+            });
+        }
+
+        function createParticles(x, y, color, count) {
+            for(let i=0; i<count; i++) {
+                let a = rnd(0, Math.PI*2);
+                let v = rnd(1, 4);
+                particles.push({
+                    x, y,
+                    vx: Math.cos(a)*v,
+                    vy: Math.sin(a)*v,
+                    life: 1.0,
+                    decay: rnd(0.02, 0.05),
+                    color,
+                    size: rnd(2, 5)
+                });
+            }
+        }
+
+        function updateHUD() {
+            scoreDisplay.innerText = score;
+            levelDisplay.innerText = level;
+            timeDisplay.innerText = timeRemaining;
+            
+            for(let i=0; i<3; i++) {
+                if (i < hp) heartsDisplay[i].classList.remove('lost');
+                else heartsDisplay[i].classList.add('lost');
+            }
+        }
+
+        function triggerLevelUp() {
+            level++;
+            timeRemaining = LEVEL_DURATION;
+            currentSpawnRate = Math.max(10, BASE_SPAWN_RATE - (level * 5));
+            
+            levelUpToast.classList.replace('opacity-0', 'opacity-100');
+            setTimeout(() => {
+                levelUpToast.classList.replace('opacity-100', 'opacity-0');
+            }, 1500);
+            
+            updateHUD();
+        }
+
+        function gameOver() {
+            gameState = 'gameover';
+            document.getElementById('final-score').innerText = score;
+            document.getElementById('final-level').innerText = level;
+            gameOverOverlay.classList.remove('hidden');
+            hud.classList.add('hidden');
+        }
+
+        function resetGame() {
+            score = 0;
+            level = 1;
+            hp = 3;
+            timeRemaining = LEVEL_DURATION;
+            currentSpawnRate = BASE_SPAWN_RATE;
+            entities.length = 0;
+            particles.length = 0;
+            player.shieldTime = 3; // 3 sec invulnerability on start
+            updateHUD();
+            gameOverOverlay.classList.add('hidden');
+            mainMenuOverlay.classList.add('hidden');
+            hud.classList.remove('hidden');
+            gameState = 'playing';
+            lastTime = performance.now();
+            requestAnimationFrame(gameLoop);
+        }
+
+        function drawStar(cx, cy, spikes, outerRadius, innerRadius, color) {
+            let rot = Math.PI / 2 * 3;
+            let x = cx;
+            let y = cy;
+            let step = Math.PI / spikes;
+
+            ctx.beginPath();
+            ctx.moveTo(cx, cy - outerRadius);
+            for (i = 0; i < spikes; i++) {
+                x = cx + Math.cos(rot) * outerRadius;
+                y = cy + Math.sin(rot) * outerRadius;
+                ctx.lineTo(x, y);
+                rot += step;
+
+                x = cx + Math.cos(rot) * innerRadius;
+                y = cy + Math.sin(rot) * innerRadius;
+                ctx.lineTo(x, y);
+                rot += step;
+            }
+            ctx.lineTo(cx, cy - outerRadius);
+            ctx.closePath();
+            ctx.fillStyle = color;
+            ctx.fill();
+        }
+
+        function gameLoop(timestamp) {
+            if (gameState !== 'playing') return;
+
+            let dt = (timestamp - lastTime) / 1000;
+            if(dt > 0.1) dt = 0.1; // clamp lag
+            lastTime = timestamp;
+
+            // Timer logic
+            timeAccumulator += dt;
+            if (timeAccumulator >= 1.0) {
+                timeAccumulator -= 1.0;
+                timeRemaining--;
+                if (player.shieldTime > 0) player.shieldTime--;
+                
+                if (timeRemaining <= 0) {
+                    triggerLevelUp();
+                }
+                updateHUD();
+            }
+
+            // Player Pos update from face tracking
+            FaceTracker.update();
+            if (FaceTracker.cursorX !== -100) {
+                // Smoothing is already in tracker, just map it.
+                // We add a tiny bit of constraint to keep inside screen.
+                player.x = Math.max(player.radius, Math.min(width - player.radius, FaceTracker.cursorX));
+                player.y = Math.max(player.radius, Math.min(height - player.radius, FaceTracker.cursorY));
+            }
+
+            // Clear screen
+            ctx.fillStyle = 'rgba(0, 0, 0, 0.4)'; // trail effect
+            ctx.fillRect(0, 0, width, height);
+
+            // Draw player
+            ctx.save();
+            ctx.translate(player.x, player.y);
+            
+            // If shield active, draw shield bubble
+            if (player.shieldTime > 0) {
+                ctx.beginPath();
+                ctx.arc(0, 0, player.radius + 10, 0, Math.PI*2);
+                ctx.fillStyle = 'rgba(34, 211, 238, 0.3)';
+                ctx.strokeStyle = '#2dce89';
+                ctx.lineWidth = 2;
+                ctx.fill();
+                ctx.stroke();
+            }
+
+            // Saucer body
+            ctx.beginPath();
+            ctx.ellipse(0, 0, player.radius, player.radius * 0.6, 0, 0, Math.PI * 2);
+            ctx.fillStyle = '#22d3ee';
+            ctx.shadowColor = '#00f2ff';
+            ctx.shadowBlur = 15;
+            ctx.fill();
+            
+            // Cockpit
+            ctx.beginPath();
+            ctx.arc(0, -5, player.radius * 0.5, Math.PI, 0);
+            ctx.fillStyle = '#bae6fd';
+            ctx.fill();
+            ctx.restore();
+
+            // Spawn logic
+            framesCount++;
+            if (framesCount >= currentSpawnRate) {
+                framesCount = 0;
+                spawnEntity();
+                // Random double spawn chance on higher levels
+                if (level > 2 && Math.random() < 0.3) spawnEntity();
+            }
+
+            // Update and draw entities
+            for (let i = entities.length - 1; i >= 0; i--) {
+                let e = entities[i];
+                e.x += e.vx;
+                e.y += e.vy;
+                e.rot += e.vrot;
+
+                // Remove if far off screen
+                if (e.x < -100 || e.x > width + 100 || e.y < -100 || e.y > height + 100) {
+                    entities.splice(i, 1);
+                    continue;
+                }
+
+                ctx.save();
+                ctx.translate(e.x, e.y);
+                ctx.rotate(e.rot);
+
+                if (e.type === TYPE_ENEMY) {
+                    ctx.beginPath();
+                    ctx.moveTo(0, -e.radius);
+                    ctx.lineTo(e.radius * 0.866, e.radius * 0.5);
+                    ctx.lineTo(-e.radius * 0.866, e.radius * 0.5);
+                    ctx.closePath();
+                    ctx.fillStyle = '#f43f5e';
+                    ctx.shadowColor = '#f43f5e';
+                    ctx.shadowBlur = 10;
+                    ctx.fill();
+                } else if (e.type === TYPE_BONUS) {
+                    drawStar(0, 0, 5, e.radius, e.radius/2, '#fbbf24');
+                    ctx.shadowColor = '#fbbf24';
+                    ctx.shadowBlur = 15;
+                } else if (e.type === TYPE_SHIELD) {
+                    ctx.beginPath();
+                    ctx.arc(0, 0, e.radius, 0, Math.PI * 2);
+                    ctx.fillStyle = '#10b981'; // emerald
+                    ctx.shadowColor = '#10b981';
+                    ctx.shadowBlur = 15;
+                    ctx.fill();
+                    ctx.fillStyle = 'white';
+                    ctx.font = 'bold 12px sans-serif';
+                    ctx.textAlign = 'center';
+                    ctx.textBaseline = 'middle';
+                    ctx.fillText('S', 0, 0);
+                }
+                ctx.restore();
+
+                // Collision Detection with Player
+                let dist = Math.hypot(e.x - player.x, e.y - player.y);
+                if (dist < player.radius + e.radius) {
+                    // Hit!
+                    if (e.type === TYPE_ENEMY) {
+                        if (player.shieldTime <= 0) {
+                            hp--;
+                            createParticles(player.x, player.y, '#f43f5e', 20);
+                            navigator.vibrate?.(200);
+                            if (hp <= 0) {
+                                gameOver();
+                                updateHUD();
+                                return; // Stop loop
+                            }
+                            player.shieldTime = 2; // brief i-frames
+                            updateHUD();
+                        } else {
+                            // Deflected
+                            createParticles(e.x, e.y, '#22d3ee', 10);
+                        }
+                    } else if (e.type === TYPE_BONUS) {
+                        score += 50 * level;
+                        createParticles(e.x, e.y, '#fbbf24', 15);
+                        navigator.vibrate?.(50);
+                    } else if (e.type === TYPE_SHIELD) {
+                        player.shieldTime += 5; // 5 seconds of shield
+                        score += 20 * level;
+                        // Maybe heal if low?
+                        if (hp < 3 && Math.random() < 0.5) hp++;
+                        createParticles(e.x, e.y, '#10b981', 15);
+                        navigator.vibrate?.(50);
+                        updateHUD();
+                    }
+                    
+                    entities.splice(i, 1);
+                }
+            }
+
+            // Update & draw particles
+            for (let i = particles.length - 1; i >= 0; i--) {
+                let p = particles[i];
+                p.x += p.vx;
+                p.y += p.vy;
+                p.life -= p.decay;
+                if (p.life <= 0) {
+                    particles.splice(i, 1);
+                    continue;
+                }
+                ctx.globalAlpha = p.life;
+                ctx.fillStyle = p.color;
+                ctx.beginPath();
+                ctx.arc(p.x, p.y, p.size, 0, Math.PI*2);
+                ctx.fill();
+            }
+            ctx.globalAlpha = 1.0;
+
+            requestAnimationFrame(gameLoop);
+        }
+
+        // Init
+        window.addEventListener('load', () => {
+            FaceTracker.init().then(success => {
+                if(success) {
+                    startBtn.classList.remove('hidden');
+                    startBtn.onclick = () => {
+                        FaceTracker.startCalibration(() => {
+                            resetGame();
+                        });
+                    };
+                }
+            });
+        });
+
+        restartBtn.onclick = () => {
+            FaceTracker.startCalibration(() => {
+                resetGame();
+            });
+        };
+
+    </script>
+</body>
+</html>
