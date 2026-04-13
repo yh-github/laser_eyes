@@ -86,7 +86,7 @@
 
         /* WebGazer Overrides */
         #webgazerVideoContainer {
-            display: block !important;
+            display: none !important; /* OFF BY DEFAULT */
             position: absolute !important;
             top: 20px !important;
             left: 20px !important;
@@ -155,6 +155,43 @@
             </div>
             <div class="text-xl font-bold text-gray-300 bg-black/50 px-3 py-1 rounded-full border border-white/10">
                 <span id="time-display" class="text-rose-400">120</span>s
+            </div>
+            <button id="menu-btn" class="chargeable text-xl p-1 bg-black/40 rounded-full border border-white/10 hover:bg-white/10 transition-colors" title="Settings Menu">⚙️</button>
+        </div>
+
+        <div id="side-menu" class="hidden">
+            <div id="main-menu-view">
+                <div class="menu-section">
+                    <div class="menu-header">Sensors</div>
+                    <div class="flex items-center justify-between mb-2">
+                        <span class="text-xs text-gray-300">Camera Feed</span>
+                        <label class="toggle-switch">
+                            <input type="checkbox" id="camera-feed-toggle">
+                            <span class="slider-round"></span>
+                        </label>
+                    </div>
+                    <div class="flex items-center justify-between">
+                        <div class="flex flex-col">
+                            <span class="text-xs text-gray-300">Face Landmarks</span>
+                            <span class="text-[9px] text-gray-500">Show AI tracking dots</span>
+                        </div>
+                        <label class="toggle-switch">
+                            <input type="checkbox" id="debug-landmarks-toggle">
+                            <span class="slider-round"></span>
+                        </label>
+                    </div>
+                </div>
+
+                <div class="menu-divider"></div>
+
+                <div class="menu-section mb-0 flex flex-col gap-2">
+                    <button id="resume-game-btn" class="return-btn chargeable" style="background: rgba(34, 211, 238, 0.1); border-color: rgba(34, 211, 238, 0.3); color: #22d3ee;">
+                        Resume Game
+                    </button>
+                    <button id="return-main-btn" class="return-btn chargeable">
+                        Exit to Menu
+                    </button>
+                </div>
             </div>
         </div>
 
@@ -238,6 +275,14 @@
         const restartBtn = document.getElementById('restart-btn');
         const heartsDisplay = document.getElementById('hearts-display').children;
         const levelUpToast = document.getElementById('level-up-toast');
+
+        // Menu Elements
+        const sideMenu = document.getElementById('side-menu');
+        const menuBtn = document.getElementById('menu-btn');
+        const camToggle = document.getElementById('camera-feed-toggle');
+        const resumeBtn = document.getElementById('resume-game-btn');
+        const returnBtn = document.getElementById('return-main-btn');
+        const debugToggle = document.getElementById('debug-landmarks-toggle');
 
         // Game State
         let gameState = 'menu'; // menu, playing, gameover
@@ -607,6 +652,50 @@
                 resetGame();
             });
         };
+
+        // Menu Logic
+        menuBtn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            menuBtn.classList.toggle('active');
+            sideMenu.classList.toggle('active');
+        });
+
+        resumeBtn.addEventListener('click', () => {
+            sideMenu.classList.remove('active');
+            menuBtn.classList.remove('active');
+        });
+
+        camToggle.addEventListener('change', () => {
+            const videoContainer = document.getElementById('webgazerVideoContainer');
+            if (videoContainer) {
+                videoContainer.style.setProperty('display', camToggle.checked ? 'block' : 'none', 'important');
+            }
+        });
+
+        debugToggle.addEventListener('change', (e) => FaceTracker.showDebugLandmarks = e.target.checked);
+
+        document.addEventListener('click', (e) => {
+            if (!sideMenu.contains(e.target) && e.target !== menuBtn) {
+                sideMenu.classList.remove('active');
+                menuBtn.classList.remove('active');
+            }
+        });
+
+        let returnConfirm = false;
+        returnBtn.addEventListener('click', () => {
+            if (!returnConfirm) {
+                returnConfirm = true;
+                returnBtn.innerText = "Are you sure?";
+                returnBtn.classList.add('confirm');
+                setTimeout(() => {
+                    returnConfirm = false;
+                    returnBtn.innerText = "Exit to Menu";
+                    returnBtn.classList.remove('confirm');
+                }, 3000);
+            } else {
+                window.location.href = 'index.html';
+            }
+        });
 
     </script>
 </body>
