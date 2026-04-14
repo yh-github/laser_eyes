@@ -73,7 +73,7 @@
         #calib-overlay {
             position: absolute; inset: 0; z-index: 200;
             background: rgba(2, 6, 23, 0.98);
-            display: flex; flex-direction: column; align-items: center; justify-content: center;
+            display: none; flex-direction: column; align-items: center; justify-content: center;
         }
         .calib-crosshair {
             width: 60px; height: 60px; border: 2px solid #38bdf8; border-radius: 50%;
@@ -102,8 +102,14 @@
         <!-- Start/Game Over Overlay -->
         <div id="game-overlay">
             <h1 class="text-6xl font-black italic mb-4 bg-clip-text text-transparent bg-gradient-to-r from-indigo-400 to-cyan-400 uppercase tracking-tighter">Star Horde</h1>
-            <p class="text-slate-400 max-w-sm mb-12">Navigate the 2.5D expanse with your head. Gather your fleet. Survive the invasion.</p>
+            <p class="text-slate-400 max-w-sm mb-4">Navigate the 2.5D expanse. Gather your fleet. Survive the invasion.</p>
+            
+            <div id="loading-status" class="mb-8 text-xs font-mono text-indigo-400 border border-indigo-400/20 px-4 py-2 rounded bg-indigo-400/5">
+                Ready for testing.
+            </div>
+
             <button id="start-btn" class="btn-premium">INITIATE MISSION</button>
+            <p class="mt-4 text-[10px] text-slate-500 uppercase tracking-widest">Control: Mouse / Touch</p>
             <button onclick="window.location.href='index.html'" class="mt-8 text-xs text-slate-500 uppercase tracking-widest hover:text-white transition-colors">Abort to Menu</button>
         </div>
 
@@ -437,17 +443,17 @@
 
         document.getElementById('start-btn').onclick = () => {
             const govl = document.getElementById('game-overlay');
-            govl.classList.add('hidden');
+            govl.style.display = 'none';
             
-            const calibOverlay = document.getElementById('calib-overlay');
-            calibOverlay.classList.remove('hidden');
-            
-            FaceTracker.startCalibration(() => {
-                calibOverlay.classList.add('hidden');
-                gameState = 'PLAYING';
-                resetGame();
-            });
+            gameState = 'PLAYING';
+            resetGame();
         };
+
+        // Mouse/Touch Control Fallback
+        window.addEventListener('pointermove', (e) => {
+            FaceTracker.cursorX = e.clientX;
+            FaceTracker.cursorY = e.clientY;
+        });
 
         function resetGame() {
             score = 0;
@@ -469,7 +475,14 @@
 
         // Initialize AI on load like other games for better "warm-up"
         window.addEventListener('load', () => {
-            FaceTracker.init();
+            const status = document.getElementById('loading-status');
+            if (status) status.innerText = "Loading AI Core...";
+            
+            FaceTracker.init().then(success => {
+                if (status) status.innerText = success ? "AI Systems Online." : "AI Failed. Falling back to Mouse.";
+            }).catch(err => {
+                if (status) status.innerText = "Load Error: " + err.message;
+            });
         });
     </script>
 </body>
