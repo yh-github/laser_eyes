@@ -246,24 +246,35 @@ const FaceTracker = {
 
             setTimeout(() => {
                 const positions = webgazer.getTracker().getPositions();
-                if (positions && positions.length > 60) {
-                    const faceW = this.getDistance(positions[1], positions[13]);
-                    const faceH = this.getDistance(positions[33], positions[7]);
+                
+                // Requirement: 65+ landmarks for full feature set
+                if (positions && positions.length > 65) {
+                    try {
+                        const faceW = this.getDistance(positions[1], positions[13]);
+                        const faceH = this.getDistance(positions[33], positions[7]);
 
-                    this.neutralBaselines.faceWidth = faceW;
-                    this.neutralBaselines.faceHeight = faceH;
-                    this.neutralBaselines.mouthWidth = this.getDistance(positions[44], positions[50]);
-                    this.neutralBaselines.mouthHeight = this.getDistance(positions[60], positions[57]);
-                    this.neutralBaselines.baseMAR = this.neutralBaselines.mouthHeight / Math.max(this.neutralBaselines.mouthWidth, 1);
-                    this.neutralBaselines.eyebrowDist = this.getDistance(positions[16], positions[24]) / faceH;
-                    this.neutralBaselines.noseToChin = this.getDistance(positions[62], positions[7]) / faceH;
-                    
-                    const dy = positions[32][1] - positions[27][1];
-                    const dx = positions[32][0] - positions[27][0];
-                    this.neutralBaselines.baseTiltAngle = Math.atan2(dy, dx) * (180 / Math.PI);
+                        this.neutralBaselines.faceWidth = faceW;
+                        this.neutralBaselines.faceHeight = faceH;
+                        this.neutralBaselines.mouthWidth = this.getDistance(positions[44], positions[50]);
+                        this.neutralBaselines.mouthHeight = this.getDistance(positions[60], positions[57]);
+                        this.neutralBaselines.baseMAR = this.neutralBaselines.mouthHeight / Math.max(this.neutralBaselines.mouthWidth, 1);
+                        this.neutralBaselines.eyebrowDist = this.getDistance(positions[16], positions[24]) / faceH;
+                        this.neutralBaselines.noseToChin = this.getDistance(positions[62], positions[7]) / faceH;
+                        
+                        const dy = positions[32][1] - positions[27][1];
+                        const dx = positions[32][0] - positions[27][0];
+                        this.neutralBaselines.baseTiltAngle = Math.atan2(dy, dx) * (180 / Math.PI);
 
-                    this.neutralBaselines.captured = true;
-                    console.log("Neutral baselines captured:", this.neutralBaselines);
+                        this.neutralBaselines.captured = true;
+                        console.log("FaceTracker: Neutral baselines captured successfully.", this.neutralBaselines);
+                    } catch (e) {
+                        console.error("FaceTracker: Critical error during baseline calculation:", e);
+                        if (calibStatus) calibStatus.innerText = "⚠️ Calibration Error: Check Console";
+                    }
+                } else {
+                    const count = positions ? positions.length : 0;
+                    console.error(`FaceTracker: Insufficient landmarks (${count}/66 detected). Check lighting and centering.`);
+                    if (calibStatus) calibStatus.innerText = "⚠️ Low Tracking Quality";
                 }
 
                 crosshair.remove();
