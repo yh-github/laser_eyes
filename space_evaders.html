@@ -189,6 +189,9 @@
                 <div class="menu-divider"></div>
 
                 <div class="menu-section mb-0 flex flex-col gap-2">
+                    <button id="recalib-btn" class="return-btn chargeable" style="background: rgba(34, 211, 238, 0.05); border-color: rgba(34, 211, 238, 0.2); color: #22d3ee; font-size: 11px;">
+                        RE-CALIBRATE
+                    </button>
                     <button id="resume-game-btn" class="return-btn chargeable" style="background: rgba(34, 211, 238, 0.1); border-color: rgba(34, 211, 238, 0.3); color: #22d3ee;">
                         Resume Game
                     </button>
@@ -318,6 +321,7 @@
         // Menu Elements
         const sideMenu = document.getElementById('side-menu');
         const menuBtn = document.getElementById('menu-btn');
+        const recalibBtn = document.getElementById('recalib-btn');
         const camToggle = document.getElementById('camera-feed-toggle');
         const resumeBtn = document.getElementById('resume-game-btn');
         const returnBtn = document.getElementById('return-main-btn');
@@ -524,10 +528,13 @@
         function gameLoop(timestamp) {
             if (gameState !== 'playing') {
                 lastTime = timestamp; // Reset lastTime to avoid huge jumps when resuming
+                if (gameState === 'levelsummary' || gameState === 'gameover' || gameState === 'menu') return;
+                requestAnimationFrame(gameLoop);
                 return;
             }
             if (isPaused) {
                 lastTime = timestamp;
+                requestAnimationFrame(gameLoop);
                 return;
             }
 
@@ -766,6 +773,17 @@
             sideMenu.classList.remove('active');
             menuBtn.classList.remove('active');
         });
+
+        recalibBtn.onclick = () => {
+            sideMenu.classList.remove('active');
+            menuBtn.classList.remove('active');
+            // Keep isPaused = true so game doesn't run during calibration
+            isPaused = true;
+            pauseOverlay.classList.remove('hidden');
+            FaceTracker.startCalibration(() => {
+                // Calibration ended. Game is still paused, showing the Resume button.
+            });
+        };
 
         camToggle.addEventListener('change', () => {
             const videoContainer = document.getElementById('webgazerVideoContainer');
