@@ -131,11 +131,13 @@ const FaceTracker = {
                 const uncleSamBtn = document.getElementById('uncle-sam-btn');
                 const glassBtn = document.getElementById('glass-btn');
                 const spaceEvadersBtn = document.getElementById('space-evaders-btn');
+                const starHordeBtn = document.getElementById('star-horde-btn');
                 if(startBtn) startBtn.classList.remove('hidden');
                 if(bigMouthBtn) bigMouthBtn.classList.remove('hidden');
                 if(uncleSamBtn) uncleSamBtn.classList.remove('hidden');
                 if(glassBtn) glassBtn.classList.remove('hidden');
                 if(spaceEvadersBtn) spaceEvadersBtn.classList.remove('hidden');
+                if(starHordeBtn) starHordeBtn.classList.remove('hidden');
             }, 800);
 
             return true;

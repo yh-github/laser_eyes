@@ -76,6 +76,10 @@
                     class="w-full py-4 bg-amber-600 hover:bg-amber-500 rounded-xl text-xl font-bold shadow-2xl shadow-amber-900/40 transition-all active:scale-95 chargeable hidden">
                     Space Evaders
                 </button>
+                <button id="star-horde-btn"
+                    class="w-full py-4 bg-indigo-600 hover:bg-indigo-500 rounded-xl text-xl font-bold shadow-2xl shadow-indigo-900/40 transition-all active:scale-95 chargeable hidden">
+                    Star Horde
+                </button>
             </div>
 
             <!-- Dynamic Status / Error Box -->
@@ -451,6 +455,10 @@
 
         document.getElementById('space-evaders-btn').addEventListener('click', () => {
             window.location.href = 'space_evaders.html';
+        });
+
+        document.getElementById('star-horde-btn').addEventListener('click', () => {
+            window.location.href = 'star_horde.html';
         });
 
         document.getElementById('recalib-btn').addEventListener('click', () => {
