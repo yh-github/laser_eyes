@@ -442,19 +442,11 @@
             const calibOverlay = document.getElementById('calib-overlay');
             calibOverlay.classList.remove('hidden');
             
-            const runCalib = () => {
-                FaceTracker.startCalibration(() => {
-                    calibOverlay.classList.add('hidden');
-                    gameState = 'PLAYING';
-                    resetGame();
-                });
-            };
-
-            if (!FaceTracker.isStarted) {
-                FaceTracker.init().then(runCalib);
-            } else {
-                runCalib();
-            }
+            FaceTracker.startCalibration(() => {
+                calibOverlay.classList.add('hidden');
+                gameState = 'PLAYING';
+                resetGame();
+            });
         };
 
         function resetGame() {
@@ -475,10 +467,10 @@
         updateFleet();
         animate();
 
-        // Tracker visual integration (progress bar)
-        // Note: tracker.js doesn't natively update our calib-progress ID, 
-        // we'll need to hook into its interval or just mock it for now since tracker.js is external.
-        // Actually, we can observe FaceTracker.noseCenter or similar.
+        // Initialize AI on load like other games for better "warm-up"
+        window.addEventListener('load', () => {
+            FaceTracker.init();
+        });
     </script>
 </body>
 </html>
