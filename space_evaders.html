@@ -139,6 +139,57 @@
             transform: scale(0.8) !important;
             filter: none !important;
         }
+
+        /* Laser Pointer & Charging */
+        #laser-dot {
+            position: absolute;
+            width: 16px;
+            height: 16px;
+            background: #fff;
+            border-radius: 50%;
+            pointer-events: none;
+            transform: translate(-50%, -50%);
+            z-index: 10000;
+            display: none;
+            box-shadow: 0 0 10px 2px #00f2ff, 0 0 25px 8px #00f2ff, 0 0 45px 15px rgba(0, 242, 255, 0.4);
+            border: 1px solid #e0ffff;
+        }
+        .charging-ring {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            width: 40px;
+            height: 40px;
+            pointer-events: none;
+            opacity: 0;
+            transition: opacity 0.2s ease;
+        }
+        .charging-ring circle {
+            fill: none;
+            stroke: #00f2ff;
+            stroke-width: 3;
+            stroke-dasharray: 113.1;
+            stroke-dashoffset: 113.1;
+            stroke-linecap: round;
+            transform: rotate(-90deg);
+            transform-origin: center;
+            transition: stroke-dashoffset 0.1s linear;
+        }
+        .chargeable { position: relative; }
+        .chargeable.targeting::before {
+            content: '';
+            position: absolute;
+            inset: -4px;
+            border: 2px solid rgba(0, 242, 255, 0.5);
+            border-radius: inherit;
+            pointer-events: none;
+            animation: target-ring-pulse 1s infinite;
+        }
+        @keyframes target-ring-pulse {
+            0% { transform: scale(1); opacity: 1; }
+            100% { transform: scale(1.1); opacity: 0; }
+        }
     </style>
 </head>
 <body class="bg-black flex items-center justify-center text-white font-sans">
@@ -208,7 +259,7 @@
             <p class="text-md mb-8 text-gray-400">
                 Evade the red triangles.<br>Catch stars for points & green orbs for shield/HP.
             </p>
-            <button id="start-btn" class="w-full max-w-[280px] py-4 bg-cyan-600 hover:bg-cyan-500 rounded-xl text-xl font-bold shadow-2xl shadow-cyan-900/40 transition-all active:scale-95 hidden">
+            <button id="start-btn" class="chargeable w-full max-w-[280px] py-4 bg-cyan-600 hover:bg-cyan-500 rounded-xl text-xl font-bold shadow-2xl shadow-cyan-900/40 transition-all active:scale-95 hidden">
                 START TRACKING
             </button>
             <div class="mt-4">
@@ -233,7 +284,7 @@
                 </div>
             </div>
 
-            <button id="next-level-btn" class="w-full max-w-[280px] py-4 bg-cyan-600 hover:bg-cyan-500 rounded-xl text-xl font-bold shadow-2xl shadow-cyan-900/40 transition-all active:scale-95">
+            <button id="next-level-btn" class="chargeable w-full max-w-[280px] py-4 bg-cyan-600 hover:bg-cyan-500 rounded-xl text-xl font-bold shadow-2xl shadow-cyan-900/40 transition-all active:scale-95">
                 CONTINUE TO LEVEL <span id="btn-next-level">2</span>
             </button>
         </div>
@@ -241,7 +292,7 @@
         <!-- Pause Overlay -->
         <div id="pause-overlay" class="absolute inset-0 z-50 flex flex-col items-center justify-center bg-gray-900 bg-opacity-80 p-6 text-center hidden">
             <h2 class="text-5xl font-black mb-8 text-white uppercase italic tracking-widest">PAUSED</h2>
-            <button id="pause-resume-btn" class="w-full max-w-[240px] py-4 bg-white/10 hover:bg-white/20 rounded-xl text-xl font-bold border border-white/20 backdrop-blur-md transition-all active:scale-95">
+            <button id="pause-resume-btn" class="chargeable w-full max-w-[240px] py-4 bg-white/10 hover:bg-white/20 rounded-xl text-xl font-bold border border-white/20 backdrop-blur-md transition-all active:scale-95">
                 RESUME
             </button>
         </div>
@@ -262,7 +313,7 @@
                 </div>
             </div>
             
-            <button id="restart-btn" class="w-full max-w-[280px] py-4 bg-cyan-600 hover:bg-cyan-500 rounded-xl text-xl font-bold shadow-2xl transition-all active:scale-95 mb-4">
+            <button id="restart-btn" class="chargeable w-full max-w-[280px] py-4 bg-cyan-600 hover:bg-cyan-500 rounded-xl text-xl font-bold shadow-2xl transition-all active:scale-95 mb-4">
                 START NEW RUN
             </button>
             <button onclick="window.location.href='index.html'" class="text-sm text-gray-400 hover:text-white uppercase tracking-wider">Back to Menu</button>
@@ -287,6 +338,12 @@
 
         <div id="calib-nose-dot"></div>
         <canvas id="game-canvas"></canvas>
+
+        <div id="laser-dot">
+            <svg class="charging-ring" viewBox="0 0 40 40">
+                <circle cx="20" cy="20" r="18"></circle>
+            </svg>
+        </div>
     </div>
 
     <script>
@@ -337,6 +394,14 @@
         let timeAccumulator = 0; // for 1-second ticks
         let lastTime = 0;
         let framesCount = 0;
+
+        // Charging State
+        let chargeState = {
+            target: null,
+            startTime: 0,
+            duration: 1500, // 1.5 seconds to charge
+            isComplete: false
+        };
         
         // Settings
         const LEVEL_DURATION = 60;
@@ -526,15 +591,18 @@
         }
 
         function gameLoop(timestamp) {
+            FaceTracker.update();
+            updateLaserDot();
+            updateCharging();
+
             if (gameState !== 'playing') {
                 lastTime = timestamp; // Reset lastTime to avoid huge jumps when resuming
-                if (gameState === 'levelsummary' || gameState === 'gameover' || gameState === 'menu') return;
-                requestAnimationFrame(gameLoop);
+                requestAnimationFrame(gameLoop); // Keep loop alive for overlays/charging
                 return;
             }
             if (isPaused) {
                 lastTime = timestamp;
-                requestAnimationFrame(gameLoop);
+                requestAnimationFrame(gameLoop); // Keep alive while paused
                 return;
             }
 
@@ -556,7 +624,6 @@
             }
 
             // Player Pos update from face tracking
-            FaceTracker.update();
             if (FaceTracker.cursorX !== -100) {
                 // Smoothing is already in tracker, just map it.
                 // We add a tiny bit of constraint to keep inside screen.
@@ -732,16 +799,83 @@
             });
         };
 
-        const levelSummaryOverlay = document.getElementById('level-summary-overlay');
-        const summaryLevelNum = document.getElementById('summary-level-num');
-        const summaryScore = document.getElementById('summary-score');
-        const nextLevelBtn = document.getElementById('next-level-btn');
-        const pauseOverlay = document.getElementById('pause-overlay');
-        const pauseResumeBtn = document.getElementById('pause-resume-btn');
+        const laserDot = document.getElementById('laser-dot');
+        const chargingRingCircle = laserDot.querySelector('circle');
+        const chargingRing = laserDot.querySelector('.charging-ring');
 
         nextLevelBtn.onclick = () => {
             startNextLevel();
         };
+
+        function updateLaserDot() {
+            if (FaceTracker.cursorX === -100) {
+                laserDot.style.display = 'none';
+                return;
+            }
+
+            // Visible if NOT playing OR if paused
+            const shouldShow = (gameState !== 'playing' || isPaused);
+            laserDot.style.display = shouldShow ? 'block' : 'none';
+
+            if (shouldShow) {
+                laserDot.style.left = FaceTracker.cursorX + 'px';
+                laserDot.style.top = FaceTracker.cursorY + 'px';
+            }
+        }
+
+        function updateCharging() {
+            const x = FaceTracker.cursorX;
+            const y = FaceTracker.cursorY;
+
+            if (x === -100) {
+                resetCharge();
+                return;
+            }
+
+            // Only charge if laser is visible (in menus/pause)
+            if (gameState === 'playing' && !isPaused) {
+                resetCharge();
+                return;
+            }
+
+            const element = document.elementFromPoint(x, y);
+            const chargeable = element ? element.closest('.chargeable') : null;
+
+            if (chargeable && !chargeState.isComplete) {
+                if (chargeState.target !== chargeable) {
+                    chargeState.target = chargeable;
+                    chargeState.startTime = performance.now();
+                    chargeable.classList.add('targeting');
+                    chargingRing.style.opacity = '1';
+                }
+
+                const elapsed = performance.now() - chargeState.startTime;
+                const progress = Math.min(elapsed / chargeState.duration, 1);
+                
+                // Update ring (113.1 is 2 * PI * 18)
+                const offset = 113.1 * (1 - progress);
+                chargingRingCircle.style.strokeDashoffset = offset;
+
+                if (progress >= 1) {
+                    chargeState.isComplete = true;
+                    chargeable.click();
+                    setTimeout(resetCharge, 500);
+                }
+            } else {
+                if (!chargeState.isComplete) resetCharge();
+            }
+        }
+
+        function resetCharge() {
+            if (chargeState.target) {
+                chargeState.target.classList.remove('targeting');
+            }
+            chargeState.target = null;
+            chargeState.startTime = 0;
+            chargeState.isComplete = false;
+            chargingRing.style.opacity = '0';
+            chargingRingCircle.style.strokeDashoffset = '113.1';
+        }
 
         function togglePause() {
             if (gameState !== 'playing') return;
