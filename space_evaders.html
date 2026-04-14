@@ -374,6 +374,13 @@
         const restartBtn = document.getElementById('restart-btn');
         const heartsDisplay = document.getElementById('hearts-display').children;
         const levelUpToast = document.getElementById('level-up-toast');
+        const levelSummaryOverlay = document.getElementById('level-summary-overlay');
+        const nextLevelBtn = document.getElementById('next-level-btn');
+        const pauseOverlay = document.getElementById('pause-overlay');
+        const pauseResumeBtn = document.getElementById('pause-resume-btn');
+        const summaryLevelNum = document.getElementById('summary-level-num');
+        const summaryScore = document.getElementById('summary-score');
+        const btnNextLevel = document.getElementById('btn-next-level');
 
         // Menu Elements
         const sideMenu = document.getElementById('side-menu');
@@ -418,6 +425,8 @@
 
         const entities = [];
         const particles = [];
+
+        let loopStarted = false;
 
         // Entity Types
         const TYPE_ENEMY = 0;
@@ -513,11 +522,11 @@
         function triggerLevelUp() {
             gameState = 'levelsummary';
             
-            document.getElementById('summary-level-num').innerText = level;
-            document.getElementById('summary-score').innerText = score;
-            document.getElementById('btn-next-level').innerText = level + 1;
+            summaryLevelNum.innerText = level;
+            summaryScore.innerText = score;
+            btnNextLevel.innerText = level + 1;
             
-            document.getElementById('level-summary-overlay').classList.remove('hidden');
+            levelSummaryOverlay.classList.remove('hidden');
             hud.classList.add('hidden');
         }
 
@@ -526,7 +535,11 @@
             timeRemaining = LEVEL_DURATION;
             currentSpawnRate = Math.max(12, BASE_SPAWN_RATE - (level * 6));
             
-            document.getElementById('level-summary-overlay').classList.add('hidden');
+            entities.length = 0; // Clear entities for the new level
+            framesCount = 0;
+            timeAccumulator = 0;
+            
+            levelSummaryOverlay.classList.add('hidden');
             hud.classList.remove('hidden');
             
             // Invulnerability on level start
@@ -553,16 +566,24 @@
             currentSpawnRate = BASE_SPAWN_RATE;
             entities.length = 0;
             particles.length = 0;
+            framesCount = 0;
+            timeAccumulator = 0;
             player.shieldTime = 3; // 3 sec invulnerability on start
+            
             updateHUD();
             gameOverOverlay.classList.add('hidden');
-            document.getElementById('level-summary-overlay').classList.add('hidden');
-            document.getElementById('pause-overlay').classList.add('hidden');
+            levelSummaryOverlay.classList.add('hidden');
+            pauseOverlay.classList.add('hidden');
             mainMenuOverlay.classList.add('hidden');
             hud.classList.remove('hidden');
+            
             gameState = 'playing';
             lastTime = performance.now();
-            requestAnimationFrame(gameLoop);
+            
+            if (!loopStarted) {
+                loopStarted = true;
+                requestAnimationFrame(gameLoop);
+            }
         }
 
         function drawStar(cx, cy, spikes, outerRadius, innerRadius, color) {
