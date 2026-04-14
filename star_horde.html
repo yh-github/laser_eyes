@@ -141,7 +141,9 @@
         // --- GAME CONFIG ---
         const LANE_X = [-2.8, 2.8];
         const SPAWN_SPEED = 0.25;
-        const SHOOT_COOLDOWN = 12; // frames
+        const SHOOT_COOLDOWN = 20; 
+        const MAX_FLEET_COUNT = 24; // Increased cap for more "Horde" feeling
+        const LANE_LERP_FACTOR = 0.08;
         
         // --- THREE.JS SETUP ---
         const canvas = document.getElementById('game-canvas');
@@ -172,7 +174,7 @@
             starPos[i*3] = (Math.random() - 0.5) * 120;
             starPos[i*3+1] = (Math.random() - 0.5) * 60;
             starPos[i*3+2] = (Math.random() - 0.5) * 200;
-            starSpeeds[i] = Math.random() * 0.8 + 0.2;
+            starSpeeds[i] = Math.random() * 0.2 + 0.05; // Starting very slow
         }
         starGeo.setAttribute('position', new THREE.BufferAttribute(starPos, 3));
         const starMat = new THREE.PointsMaterial({ color: 0xffffff, size: 0.1, transparent: true, opacity: 0.8 });
@@ -183,9 +185,15 @@
         let gameState = 'MENU'; 
         let score = 0;
         let fleetCount = 1;
+        let shieldCount = 0;
         let currentLane = 0; 
         let lerpX = 0;
         let shootTimer = 0;
+        
+        let gameStartTime = 0;
+        let lastDeathTime = 0;
+        let hordeLane = 0; // The lane with the swarm
+        let laneSwapTimer = 0;
         
         const fleetGroup = new THREE.Group();
         scene.add(fleetGroup);
@@ -195,7 +203,9 @@
 
         const shipMat = new THREE.MeshPhongMaterial({ color: 0x4f46e5, shininess: 80, emissive: 0x1e1b4b });
         const enemyMat = new THREE.MeshPhongMaterial({ color: 0xe11d48, emissive: 0x4c0519 });
+        const neutralMat = new THREE.MeshPhongMaterial({ color: 0x64748b, emissive: 0x0f172a }); // Neutrals are now gray/stone
         const powerupMat = new THREE.MeshPhongMaterial({ color: 0x10b981, emissive: 0x064e3b });
+        const shieldMat = new THREE.MeshPhongMaterial({ color: 0x38bdf8, emissive: 0x075985, transparent: true, opacity: 0.4 });
         const projMat = new THREE.MeshBasicMaterial({ color: 0x22d3ee });
 
         function createShipMesh() {
@@ -232,27 +242,83 @@
                 ship.position.set(col * 1.4 - rowXOffset, 0, row * 1.6);
                 fleetGroup.add(ship);
             }
+
+            // Update Shield Mesh
+            if(shieldCount > 0) {
+                const shield = new THREE.Mesh(new THREE.SphereGeometry(3.5, 32, 32), shieldMat);
+                shield.position.set(0, 0, 1.5);
+                fleetGroup.add(shield);
+            }
+
+            fleetGroup.position.z = 6; // Move ship lower on screen
+        }
+
+            fleetGroup.position.z = 6; 
+        }
+
+        function getDifficultyMetrics() {
+            const now = Date.now();
+            const elapsedMins = (now - gameStartTime) / 60000;
+            const heroPower = fleetCount + (shieldCount * 2);
+            
+            // Dynamic recovery: reduce pressure if recently hit
+            const timeSinceDeath = now - lastDeathTime;
+            const recoveryFactor = Math.max(0, 1 - (timeSinceDeath / 10000)); // 10s recovery window
+            
+            const baseDiff = elapsedMins * 1.5 + (heroPower * 0.5);
+            const intensity = Math.max(0.2, baseDiff * (1 - recoveryFactor * 0.5));
+
+            return {
+                hordeDensity: 0.05 + Math.min(0.25, intensity * 0.03),
+                supportDensity: 0.02 + Math.min(0.08, intensity * 0.01),
+                enemyHP: Math.floor(1 + intensity * 0.4),
+                neutralHP: Math.floor(5 + intensity * 1.2),
+                speed: Math.min(0.35, 0.08 + intensity * 0.015),
+                projectileSpeed: Math.min(1.0, 0.4 + intensity * 0.02),
+                sizeScale: 1 + Math.min(1.5, intensity * 0.05)
+            };
         }
 
         function spawnEntity() {
+            const metrics = getDifficultyMetrics();
             const lane = Math.random() > 0.5 ? 1 : 0;
-            const isEnemy = Math.random() > 0.3; // 70% enemies
+            const isHordeLane = lane === hordeLane;
+            
+            // Spawning logic
+            if(isHordeLane) {
+                if(Math.random() > metrics.hordeDensity) return;
+            } else {
+                if(Math.random() > metrics.supportDensity) return;
+            }
+
             let mesh;
             let type;
             let val = 0;
+            let hp = 1;
 
-            if(isEnemy) {
+            if(isHordeLane) {
+                // Horde lane is almost exclusively enemies
                 mesh = new THREE.Mesh(new THREE.ConeGeometry(0.6, 1.2, 4), enemyMat);
                 mesh.rotation.x = Math.PI;
                 type = 'ENEMY';
+                hp = metrics.enemyHP;
             } else {
-                // Powerup - Starts as negative? 
-                // "Some powerups will start out as negatives, but the more hits the hero scores on them the better they become."
-                val = -Math.floor(Math.random() * 5) - 1; // -1 to -5
-                mesh = new THREE.Mesh(new THREE.IcosahedronGeometry(0.7, 1), powerupMat);
-                type = 'POWERUP';
-                
-                // Add value text
+                // Support lane has neutrals and rare powerups
+                const isPowerup = Math.random() < 0.15; // 15% chance if spawning in support lane
+                if(isPowerup) {
+                    val = -Math.floor(Math.random() * 3) - 1; 
+                    mesh = new THREE.Mesh(new THREE.IcosahedronGeometry(0.7, 1), powerupMat);
+                    type = 'POWERUP';
+                    hp = 1; // Powerups ripen, don't have armor in the same way
+                } else {
+                    mesh = new THREE.Mesh(new THREE.BoxGeometry(1.2, 1.2, 1.2), neutralMat);
+                    type = 'NEUTRAL';
+                    hp = metrics.neutralHP;
+                }
+            }
+
+            // Powerup label logic (only for powerups)
+            if(type === 'POWERUP') {
                 const canvasLabel = document.createElement('canvas');
                 const ctx = canvasLabel.getContext('2d');
                 canvasLabel.width = 64; canvasLabel.height = 64;
@@ -268,9 +334,15 @@
                 mesh.userData.canvas = canvasLabel;
             }
 
-            mesh.position.set(LANE_X[lane], 0, -50);
+            mesh.position.set(LANE_X[lane], 0, -60);
             mesh.userData.type = type;
             mesh.userData.lane = lane;
+            mesh.userData.hp = hp;
+            mesh.userData.maxHP = hp;
+            
+            // Scale based on difficulty
+            const scale = metrics.sizeScale;
+            mesh.scale.set(scale, scale, scale);
             
             scene.add(mesh);
             entities.push(mesh);
@@ -287,6 +359,7 @@
         }
 
         function shoot() {
+            const metrics = getDifficultyMetrics();
             fleetGroup.children.forEach(ship => {
                 const worldPos = new THREE.Vector3();
                 ship.getWorldPosition(worldPos);
@@ -294,6 +367,7 @@
                 const proj = new THREE.Mesh(new THREE.SphereGeometry(0.15, 8, 8), projMat);
                 proj.position.copy(worldPos);
                 proj.position.z -= 1.0;
+                proj.userData.speed = metrics.projectileSpeed;
                 scene.add(proj);
                 projectiles.push(proj);
             });
@@ -330,14 +404,21 @@
                 }
 
                 // Smooth lane lerp
-                lerpX += (LANE_X[currentLane] - lerpX) * 0.15;
+                lerpX += (LANE_X[currentLane] - lerpX) * LANE_LERP_FACTOR;
                 fleetGroup.position.x = lerpX;
                 
                 // Tilting effect
                 fleetGroup.rotation.z = (lerpX - LANE_X[currentLane]) * 0.2;
 
                 // Spawning
-                if(Math.random() < 0.02) spawnEntity();
+                spawnEntity(); 
+
+                // Lane Swapping
+                laneSwapTimer++;
+                if(laneSwapTimer > 600) { // ~10-15 seconds
+                    laneSwapTimer = 0;
+                    hordeLane = 1 - hordeLane;
+                }
 
                 // Shooting
                 shootTimer++;
@@ -349,9 +430,9 @@
                 // Update Projectiles
                 for(let i=projectiles.length-1; i>=0; i--) {
                     const p = projectiles[i];
-                    p.position.z -= 1.0;
+                    p.position.z -= p.userData.speed;
                     
-                    if(p.position.z < -60) {
+                    if(p.position.z < -70) {
                         scene.remove(p);
                         projectiles.splice(i, 1);
                         continue;
@@ -361,15 +442,21 @@
                     for(let j=entities.length-1; j>=0; j--) {
                         const e = entities[j];
                         const dist = p.position.distanceTo(e.position);
-                        if(dist < 1.5) {
-                            if(e.userData.type === 'ENEMY') {
-                                // Destroy enemy
-                                scene.remove(e);
-                                entities.splice(j, 1);
-                                score += 100;
-                                document.getElementById('score').innerText = score;
+                        if(dist < 1.8 * e.scale.x) { // Account for scaling
+                            if(e.userData.type === 'ENEMY' || e.userData.type === 'NEUTRAL') {
+                                e.userData.hp--;
+                                if(e.userData.hp <= 0) {
+                                    scene.remove(e);
+                                    entities.splice(j, 1);
+                                    score += e.userData.type === 'ENEMY' ? 100 : 250;
+                                    document.getElementById('score').innerText = score;
+                                } else {
+                                    // Visual flash on hit
+                                    e.material.emissiveIntensity = 2;
+                                    setTimeout(() => { if(e.material) e.material.emissiveIntensity = 1; }, 50);
+                                }
                             } else {
-                                // Ripen powerup
+                                // Powerup ripening
                                 e.userData.val++;
                                 updatePowerupLabel(e);
                             }
@@ -381,25 +468,40 @@
                 }
 
                 // Update Entities
+                const metrics = getDifficultyMetrics();
                 const time = Date.now() * 0.005;
                 for(let i=entities.length-1; i>=0; i--) {
                     const e = entities[i];
-                    e.position.z += 0.4;
+                    e.position.z += metrics.speed;
                     
                     // Simple pulse animation
-                    const scale = 1 + Math.sin(time + i) * 0.1;
-                    e.scale.set(scale, scale, scale);
+                    const pulse = 1 + Math.sin(time + i) * 0.05;
+                    e.scale.x = metrics.sizeScale * pulse;
+                    e.scale.y = metrics.sizeScale * pulse;
+                    e.scale.z = metrics.sizeScale * pulse;
+                    
                     if(e.userData.type === 'ENEMY') e.rotation.y += 0.05;
                     else e.rotation.y -= 0.02;
                     
                     // Collision with fleet
-                    if(e.position.z > -1 && e.position.z < 2) {
-                        if(Math.abs(e.position.x - lerpX) < 2) {
+                    if(e.position.z > 5 && e.position.z < 8) {
+                        if(Math.abs(e.position.x - lerpX) < 4 * metrics.sizeScale) {
                             // Interaction
-                            if(e.userData.type === 'ENEMY') {
-                                fleetCount--;
+                            if(e.userData.type === 'ENEMY' || e.userData.type === 'NEUTRAL') {
+                                lastDeathTime = Date.now();
+                                if(shieldCount > 0) {
+                                    shieldCount--;
+                                } else {
+                                    fleetCount--;
+                                }
                             } else {
-                                fleetCount += e.userData.val;
+                                // Powerup logic
+                                if(fleetCount < MAX_FLEET_COUNT) {
+                                    fleetCount = Math.min(MAX_FLEET_COUNT, fleetCount + (e.userData.val > 0 ? e.userData.val : 1));
+                                } else {
+                                    shieldCount = Math.min(3, shieldCount + 1);
+                                }
+                                score += 500;
                             }
                             
                             scene.remove(e);
@@ -409,8 +511,7 @@
                                 gameOver();
                             } else {
                                 updateFleet();
-                                document.getElementById('ship-count').innerText = fleetCount;
-                                score += e.userData.type === 'POWERUP' ? 50 : 0;
+                                document.getElementById('ship-count').innerText = fleetCount + (shieldCount > 0 ? ` (+${shieldCount}🛡️)` : '');
                                 document.getElementById('score').innerText = score;
                             }
                             continue;
@@ -418,10 +519,13 @@
                     }
 
                     // Pass player condition
-                    if(e.position.z > 5) {
+                    if(e.position.z > 10) {
                         if(e.userData.type === 'ENEMY') {
-                            fleetCount--;
-                            document.getElementById('ship-count').innerText = fleetCount;
+                            lastDeathTime = Date.now();
+                            if(shieldCount > 0) shieldCount--;
+                            else fleetCount--;
+                            
+                            document.getElementById('ship-count').innerText = fleetCount + (shieldCount > 0 ? ` (+${shieldCount}🛡️)` : '');
                             if(fleetCount <= 0) gameOver();
                             else updateFleet();
                         }
@@ -446,6 +550,7 @@
             govl.style.display = 'none';
             
             gameState = 'PLAYING';
+            gameStartTime = Date.now();
             resetGame();
         };
 
@@ -458,6 +563,7 @@
         function resetGame() {
             score = 0;
             fleetCount = 1;
+            shieldCount = 0;
             entities.forEach(e => scene.remove(e));
             projectiles.forEach(p => scene.remove(p));
             entities.length = 0;
