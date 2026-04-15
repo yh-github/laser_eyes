@@ -214,6 +214,8 @@
         const SHOOT_COOLDOWN = 40; // Significantly slower base rate
         const MAX_FLEET_COUNT = 24; // Increased cap for more "Horde" feeling
         const LANE_LERP_FACTOR = 0.08;
+        const LEVEL_DURATION = 90; // Seconds
+        const OVERDRIVE_DURATION = 10 * 60; // 600 frames at 60fps
         
         // --- THREE.JS SETUP ---
         const canvas = document.getElementById('game-canvas');
@@ -266,6 +268,11 @@
         let hordeLane = 0; // The lane with the swarm
         let laneSwapTimer = 0;
         
+        let currentLevel = 1;
+        let levelTime = 0;
+        let weaponUpgradeSpawned = false; // Once per level
+        let overdiveTimer = 0;
+        
         const fleetGroup = new THREE.Group();
         scene.add(fleetGroup);
         
@@ -276,6 +283,9 @@
         const enemyMat = new THREE.MeshPhongMaterial({ color: 0xe11d48, emissive: 0x4c0519 });
         const neutralMat = new THREE.MeshPhongMaterial({ color: 0x64748b, emissive: 0x0f172a }); // Neutrals are now gray/stone
         const powerupMat = new THREE.MeshPhongMaterial({ color: 0x10b981, emissive: 0x064e3b });
+        const weaponShellMat = new THREE.MeshPhongMaterial({ color: 0x6366f1, emissive: 0x312e81, transparent: true, opacity: 0.8 });
+        const weaponCoreMat = new THREE.MeshPhongMaterial({ color: 0xf59e0b, emissive: 0xb45309 });
+        const overdriveProjMat = new THREE.MeshBasicMaterial({ color: 0xfacc15 });
         const shieldMat = new THREE.MeshPhongMaterial({ color: 0x38bdf8, emissive: 0x075985, transparent: true, opacity: 0.4 });
         const projMat = new THREE.MeshBasicMaterial({ color: 0x22d3ee });
 
@@ -333,8 +343,8 @@
             const timeSinceDeath = now - lastDeathTime;
             const recoveryFactor = Math.max(0, 1 - (timeSinceDeath / 15000)); // 15s recovery window
             
-            // Slower base scaling
-            const baseDiff = elapsedMins * 1.0 + (heroPower * 0.3);
+            // Slower base scaling + LEVEL scale
+            const baseDiff = (currentLevel - 1) * 1.5 + elapsedMins * 0.8 + (heroPower * 0.3);
             const intensity = Math.max(0.1, baseDiff * (1 - recoveryFactor * 0.8));
 
             return {
@@ -343,8 +353,8 @@
                 supportDensity: 0.01 + Math.min(0.06, intensity * 0.01),
                 baseEnemyHP: Math.floor(1 + intensity * 0.5),
                 baseNeutralHP: Math.floor(4 + intensity * 2.0),
-                speed: Math.min(0.3, 0.05 + intensity * 0.01), // Slower speed
-                projectileSpeed: Math.min(1.0, 0.4 + intensity * 0.02),
+                speed: Math.min(0.35, 0.05 + intensity * 0.012), // Scales slightly faster with levels
+                projectileSpeed: Math.min(1.2, 0.4 + intensity * 0.025),
                 sizeScale: 0.8 + Math.min(1.8, intensity * 0.08)
             };
         }
@@ -363,20 +373,32 @@
             } else if(type === 'NEUTRAL') {
                 mesh = new THREE.Mesh(new THREE.BoxGeometry(1.2, 1.2, 1.2), neutralMat);
                 hp = Math.floor(hp * finalSize);
+            } else if(type === 'WEAPON_UPGRADE') {
+                mesh = new THREE.Group();
+                const shell = new THREE.Mesh(new THREE.IcosahedronGeometry(1.4, 0), weaponShellMat);
+                const core = new THREE.Mesh(new THREE.IcosahedronGeometry(0.6, 1), weaponCoreMat);
+                mesh.add(shell);
+                mesh.add(core);
+                mesh.userData.shell = shell;
+                mesh.userData.core = core;
+                hp = 25 + (currentLevel * 5); // Tanky shell
             } else {
                 mesh = new THREE.Mesh(new THREE.IcosahedronGeometry(0.7, 1), powerupMat);
             }
 
-            if(type === 'POWERUP') {
+            if(type === 'POWERUP' || type === 'UPGRADE_CORE') {
                 const canvasLabel = document.createElement('canvas');
                 const ctx = canvasLabel.getContext('2d');
-                canvasLabel.width = 64; canvasLabel.height = 64;
-                ctx.fillStyle = 'white'; ctx.font = 'bold 48px Inter'; ctx.textAlign = 'center';
-                ctx.fillText(val, 32, 48);
+                canvasLabel.width = 128; canvasLabel.height = 64; // Expanded for large numbers
+                ctx.fillStyle = 'white'; 
+                ctx.font = 'bold 44px Inter'; 
+                ctx.textAlign = 'center';
+                const text = type === 'UPGRADE_CORE' ? 'WPN' : val;
+                ctx.fillText(text, 64, 48);
                 const texture = new THREE.CanvasTexture(canvasLabel);
                 const sprite = new THREE.Sprite(new THREE.SpriteMaterial({ map: texture }));
                 sprite.position.y = 1.2;
-                sprite.scale.set(1.5, 1.5, 1);
+                sprite.scale.set(3, 1.5, 1); // Wider sprite
                 mesh.add(sprite);
                 mesh.userData.val = val;
                 mesh.userData.label = sprite;
@@ -396,6 +418,15 @@
 
         function spawnEntity() {
             const metrics = getDifficultyMetrics();
+            
+            // Spawn weapon upgrade once per level after 10 seconds
+            if(!weaponUpgradeSpawned && levelTime > 10) {
+                weaponUpgradeSpawned = true;
+                const lane = Math.random() > 0.5 ? 1 : 0;
+                addEntityToScene(LANE_X[lane], -60, 'WEAPON_UPGRADE', 30, 0, metrics);
+                return;
+            }
+
             const lane = Math.random() > 0.5 ? 1 : 0;
             const isHordeLane = lane === hordeLane;
             const laneX = LANE_X[lane];
@@ -426,26 +457,45 @@
         function updatePowerupLabel(mesh) {
             const canvas = mesh.userData.canvas;
             const ctx = canvas.getContext('2d');
-            ctx.clearRect(0, 0, 64, 64);
-            ctx.fillStyle = mesh.userData.val >= 0 ? '#10b981' : '#f43f5e';
-            ctx.font = 'bold 48px Inter'; ctx.textAlign = 'center';
-            ctx.fillText(mesh.userData.val > 0 ? '+' + mesh.userData.val : mesh.userData.val, 32, 48);
+            ctx.clearRect(0, 0, 128, 64);
+            const isUpgrade = mesh.userData.type === 'UPGRADE_CORE';
+            ctx.fillStyle = isUpgrade ? '#f59e0b' : (mesh.userData.val >= 0 ? '#10b981' : '#f43f5e');
+            ctx.font = 'bold 44px Inter'; ctx.textAlign = 'center';
+            const val = mesh.userData.val;
+            const text = isUpgrade ? 'OVERDRIVE' : (val > 0 ? '+' + val : val);
+            ctx.fillText(text, 64, 48);
             mesh.userData.label.material.map.needsUpdate = true;
         }
 
         function shoot() {
             const metrics = getDifficultyMetrics();
+            const cd = overdiveTimer > 0 ? SHOOT_COOLDOWN / 2 : SHOOT_COOLDOWN;
+            
             fleetGroup.children.forEach(ship => {
                 const worldPos = new THREE.Vector3();
                 ship.getWorldPosition(worldPos);
                 
-                const proj = new THREE.Mesh(new THREE.SphereGeometry(0.15, 8, 8), projMat);
+                const proj = new THREE.Mesh(new THREE.SphereGeometry(0.15, 8, 8), overdiveTimer > 0 ? overdriveProjMat : projMat);
                 proj.position.copy(worldPos);
                 proj.position.z -= 1.0;
                 proj.userData.speed = metrics.projectileSpeed;
                 scene.add(proj);
                 projectiles.push(proj);
             });
+            return cd;
+        }
+
+        function levelComplete() {
+            gameState = 'LEVEL_COMPLETE';
+            const govl = document.getElementById('game-overlay');
+            govl.style.display = 'flex';
+            
+            document.getElementById('overlay-title').innerText = currentLevel >= 10 ? "MISSION SUCCESS" : "LEVEL " + currentLevel + " CLEAR";
+            document.getElementById('overlay-sub').innerText = currentLevel >= 10 ? 
+                "You have survived the Horde. Final Score: " + score : 
+                "Prepare for Sector " + (currentLevel + 1);
+            
+            document.getElementById('start-btn').innerText = currentLevel >= 10 ? "PLAY AGAIN" : "PROCEED TO LEVEL " + (currentLevel + 1);
         }
 
         function gameOver() {
@@ -503,9 +553,18 @@
 
                 // Shooting
                 shootTimer++;
-                if(shootTimer >= SHOOT_COOLDOWN) {
+                const currentCD = overdiveTimer > 0 ? SHOOT_COOLDOWN / 2 : SHOOT_COOLDOWN;
+                if(shootTimer >= currentCD) {
                     shootTimer = 0;
                     shoot();
+                }
+
+                if (overdiveTimer > 0) overdiveTimer--;
+
+                // Level Timer
+                levelTime += 1/60; // Approx 60fps
+                if(levelTime >= LEVEL_DURATION) {
+                    levelComplete();
                 }
 
                 // Update Projectiles
@@ -524,17 +583,29 @@
                         const e = entities[j];
                         const dist = p.position.distanceTo(e.position);
                         if(dist < 1.8 * e.scale.x) { // Account for scaling
-                            if(e.userData.type === 'ENEMY' || e.userData.type === 'NEUTRAL') {
+                            if(e.userData.type === 'ENEMY' || e.userData.type === 'NEUTRAL' || e.userData.type === 'WEAPON_UPGRADE') {
                                 e.userData.hp--;
                                 if(e.userData.hp <= 0) {
-                                    scene.remove(e);
-                                    entities.splice(j, 1);
-                                    score += e.userData.type === 'ENEMY' ? 100 : 250;
-                                    document.getElementById('score').innerText = score;
+                                    if(e.userData.type === 'WEAPON_UPGRADE') {
+                                        // Crack the shell!
+                                        e.remove(e.userData.shell);
+                                        e.userData.type = 'UPGRADE_CORE';
+                                        addEntityToScene(e.position.x, e.position.z, 'UPGRADE_CORE', 1, 0, metrics); // Spawn collector
+                                        scene.remove(e);
+                                        entities.splice(j, 1);
+                                    } else {
+                                        scene.remove(e);
+                                        entities.splice(j, 1);
+                                        score += e.userData.type === 'ENEMY' ? 100 : 250;
+                                        document.getElementById('score').innerText = score;
+                                    }
                                 } else {
                                     // Visual flash on hit
-                                    e.material.emissiveIntensity = 2;
-                                    setTimeout(() => { if(e.material) e.material.emissiveIntensity = 1; }, 50);
+                                    const meshToFlash = e.userData.type === 'WEAPON_UPGRADE' ? e.userData.shell : e;
+                                    if(meshToFlash.material) {
+                                        meshToFlash.material.emissiveIntensity = 2;
+                                        setTimeout(() => { if(meshToFlash.material) meshToFlash.material.emissiveIntensity = 1; }, 50);
+                                    }
                                 }
                             } else {
                                 // Powerup ripening
@@ -568,13 +639,16 @@
                     if(e.position.z > 5 && e.position.z < 8) {
                         if(Math.abs(e.position.x - lerpX) < 4 * metrics.sizeScale) {
                             // Interaction
-                            if(e.userData.type === 'ENEMY' || e.userData.type === 'NEUTRAL') {
+                            if(e.userData.type === 'ENEMY' || e.userData.type === 'NEUTRAL' || e.userData.type === 'WEAPON_UPGRADE') {
                                 lastDeathTime = Date.now();
                                 if(shieldCount > 0) {
                                     shieldCount--;
                                 } else {
                                     fleetCount--;
                                 }
+                            } else if(e.userData.type === 'UPGRADE_CORE') {
+                                overdiveTimer = OVERDRIVE_DURATION;
+                                score += 1000;
                             } else {
                                 // Powerup logic
                                 if(fleetCount < MAX_FLEET_COUNT) {
@@ -630,24 +704,45 @@
             const govl = document.getElementById('game-overlay');
             govl.style.display = 'none';
             
-            if (gameState === 'GAMEOVER') {
+            if (gameState === 'GAMEOVER' || (gameState === 'LEVEL_COMPLETE' && currentLevel >= 10)) {
                 resetGame();
+            } else if (gameState === 'LEVEL_COMPLETE') {
+                currentLevel++;
+                levelTime = 0;
+                weaponUpgradeSpawned = false;
+                // Keep fleet and score
+                entities.forEach(e => scene.remove(e));
+                projectiles.forEach(p => scene.remove(p));
+                entities.length = 0;
+                projectiles.length = 0;
             }
             
             gameState = 'PLAYING';
             gameStartTime = Date.now();
         };
 
-        // Mouse/Touch Control Fallback
+        // Controls: Mouse / Touch / Keyboard
         window.addEventListener('pointermove', (e) => {
             FaceTracker.cursorX = e.clientX;
             FaceTracker.cursorY = e.clientY;
+        });
+
+        window.addEventListener('keydown', (e) => {
+            if (e.key === 'ArrowLeft') {
+                FaceTracker.cursorX = 0;
+            } else if (e.key === 'ArrowRight') {
+                FaceTracker.cursorX = window.innerWidth;
+            }
         });
 
         function resetGame() {
             score = 0;
             fleetCount = 1;
             shieldCount = 0;
+            currentLevel = 1;
+            levelTime = 0;
+            weaponUpgradeSpawned = false;
+            overdiveTimer = 0;
             entities.forEach(e => scene.remove(e));
             projectiles.forEach(p => scene.remove(p));
             entities.length = 0;
