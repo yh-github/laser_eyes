@@ -79,6 +79,28 @@
             width: 60px; height: 60px; border: 2px solid #38bdf8; border-radius: 50%;
             position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%);
         }
+
+        /* Loading Enhancements */
+        @keyframes pulse-status {
+            0%, 100% { opacity: 1; transform: scale(1); }
+            50% { opacity: 0.7; transform: scale(0.98); }
+        }
+        .animate-pulse-status { animation: pulse-status 2s cubic-bezier(0.4, 0, 0.6, 1) infinite; }
+        
+        #progress-bar-container {
+            width: 100%; height: 4px; background: rgba(99, 102, 241, 0.1);
+            border-radius: 2px; margin-top: 12px; overflow: hidden;
+        }
+        #progress-bar-fill {
+            height: 100%; width: 0%; background: linear-gradient(90deg, #6366f1, #38bdf8);
+            transition: width 0.5s ease;
+        }
+        
+        .btn-premium.disabled {
+            background: #1e293b; color: #475569;
+            box-shadow: none; pointer-events: none;
+            opacity: 0.6;
+        }
     </style>
 </head>
 <body>
@@ -104,11 +126,16 @@
             <h1 class="text-6xl font-black italic mb-4 bg-clip-text text-transparent bg-gradient-to-r from-indigo-400 to-cyan-400 uppercase tracking-tighter">Star Horde</h1>
             <p class="text-slate-400 max-w-sm mb-4">Navigate the 2.5D expanse. Gather your fleet. Survive the invasion.</p>
             
-            <div id="loading-status" class="mb-8 text-xs font-mono text-indigo-400 border border-indigo-400/20 px-4 py-2 rounded bg-indigo-400/5">
-                Ready for testing.
+            <div id="loading-container" class="mb-8 w-64 mx-auto">
+                <div id="loading-status" class="text-xs font-mono text-indigo-400 border border-indigo-400/20 px-4 py-2 rounded bg-indigo-400/5 animate-pulse-status">
+                    Waking AI Core...
+                </div>
+                <div id="progress-bar-container">
+                    <div id="progress-bar-fill"></div>
+                </div>
             </div>
 
-            <button id="start-btn" class="btn-premium">INITIATE MISSION</button>
+            <button id="start-btn" class="btn-premium disabled">READYING ENGINES...</button>
             <p class="mt-4 text-[10px] text-slate-500 uppercase tracking-widest">Control: Mouse / Touch</p>
             <button onclick="window.location.href='index.html'" class="mt-8 text-xs text-slate-500 uppercase tracking-widest hover:text-white transition-colors">Abort to Menu</button>
         </div>
@@ -141,7 +168,7 @@
         // --- GAME CONFIG ---
         const LANE_X = [-2.8, 2.8];
         const SPAWN_SPEED = 0.25;
-        const SHOOT_COOLDOWN = 20; 
+        const SHOOT_COOLDOWN = 40; // Significantly slower base rate
         const MAX_FLEET_COUNT = 24; // Increased cap for more "Horde" feeling
         const LANE_LERP_FACTOR = 0.08;
         
@@ -272,52 +299,24 @@
                 hordeDensity: 0.05 + Math.min(0.25, intensity * 0.03),
                 supportDensity: 0.02 + Math.min(0.08, intensity * 0.01),
                 enemyHP: Math.floor(1 + intensity * 0.4),
-                neutralHP: Math.floor(5 + intensity * 1.2),
+                neutralHP: Math.floor(8 + intensity * 2.5), // Buffed neutrals significantly
                 speed: Math.min(0.35, 0.08 + intensity * 0.015),
                 projectileSpeed: Math.min(1.0, 0.4 + intensity * 0.02),
                 sizeScale: 1 + Math.min(1.5, intensity * 0.05)
             };
         }
 
-        function spawnEntity() {
-            const metrics = getDifficultyMetrics();
-            const lane = Math.random() > 0.5 ? 1 : 0;
-            const isHordeLane = lane === hordeLane;
-            
-            // Spawning logic
-            if(isHordeLane) {
-                if(Math.random() > metrics.hordeDensity) return;
-            } else {
-                if(Math.random() > metrics.supportDensity) return;
-            }
-
+        function addEntityToScene(x, z, type, hp, val, metrics) {
             let mesh;
-            let type;
-            let val = 0;
-            let hp = 1;
-
-            if(isHordeLane) {
-                // Horde lane is almost exclusively enemies
+            if(type === 'ENEMY') {
                 mesh = new THREE.Mesh(new THREE.ConeGeometry(0.6, 1.2, 4), enemyMat);
                 mesh.rotation.x = Math.PI;
-                type = 'ENEMY';
-                hp = metrics.enemyHP;
+            } else if(type === 'NEUTRAL') {
+                mesh = new THREE.Mesh(new THREE.BoxGeometry(1.2, 1.2, 1.2), neutralMat);
             } else {
-                // Support lane has neutrals and rare powerups
-                const isPowerup = Math.random() < 0.15; // 15% chance if spawning in support lane
-                if(isPowerup) {
-                    val = -Math.floor(Math.random() * 3) - 1; 
-                    mesh = new THREE.Mesh(new THREE.IcosahedronGeometry(0.7, 1), powerupMat);
-                    type = 'POWERUP';
-                    hp = 1; // Powerups ripen, don't have armor in the same way
-                } else {
-                    mesh = new THREE.Mesh(new THREE.BoxGeometry(1.2, 1.2, 1.2), neutralMat);
-                    type = 'NEUTRAL';
-                    hp = metrics.neutralHP;
-                }
+                mesh = new THREE.Mesh(new THREE.IcosahedronGeometry(0.7, 1), powerupMat);
             }
 
-            // Powerup label logic (only for powerups)
             if(type === 'POWERUP') {
                 const canvasLabel = document.createElement('canvas');
                 const ctx = canvasLabel.getContext('2d');
@@ -334,18 +333,45 @@
                 mesh.userData.canvas = canvasLabel;
             }
 
-            mesh.position.set(LANE_X[lane], 0, -60);
+            mesh.position.set(x, 0, z);
             mesh.userData.type = type;
-            mesh.userData.lane = lane;
             mesh.userData.hp = hp;
             mesh.userData.maxHP = hp;
             
-            // Scale based on difficulty
             const scale = metrics.sizeScale;
             mesh.scale.set(scale, scale, scale);
             
             scene.add(mesh);
             entities.push(mesh);
+        }
+
+        function spawnEntity() {
+            const metrics = getDifficultyMetrics();
+            const lane = Math.random() > 0.5 ? 1 : 0;
+            const isHordeLane = lane === hordeLane;
+            const laneX = LANE_X[lane];
+            
+            if(isHordeLane) {
+                if(Math.random() > metrics.hordeDensity) return;
+                
+                // Spawn a BUNCH / CLUSTER
+                const clusterSize = Math.floor(Math.random() * 3) + 1; // 1 to 3 enemies side-by-side
+                const spread = 1.2 * metrics.sizeScale;
+                for(let i=0; i<clusterSize; i++) {
+                    const xOffset = (i - (clusterSize-1)/2) * spread;
+                    addEntityToScene(laneX + xOffset, -60, 'ENEMY', metrics.enemyHP, 0, metrics);
+                }
+            } else {
+                if(Math.random() > metrics.supportDensity) return;
+                
+                const isPowerup = Math.random() < 0.15;
+                if(isPowerup) {
+                    const val = -Math.floor(Math.random() * 3) - 1; 
+                    addEntityToScene(laneX, -60, 'POWERUP', 1, val, metrics);
+                } else {
+                    addEntityToScene(laneX, -60, 'NEUTRAL', metrics.neutralHP, 0, metrics);
+                }
+            }
         }
 
         function updatePowerupLabel(mesh) {
@@ -582,12 +608,41 @@
         // Initialize AI on load like other games for better "warm-up"
         window.addEventListener('load', () => {
             const status = document.getElementById('loading-status');
-            if (status) status.innerText = "Loading AI Core...";
+            const fill = document.getElementById('progress-bar-fill');
+            const btn = document.getElementById('start-btn');
             
+            const updateLoading = (msg, pct) => {
+                if (status) status.innerText = msg;
+                if (fill) fill.style.width = pct + '%';
+            };
+
+            updateLoading("Verifying Neural Sensors...", 10);
+            
+            // Sequential initialization messages
+            setTimeout(() => updateLoading("Downloading AI Models (15MB)...", 30), 1000);
+            setTimeout(() => updateLoading("Warming up Space-Time Engine...", 60), 3000);
+
             FaceTracker.init().then(success => {
-                if (status) status.innerText = success ? "AI Systems Online." : "AI Failed. Falling back to Mouse.";
+                if (success) {
+                    updateLoading("AI Systems Online. Ships Ready.", 100);
+                    if (status) status.classList.remove('animate-pulse-status');
+                    if (btn) {
+                        btn.innerText = "INITIATE MISSION";
+                        btn.classList.remove('disabled');
+                    }
+                } else {
+                    updateLoading("AI Failed. Falling back to Mouse.", 100);
+                    if (btn) {
+                        btn.innerText = "INITIATE MISSION (MOUSE)";
+                        btn.classList.remove('disabled');
+                    }
+                }
             }).catch(err => {
-                if (status) status.innerText = "Load Error: " + err.message;
+                updateLoading("Boot Error: " + err.message, 100);
+                if (btn) {
+                    btn.innerText = "INITIATE (MANUAL MODE)";
+                    btn.classList.remove('disabled');
+                }
             });
         });
     </script>
