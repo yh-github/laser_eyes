@@ -1,0 +1,295 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Standard PoC - Laser Eyes</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="tracker.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/webgazer@2.1.1/dist/webgazer.js"
+        onerror="window.webgazerLoadError = true;"></script>
+    <link rel="stylesheet" href="shared.css">
+</head>
+
+<body class="bg-black flex items-center justify-center text-white font-sans">
+
+    <div id="app-container"
+        class="relative w-full h-full h-[100dvh] sm:h-[800px] sm:w-[400px] bg-gray-900 sm:rounded-[2.5rem] sm:border-8 sm:border-gray-800 overflow-hidden shadow-[0_0_50px_rgba(0,0,0,0.8)]">
+
+        <!-- Intro / Permission Screen -->
+        <div id="intro-overlay" class="absolute inset-0 z-[100] flex flex-col items-center justify-center bg-black p-6 text-center">
+            <div class="intro-card">
+                <div class="intro-icon-container">
+                    <span class="text-4xl">👁️</span>
+                </div>
+                <h2 class="text-2xl font-bold text-white mb-4">Face Tracking Required</h2>
+                <p class="text-gray-400 text-sm leading-relaxed mb-6">
+                    This game uses advanced AI face tracking down to the millimeter.
+                </p>
+                <div id="intro-status-box" class="w-full">
+                    <p id="intro-loading-msg" class="text-cyan-400 text-xs font-bold uppercase tracking-widest mb-2">Initializing AI...</p>
+                    <div class="loading-bar-container">
+                        <div id="intro-loading-bar" class="loading-bar-fill"></div>
+                    </div>
+                </div>
+                <div id="intro-error-box" class="hidden mt-6">
+                    <p id="intro-error-msg" class="text-rose-500 text-xs mb-4"></p>
+                    <button onclick="location.reload()" class="px-6 py-2 bg-rose-600 hover:bg-rose-500 text-white text-xs font-bold rounded-full transition-all active:scale-95">RETRY</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Main Menu Overlay -->
+        <div id="overlay" class="absolute inset-0 z-50 flex flex-col items-center justify-center bg-gray-900 bg-opacity-95 p-6 text-center hidden">
+            <h1 class="text-5xl font-black mb-2 text-cyan-400 uppercase tracking-tighter italic">Laser PoC</h1>
+            <p class="text-md mb-8 text-gray-400">Destroy targets with your gaze.</p>
+            <div class="flex flex-col gap-3 w-full max-w-[280px] mb-4">
+                <button id="start-btn" class="w-full py-4 bg-cyan-600 hover:bg-cyan-500 rounded-xl text-xl font-bold shadow-2xl transition-transform active:scale-95 chargeable">START TRACKING</button>
+                <button onclick="window.location.href='index.html'" class="w-full py-2 text-gray-500 hover:text-white text-xs font-bold uppercase tracking-widest transition-colors">Back to Menu</button>
+            </div>
+        </div>
+
+        <div id="calib-overlay" class="absolute inset-0 z-[60] flex flex-col items-center justify-center bg-black/95 hidden">
+            <div id="nose-calib-ui" class="flex flex-col items-center justify-center h-full w-full pointer-events-none">
+                <div class="text-center w-full px-10 mb-20">
+                    <h2 class="text-3xl font-bold text-cyan-400 mb-1">Calibration</h2>
+                    <p id="calib-status" class="text-white text-sm mb-4">Detecting face...</p>
+                    <div class="w-full h-1 bg-gray-800 rounded-full mx-auto overflow-hidden max-w-[200px]">
+                        <div id="nose-calib-progress" class="bg-cyan-500 h-full w-0 transition-all"></div>
+                    </div>
+                </div>
+                <div class="h-40"></div>
+            </div>
+        </div>
+
+        <div class="absolute top-6 left-6 z-40 flex gap-2">
+            <button id="recalib-btn" class="bg-black/50 hover:bg-black/80 text-white/50 px-4 py-1 rounded-full text-xs font-bold border border-white/10 transition-all active:scale-95 chargeable">RE-CALIBRATE</button>
+        </div>
+
+        <div class="absolute top-6 right-6 z-40 flex flex-col items-end gap-3">
+            <button id="menu-btn" class="chargeable">⚙️</button>
+            <div id="standard-score" class="text-xl font-bold text-gray-300 bg-black/50 px-4 py-1 rounded-full border border-white/10">
+                Score: <span id="score" class="text-cyan-400">0</span>
+            </div>
+            <div id="mission-timer" class="text-xl font-bold text-gray-300 bg-black/50 px-4 py-1 rounded-full border border-white/10 hidden">
+                Time: <span id="timer-val" class="text-rose-400">120</span>s
+            </div>
+        </div>
+
+        <div id="rest-overlay" class="absolute inset-0 z-[70] flex flex-col items-center justify-center bg-gray-900 bg-opacity-98 p-6 text-center hidden">
+            <h2 class="text-4xl font-black mb-4 text-cyan-400 uppercase italic">Mission Complete</h2>
+            <div id="rest-timer" class="text-6xl font-bold text-cyan-500 mb-8">30</div>
+            <button id="next-mission-btn" class="py-4 px-12 bg-cyan-600 hover:bg-cyan-500 rounded-xl text-xl font-bold shadow-2xl chargeable">START NEXT MISSION</button>
+        </div>
+
+        <div id="side-menu" class="hidden">
+            <div id="main-menu-view">
+                <div class="menu-section">
+                    <div class="menu-header">Sensors</div>
+                    <div class="flex items-center justify-between mb-2">
+                        <span class="text-xs text-gray-300">Camera Feed</span>
+                        <label class="toggle-switch">
+                            <input type="checkbox" id="camera-feed-toggle" checked>
+                            <span class="slider-round"></span>
+                        </label>
+                    </div>
+                </div>
+                <div class="menu-divider"></div>
+                <div class="menu-section">
+                    <button id="open-magnet-btn" class="w-full text-left text-xs font-bold text-gray-300 py-2 flex justify-between items-center hover:text-cyan-400 transition-colors">MAGNETISM <span class="opacity-50">&gt;</span></button>
+                </div>
+                <div class="menu-divider"></div>
+                <div class="menu-section mb-0 flex flex-col gap-2">
+                    <button id="resume-btn" class="return-btn chargeable" style="background: rgba(34, 211, 238, 0.1); border-color: rgba(34, 211, 238, 0.3); color: #22d3ee;">Resume Game</button>
+                    <button onclick="window.location.href='index.html'" class="return-btn">Exit to Menu</button>
+                </div>
+            </div>
+            <div id="magnet-menu-view" class="hidden">
+                 <div class="flex items-center mb-6">
+                    <button id="close-magnet-btn" class="text-xs font-bold text-gray-400 mr-3">&lt; Back</button>
+                    <div class="menu-header mb-0">Magnetism</div>
+                </div>
+                <label class="menu-label">Strength</label>
+                <input type="range" id="snap-strength" class="snap-slider" min="0" max="100" value="60">
+                <label class="menu-label">Range</label>
+                <input type="range" id="snap-range" class="snap-slider" min="50" max="300" value="150">
+            </div>
+        </div>
+
+        <div id="game-container" class="relative w-full h-full"></div>
+
+        <div id="facial-hud">
+            <div class="hud-gauge">
+                <span class="hud-label">Roar</span>
+                <div class="hud-bar-bg"><div id="gauge-mouth" class="hud-bar-fill"></div></div>
+            </div>
+            <div class="hud-gauge">
+                <span class="hud-label">Eyebrows</span>
+                <div class="hud-bar-bg"><div id="gauge-eyebrows" class="hud-bar-fill"></div></div>
+            </div>
+        </div>
+
+        <div id="laser-dot">
+            <svg class="charging-ring" viewBox="0 0 40 40">
+                <circle cx="20" cy="20" r="18"></circle>
+            </svg>
+        </div>
+        <div id="calib-nose-dot"></div>
+    </div>
+
+    <script>
+        const appContainer = document.getElementById('app-container');
+        const overlay = document.getElementById('overlay');
+        const calibOverlay = document.getElementById('calib-overlay');
+        const laserDot = document.getElementById('laser-dot');
+        const gameContainer = document.getElementById('game-container');
+        const scoreEl = document.getElementById('score');
+
+        let score = 0;
+        let targets = [];
+        let gameActive = false;
+        let gameTime = 120;
+        let missionInterval;
+        let snappingEnabled = true;
+        let snapStrength = 0.6;
+        let snapRange = 150;
+
+        // UI Listeners
+        const menuBtn = document.getElementById('menu-btn');
+        const sideMenu = document.getElementById('side-menu');
+        const mainMenuView = document.getElementById('main-menu-view');
+        const magnetMenuView = document.getElementById('magnet-menu-view');
+        const openMagnetBtn = document.getElementById('open-magnet-btn');
+        const closeMagnetBtn = document.getElementById('close-magnet-btn');
+        const resumeBtn = document.getElementById('resume-btn');
+
+        menuBtn.addEventListener('click', () => {
+            sideMenu.classList.toggle('active');
+            mainMenuView.classList.remove('hidden');
+            magnetMenuView.classList.add('hidden');
+        });
+
+        openMagnetBtn.addEventListener('click', () => {
+            mainMenuView.classList.add('hidden');
+            magnetMenuView.classList.remove('hidden');
+        });
+
+        closeMagnetBtn.addEventListener('click', () => {
+            magnetMenuView.classList.add('hidden');
+            mainMenuView.classList.remove('hidden');
+        });
+
+        resumeBtn.addEventListener('click', () => sideMenu.classList.remove('active'));
+
+        document.getElementById('snap-strength').addEventListener('input', (e) => snapStrength = e.target.value / 100);
+        document.getElementById('snap-range').addEventListener('input', (e) => snapRange = parseInt(e.target.value));
+
+        window.addEventListener('load', () => {
+            FaceTracker.init().then(success => {
+                if(success) setInterval(gameLoop, 30);
+            });
+        });
+
+        document.getElementById('start-btn').addEventListener('click', () => FaceTracker.startCalibration(startGame));
+        document.getElementById('recalib-btn').addEventListener('click', () => FaceTracker.startCalibration(startGame));
+
+        function startGame() {
+            overlay.classList.add('hidden');
+            gameActive = true;
+            gameTime = 120;
+            score = 0;
+            scoreEl.innerText = 0;
+            document.getElementById('mission-timer').classList.remove('hidden');
+            if (missionInterval) clearInterval(missionInterval);
+            missionInterval = setInterval(() => {
+                gameTime--;
+                document.getElementById('timer-val').innerText = gameTime;
+                if (gameTime <= 0) endMission();
+            }, 1000);
+            spawnTarget();
+        }
+
+        function spawnTarget() {
+            if (!gameActive) return;
+            const target = document.createElement('div');
+            target.className = 'target';
+            const size = 40 + Math.random() * 40;
+            target.style.width = size + 'px';
+            target.style.height = size + 'px';
+            target.style.left = (Math.random() * (appContainer.clientWidth - size)) + 'px';
+            target.style.top = (Math.random() * (appContainer.clientHeight - size)) + 'px';
+            target.style.background = `hsl(${Math.random() * 360}, 70%, 60%)`;
+            gameContainer.appendChild(target);
+            targets.push(target);
+            if (targets.length < 3) setTimeout(spawnTarget, 1000);
+        }
+
+        function popTarget(target) {
+            target.style.transform = 'scale(0)';
+            setTimeout(() => target.remove(), 200);
+            targets = targets.filter(t => t !== target);
+            score += 10;
+            scoreEl.innerText = score;
+            spawnTarget();
+        }
+
+        function endMission() {
+            gameActive = true; // wait for rest
+            clearInterval(missionInterval);
+            document.getElementById('rest-overlay').classList.remove('hidden');
+        }
+
+        function gameLoop() {
+            FaceTracker.update();
+            updateLaser();
+            if (!gameActive) return;
+
+            targets.forEach(target => {
+                const rect = target.getBoundingClientRect();
+                const tx = rect.left + rect.width/2;
+                const ty = rect.top + rect.height/2;
+                const dx = FaceTracker.cursorX - tx;
+                const dy = FaceTracker.cursorY - ty;
+                const dist = Math.sqrt(dx*dx + dy*dy);
+                if (dist < 30 && FaceTracker.isRoaring) popTarget(target);
+            });
+            
+            // HUD Update
+            document.getElementById('gauge-mouth').style.width = (FaceTracker.mouthOpenness * 100) + '%';
+            document.getElementById('gauge-eyebrows').style.width = (FaceTracker.eyebrowRaise * 100) + '%';
+        }
+
+        function updateLaser() {
+            if (!FaceTracker.isStarted) {
+                laserDot.style.display = 'none';
+                return;
+            }
+            laserDot.style.display = 'block';
+            let displayX = FaceTracker.cursorX;
+            let displayY = FaceTracker.cursorY;
+
+            if (snappingEnabled && targets.length > 0) {
+                let nearest = null;
+                let minDist = snapRange;
+                targets.forEach(t => {
+                    const rect = t.getBoundingClientRect();
+                    const tx = rect.left + rect.width/2;
+                    const ty = rect.top + rect.height/2;
+                    const d = Math.sqrt(Math.pow(displayX - tx, 2) + Math.pow(displayY - ty, 2));
+                    if (d < minDist) { minDist = d; nearest = {x:tx, y:ty}; }
+                });
+                if (nearest) {
+                    const weight = snapStrength * Math.pow(1 - (minDist/snapRange), 1.5);
+                    displayX = displayX * (1-weight) + nearest.x * weight;
+                    displayY = displayY * (1-weight) + nearest.y * weight;
+                }
+            }
+            laserDot.style.left = displayX + 'px';
+            laserDot.style.top = displayY + 'px';
+            const scale = FaceTracker.isRoaring ? (1 + FaceTracker.mouthOpenness * 2) : 1;
+            laserDot.style.transform = `translate(-50%, -50%) scale(${scale})`;
+        }
+    </script>
+</body>
+</html>

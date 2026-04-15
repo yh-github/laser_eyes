@@ -1,0 +1,517 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Big Mouth - Laser Eyes</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="tracker.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/webgazer@2.1.1/dist/webgazer.js"
+        onerror="window.webgazerLoadError = true;"></script>
+    <link rel="stylesheet" href="shared.css">
+</head>
+
+<body class="bg-black flex items-center justify-center text-white font-sans">
+
+    <div id="app-container"
+        class="relative w-full h-full h-[100dvh] sm:h-[800px] sm:w-[400px] bg-gray-900 sm:rounded-[2.5rem] sm:border-8 sm:border-gray-800 overflow-hidden shadow-[0_0_50px_rgba(0,0,0,0.8)]">
+
+        <!-- Intro / Permission Screen -->
+        <div id="intro-overlay" class="absolute inset-0 z-[100] flex flex-col items-center justify-center bg-black p-6 text-center">
+            <div class="intro-card">
+                <div class="intro-icon-container">
+                    <span class="text-4xl">👁️</span>
+                </div>
+                <h2 class="text-2xl font-bold text-white mb-4">Face Tracking Required</h2>
+                <p class="text-gray-400 text-sm leading-relaxed mb-6">
+                    This game uses advanced AI face tracking to control your laser eyes. 
+                    It requires your <span class="text-cyan-400 font-bold">selfie camera</span> to "see you" and track your nose movements.
+                </p>
+                
+                <div id="intro-status-box" class="w-full">
+                    <p id="intro-loading-msg" class="text-cyan-400 text-xs font-bold uppercase tracking-widest mb-2">Initializing AI...</p>
+                    <p id="intro-action-msg" class="text-gray-500 text-[10px]">Please allow camera access when prompted.</p>
+                    <div class="loading-bar-container">
+                        <div id="intro-loading-bar" class="loading-bar-fill"></div>
+                    </div>
+                </div>
+
+                <div id="intro-error-box" class="hidden mt-6">
+                    <p id="intro-error-msg" class="text-rose-500 text-xs mb-4"></p>
+                    <button onclick="location.reload()" class="px-6 py-2 bg-rose-600 hover:bg-rose-500 text-white text-xs font-bold rounded-full transition-all active:scale-95">
+                        RETRY
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- UI Overlay (Mini Menu) -->
+        <div id="overlay"
+            class="absolute inset-0 z-50 flex flex-col items-center justify-center bg-gray-900 bg-opacity-95 p-6 text-center hidden">
+            <h1 class="text-5xl font-black mb-2 text-pink-500 uppercase tracking-tighter italic">Big Mouth</h1>
+            <p class="text-md mb-8 text-gray-400">
+                Eat the healthy foods by opening your mouth.<br>
+                Avoid the junk food!
+            </p>
+
+            <div class="flex flex-col gap-3 w-full max-w-[280px] mb-4">
+                <button id="start-btn"
+                    class="w-full py-4 bg-pink-600 hover:bg-pink-500 rounded-xl text-xl font-bold shadow-2xl shadow-pink-900/40 transition-all active:scale-95 chargeable">
+                    START EATING
+                </button>
+                <button onclick="window.location.href='index.html'"
+                    class="w-full py-2 text-gray-500 hover:text-white text-xs font-bold uppercase tracking-widest transition-colors">
+                    Back to Menu
+                </button>
+            </div>
+
+            <!-- Dynamic Status / Error Box -->
+            <div id="status-box"
+                class="mt-8 p-5 rounded-2xl bg-black/40 hidden max-w-sm border border-white/10 backdrop-blur-md">
+                <div class="flex items-center gap-3 mb-2">
+                    <div class="w-2 h-2 rounded-full bg-pink-500 animate-ping"></div>
+                    <p id="loading-msg" class="text-white text-sm font-semibold"></p>
+                </div>
+                <p id="action-msg" class="text-gray-500 text-xs text-left leading-relaxed"></p>
+            </div>
+        </div>
+
+        <div id="calib-overlay"
+            class="absolute inset-0 z-[60] flex flex-col items-center justify-center bg-black/95 hidden">
+            <div id="nose-calib-ui" class="flex flex-col items-center justify-center h-full w-full pointer-events-none">
+                <div class="text-center w-full px-10 mb-20 fade-in-up">
+                    <h2 id="calib-title" class="text-3xl font-bold text-pink-400 mb-1">Calibration</h2>
+                    <p id="calib-status" class="text-white text-sm mb-4 font-semibold">Detecting face...</p>
+                    <div class="w-full h-1 bg-gray-800 rounded-full mx-auto overflow-hidden max-w-[200px]">
+                        <div id="nose-calib-progress" class="bg-pink-500 h-full w-0 transition-all duration-100"></div>
+                    </div>
+                </div>
+                <div class="h-40"></div>
+                <div class="text-center w-full px-10 pointer-events-auto mt-20">
+                    <p id="calib-hint" class="text-gray-400 mb-8 text-[11px] italic">Look at the crosshair and hold still</p>
+                    <button id="skip-calib-btn"
+                        class="py-2.5 px-10 bg-pink-900/20 hover:bg-pink-900/40 text-pink-400 rounded-full text-[11px] font-bold border border-pink-500/30 transition-all active:scale-95 uppercase tracking-widest chargeable">
+                        Skip
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <div class="absolute top-6 right-6 z-40 flex flex-col items-end gap-3">
+            <button id="menu-btn" class="chargeable" title="Settings Menu">⚙️</button>
+            <div id="bigmouth-score"
+                class="flex gap-3 text-sm font-bold bg-black/50 px-4 py-1 rounded-full pointer-events-none border border-white/10">
+                <div class="text-green-400">Good: <span id="good-points">0</span></div>
+                <div class="text-red-400">Bad: <span id="bad-points">0</span></div>
+            </div>
+        </div>
+
+        <div id="rest-overlay"
+            class="absolute inset-0 z-[70] flex flex-col items-center justify-center bg-gray-900 bg-opacity-98 p-6 text-center hidden">
+            <h2 class="text-4xl font-black mb-4 text-pink-400 uppercase italic">Big Mouth Summary</h2>
+            <p class="text-lg mb-2 text-white">Meal Finished!</p>
+            <p id="rest-summary-text" class="text-sm mb-8 text-gray-400"></p>
+            <div id="rest-timer" class="text-6xl font-bold text-pink-500 mb-8">30</div>
+            <button id="next-mission-btn"
+                class="py-4 px-12 bg-pink-600 hover:bg-pink-500 rounded-xl text-xl font-bold shadow-2xl transition-all hidden chargeable">
+                PLAY AGAIN
+            </button>
+            <button onclick="window.location.href='index.html'" class="mt-4 text-xs text-gray-500 hover:text-white uppercase tracking-widest">
+                Exit to Menu
+            </button>
+        </div>
+
+        <div id="side-menu" class="hidden">
+            <div id="main-menu-view">
+                <div class="menu-section">
+                    <div class="menu-header">Sensors</div>
+                    <div class="flex items-center justify-between mb-2">
+                        <span class="text-xs text-gray-300">Camera Feed</span>
+                        <label class="toggle-switch">
+                            <input type="checkbox" id="camera-feed-toggle">
+                            <span class="slider-round"></span>
+                        </label>
+                    </div>
+                </div>
+
+                <div class="menu-divider"></div>
+
+                <div class="menu-section">
+                    <button id="open-mouth-btn" class="w-full text-left text-xs font-bold text-gray-300 py-2 flex justify-between items-center hover:text-pink-400 chargeable transition-colors">
+                        MOUTH DETECTION <span class="opacity-50">&gt;</span>
+                    </button>
+                </div>
+
+                <div class="menu-divider"></div>
+
+                <div class="menu-section mb-0 flex flex-col gap-2">
+                    <button id="resume-game-btn" class="return-btn chargeable" style="background: rgba(236, 72, 153, 0.1); border-color: rgba(236, 72, 153, 0.3); color: #ec4899;">
+                        Resume Game
+                    </button>
+                    <button id="return-main-btn" class="return-btn chargeable">
+                        Exit to Menu
+                    </button>
+                </div>
+            </div>
+
+            <div id="mouth-menu-view" class="hidden">
+                <div class="flex items-center mb-6">
+                    <button id="close-mouth-btn" class="text-xs font-bold text-gray-400 hover:text-white mr-3 chargeable py-1 transition-colors uppercase tracking-wider">&lt; Back</button>
+                    <div class="menu-header mb-0" style="color: #ec4899;">Mouth Detection</div>
+                </div>
+
+                <label class="menu-label">Approach</label>
+                <select id="mouth-approach" class="approach-select">
+                    <option value="hysteresis">Hysteresis (Schmitt)</option>
+                    <option value="multiMetric">Multi-Metric</option>
+                    <option value="velocityGated">Velocity-Gated</option>
+                </select>
+
+                <label class="menu-label">Smoothing</label>
+                <input type="range" id="mouth-smoothing" class="snap-slider" min="5" max="80" value="35">
+
+                <div id="params-multiMetric" class="approach-params">
+                    <label class="menu-label">Open Threshold</label>
+                    <input type="range" id="mm-threshold" class="snap-slider" min="5" max="70" value="30">
+                    <label class="menu-label">MAR Weight</label>
+                    <input type="range" id="mm-mar-weight" class="snap-slider" min="0" max="100" value="50">
+                    <label class="menu-label">Area Weight</label>
+                    <input type="range" id="mm-area-weight" class="snap-slider" min="0" max="100" value="30">
+                    <label class="menu-label">Chin Weight</label>
+                    <input type="range" id="mm-chin-weight" class="snap-slider" min="0" max="100" value="20">
+                </div>
+
+                <div id="params-velocityGated" class="approach-params">
+                    <label class="menu-label">Open Threshold</label>
+                    <input type="range" id="vg-threshold" class="snap-slider" min="5" max="70" value="30">
+                    <label class="menu-label">Velocity Threshold</label>
+                    <input type="range" id="vg-velocity" class="snap-slider" min="1" max="20" value="3">
+                    <label class="menu-label">Hold Frames</label>
+                    <input type="range" id="vg-hold" class="snap-slider" min="1" max="30" value="10">
+                </div>
+
+                <div id="params-hysteresis" class="approach-params active">
+                    <label class="menu-label">Open Threshold (high)</label>
+                    <input type="range" id="hyst-open" class="snap-slider" min="10" max="80" value="38">
+                    <label class="menu-label">Close Threshold (low)</label>
+                    <input type="range" id="hyst-close" class="snap-slider" min="5" max="60" value="18">
+                </div>
+
+                <div class="debug-readout">
+                    <div><span class="label">Openness:</span> <span class="value" id="debug-mouth-openness">0.000</span></div>
+                    <div><span class="label">State:</span> <span class="value" id="debug-mouth-state" style="color:#22d3ee">CLOSED</span></div>
+                    <div><span class="label">Velocity:</span> <span class="value" id="debug-mouth-velocity">+0.0000</span></div>
+                </div>
+            </div>
+        </div>
+
+        <div id="game-container" class="relative w-full h-full"></div>
+
+        <!-- SVG Mouth Cursor -->
+        <svg id="mouth-cursor" viewBox="0 0 120 80">
+            <defs>
+                <linearGradient id="lip-gradient" x1="0%" y1="0%" x2="0%" y2="100%">
+                    <stop offset="0%" stop-color="#f472b6" />
+                    <stop offset="50%" stop-color="#ec4899" />
+                    <stop offset="100%" stop-color="#be185d" />
+                </linearGradient>
+                <linearGradient id="inner-gradient" x1="0%" y1="0%" x2="0%" y2="100%">
+                    <stop offset="0%" stop-color="#1a0a10" />
+                    <stop offset="100%" stop-color="#2d0a18" />
+                </linearGradient>
+                <linearGradient id="tongue-gradient" x1="0%" y1="0%" x2="0%" y2="100%">
+                    <stop offset="0%" stop-color="#f87171" />
+                    <stop offset="100%" stop-color="#dc2626" />
+                </linearGradient>
+            </defs>
+            <path id="lip-upper" class="lip-outer" d="M 15,40 Q 35,38 60,36 Q 85,38 105,40 Q 85,38 60,38 Q 35,38 15,40 Z" fill="url(#lip-gradient)" />
+            <path id="lip-lower" class="lip-outer" d="M 15,40 Q 35,42 60,44 Q 85,42 105,40 Q 85,42 60,42 Q 35,42 15,40 Z" fill="url(#lip-gradient)" />
+            <path id="mouth-inner" d="M 25,40 Q 60,40 95,40 Q 60,40 25,40 Z" fill="url(#inner-gradient)" />
+            <rect id="teeth-top" x="35" y="38" width="50" height="0" rx="2" fill="rgba(255,255,255,0.9)" />
+            <rect id="teeth-bottom" x="35" y="40" width="50" height="0" rx="2" fill="rgba(240,240,240,0.85)" />
+            <ellipse id="mouth-tongue" cx="60" cy="45" rx="18" ry="0" fill="url(#tongue-gradient)" opacity="0" />
+            <path class="lip-shine" d="M 30,37 Q 45,34 60,35 Q 75,34 90,37" fill="none" stroke="rgba(255,255,255,0.3)" stroke-width="1.5" stroke-linecap="round" />
+        </svg>
+
+        <div id="calib-nose-dot"></div>
+    </div>
+
+    <script>
+        const appContainer = document.getElementById('app-container');
+        const overlay = document.getElementById('overlay');
+        const calibOverlay = document.getElementById('calib-overlay');
+        const gameContainer = document.getElementById('game-container');
+        const calibNoseDot = document.getElementById('calib-nose-dot');
+
+        let targets = [];
+        let loopInterval;
+        let gameActive = false;
+        let goodPoints = 0;
+        let badPoints = 0;
+
+        const healthyFoods = ['🍏', '🍎', '🍐', '🍊', '🍋', '🍌', '🍉', '🍇', '🍓', '🫐', '🍈', '🍒', '🍑', '🥭', '🍍', '🥥', '🥝', '🍅', '🍆', '🥑', '🥦', '🥬', '🥒', '🌽', '🥕', '🫑', '🥔', '🍠', '🥩', '🍗', '🍖', '🧀'];
+        const badFoods = ['🍔', '🍟', '🍕', '🌭', '🥪', '🌮', '🌯', '🍿', '🍦', '🍧', '🍨', '🍩', '🍪', '🎂', '🍰', '🧁', '🥧', '🍫', '🍬', '🍭', '🍮'];
+
+        const TUTORIAL_MIN_GOOD_SCORE = 3;
+        const MIN_SPAWN_DIST = 150;
+
+        // UI Listeners
+        const sideMenu = document.getElementById('side-menu');
+        const mainMenuBtn = document.getElementById('main-menu-view');
+        const mouthMenuView = document.getElementById('mouth-menu-view');
+        const openMouthBtn = document.getElementById('open-mouth-btn');
+        const closeMouthBtn = document.getElementById('close-mouth-btn');
+        const resumeBtn = document.getElementById('resume-game-btn');
+        const menuBtn = document.getElementById('menu-btn');
+        const camToggle = document.getElementById('camera-feed-toggle');
+        const returnBtn = document.getElementById('return-main-btn');
+
+        menuBtn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            menuBtn.classList.toggle('active');
+            sideMenu.classList.toggle('active');
+            mainMenuBtn.classList.remove('hidden');
+            mouthMenuView.classList.add('hidden');
+        });
+
+        openMouthBtn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            mainMenuBtn.classList.add('hidden');
+            mouthMenuView.classList.remove('hidden');
+        });
+
+        closeMouthBtn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            mouthMenuView.classList.add('hidden');
+            mainMenuBtn.classList.remove('hidden');
+        });
+
+        // ─── Mouth Detection Settings Wiring ───
+        const mouthApproachSelect = document.getElementById('mouth-approach');
+        const mouthSmoothingSlider = document.getElementById('mouth-smoothing');
+
+        function showApproachParams(approach) {
+            document.querySelectorAll('.approach-params').forEach(el => el.classList.remove('active'));
+            const target = document.getElementById('params-' + approach);
+            if (target) target.classList.add('active');
+        }
+
+        mouthApproachSelect.addEventListener('change', (e) => {
+            FaceTracker.mouthDetection.approach = e.target.value;
+            showApproachParams(e.target.value);
+        });
+
+        mouthSmoothingSlider.addEventListener('input', (e) => {
+            FaceTracker.mouthDetection.smoothing = parseInt(e.target.value) / 100;
+        });
+
+        document.getElementById('mm-threshold')?.addEventListener('input', (e) => FaceTracker.mouthDetection.openThreshold = parseInt(e.target.value) / 100);
+        document.getElementById('mm-mar-weight')?.addEventListener('input', (e) => FaceTracker.mouthDetection.marWeight = parseInt(e.target.value) / 100);
+        document.getElementById('mm-area-weight')?.addEventListener('input', (e) => FaceTracker.mouthDetection.areaWeight = parseInt(e.target.value) / 100);
+        document.getElementById('mm-chin-weight')?.addEventListener('input', (e) => FaceTracker.mouthDetection.chinWeight = parseInt(e.target.value) / 100);
+        document.getElementById('vg-threshold')?.addEventListener('input', (e) => FaceTracker.mouthDetection.openThreshold = parseInt(e.target.value) / 100);
+        document.getElementById('vg-velocity')?.addEventListener('input', (e) => FaceTracker.mouthDetection.velocityThreshold = parseInt(e.target.value) / 1000);
+        document.getElementById('vg-hold')?.addEventListener('input', (e) => FaceTracker.mouthDetection.holdFrames = parseInt(e.target.value));
+        document.getElementById('hyst-open')?.addEventListener('input', (e) => FaceTracker.mouthDetection.hystOpenThreshold = parseInt(e.target.value) / 100);
+        document.getElementById('hyst-close')?.addEventListener('input', (e) => FaceTracker.mouthDetection.hystCloseThreshold = parseInt(e.target.value) / 100);
+
+        resumeBtn.addEventListener('click', () => {
+            sideMenu.classList.remove('active');
+            menuBtn.classList.remove('active');
+        });
+
+        camToggle.addEventListener('change', () => {
+            const videoContainer = document.getElementById('webgazerVideoContainer');
+            if (videoContainer) {
+                videoContainer.style.setProperty('display', camToggle.checked ? 'block' : 'none', 'important');
+            }
+        });
+
+        document.addEventListener('click', (e) => {
+            if (!sideMenu.contains(e.target) && e.target !== menuBtn) {
+                sideMenu.classList.remove('active');
+                menuBtn.classList.remove('active');
+            }
+        });
+
+        returnBtn.addEventListener('click', () => {
+            window.location.href = 'index.html';
+        });
+
+        // Run AI initialization
+        window.addEventListener('load', () => {
+            FaceTracker.init().then(success => {
+                if(success) {
+                    if (!loopInterval) loopInterval = setInterval(gameLoop, 30);
+                }
+            });
+        });
+
+        document.getElementById('start-btn').addEventListener('click', () => {
+            FaceTracker.startCalibration(startGame);
+        });
+
+        function startGame() {
+            overlay.classList.add('hidden');
+            gameActive = true;
+            goodPoints = 0;
+            badPoints = 0;
+            updateBigMouthScore();
+            spawnFood();
+            
+            const videoContainer = document.getElementById('webgazerVideoContainer');
+            if (videoContainer) {
+                videoContainer.style.setProperty('display', 'none', 'important');
+                camToggle.checked = false;
+            }
+        }
+
+        function updateBigMouthScore() {
+            document.getElementById('good-points').innerText = goodPoints;
+            document.getElementById('bad-points').innerText = badPoints;
+        }
+
+        function spawnFood() {
+            if (!gameActive) return;
+            const isTutorial = goodPoints < TUTORIAL_MIN_GOOD_SCORE;
+            const healthyChance = Math.max(0.4, 0.9 - (goodPoints * 0.02));
+            const isHealthy = isTutorial || (Math.random() < healthyChance);
+            const foodList = isHealthy ? healthyFoods : badFoods;
+            const emoji = foodList[Math.floor(Math.random() * foodList.length)];
+
+            const food = document.createElement('div');
+            food.className = `target food-item ${isHealthy ? 'food-healthy' : 'food-bad'}`;
+            food.innerText = emoji;
+            food.dataset.type = isHealthy ? 'healthy' : 'bad';
+
+            const rect = gameContainer.getBoundingClientRect();
+            const spawnMinY = rect.height * 0.15;
+            const spawnMaxY = rect.height * 0.85 - 70;
+            
+            let x, y, dist;
+            let attempts = 0;
+            do {
+                x = Math.random() * (rect.width - 100) + 50;
+                y = Math.random() * (spawnMaxY - spawnMinY) + spawnMinY;
+                dist = Math.sqrt(Math.pow(x + 35 - FaceTracker.cursorX, 2) + Math.pow(y + 35 - FaceTracker.cursorY, 2));
+                attempts++;
+            } while (dist < MIN_SPAWN_DIST && attempts < 10);
+
+            food.style.left = x + 'px';
+            food.style.top = y + 'px';
+            food.dataset.vx = (Math.random() - 0.5) * 2;
+            food.dataset.vy = (Math.random() - 0.5) * 2;
+
+            gameContainer.appendChild(food);
+            targets.push(food);
+
+            const maxItems = Math.min(2 + Math.floor(goodPoints / 5), 5);
+            if (targets.length < maxItems) {
+                setTimeout(spawnFood, 1000 + Math.random() * 1000);
+            }
+        }
+
+        function destroyFood(food, eaten) {
+            if (eaten) {
+                if (food.dataset.type === 'healthy') goodPoints++;
+                else badPoints++;
+                updateBigMouthScore();
+                triggerChompAnimation();
+                food.style.transition = 'all 0.3s ease-out';
+                food.style.transform = 'scale(2)';
+                food.style.opacity = '0';
+                setTimeout(() => food.remove(), 300);
+            } else {
+                food.remove();
+            }
+            targets = targets.filter(t => t !== food);
+            if (gameActive) setTimeout(spawnFood, 500);
+        }
+
+        const mouthCursor = document.getElementById('mouth-cursor');
+
+        function updateMouthSVG(openness) {
+            const o = Math.max(0, Math.min(1, openness));
+            const lipSpread = o * 16;
+            const upperY = 40 - lipSpread;
+            const lowerY = 40 + lipSpread;
+            const bulge = 2 + o * 6;
+            
+            document.getElementById('lip-upper').setAttribute('d', `M 15,40 Q 35,${40-bulge} 60,${upperY} Q 85,${40-bulge} 105,40 Q 85,${upperY+2} 60,${upperY+2} Q 35,${upperY+2} 15,40 Z`);
+            document.getElementById('lip-lower').setAttribute('d', `M 15,40 Q 35,${40+bulge} 60,${lowerY} Q 85,${40+bulge} 105,40 Q 85,${lowerY-2} 60,${lowerY-2} Q 35,${lowerY-2} 15,40 Z`);
+            const innerSpread = o * 14;
+            document.getElementById('mouth-inner').setAttribute('d', `M 25,40 Q 40,${40-innerSpread} 60,${40-innerSpread} Q 80,${40-innerSpread} 95,40 Q 80,${40+innerSpread} 60,${40+innerSpread} Q 40,${40+innerSpread} 25,40 Z`);
+            
+            const teethVis = Math.max(0, (o-0.15)/0.85);
+            const teethH = teethVis * 5;
+            document.getElementById('teeth-top').setAttribute('height', teethH);
+            document.getElementById('teeth-top').setAttribute('y', upperY + 1);
+            document.getElementById('teeth-bottom').setAttribute('height', teethH * 0.8);
+            document.getElementById('teeth-bottom').setAttribute('y', lowerY - teethH * 0.8 - 1);
+            
+            const tongue = document.getElementById('mouth-tongue');
+            const tongueVis = Math.max(0, (o-0.35)/0.65);
+            tongue.setAttribute('ry', tongueVis * 8);
+            tongue.setAttribute('rx', 14 + tongueVis * 4);
+            tongue.setAttribute('cy', 40 + lipSpread * 0.4);
+            tongue.setAttribute('opacity', tongueVis * 0.9);
+
+            mouthCursor.style.filter = `drop-shadow(0 0 ${8+o*20}px rgba(236,72,153,${0.4+o*0.4}))`;
+        }
+
+        function triggerChompAnimation() {
+            mouthCursor.classList.remove('eating');
+            void mouthCursor.offsetWidth;
+            mouthCursor.classList.add('eating');
+        }
+
+        function gameLoop() {
+            FaceTracker.update();
+            if (!FaceTracker.isStarted) {
+                mouthCursor.style.display = 'none';
+                return;
+            }
+
+            mouthCursor.style.display = 'block';
+            mouthCursor.style.left = FaceTracker.cursorX + 'px';
+            mouthCursor.style.top = FaceTracker.cursorY + 'px';
+            updateMouthSVG(FaceTracker.mouthOpenness);
+
+            // Update debug displays in settings
+            const opennessEl = document.getElementById('debug-mouth-openness');
+            const stateEl = document.getElementById('debug-mouth-state');
+            const velocityEl = document.getElementById('debug-mouth-velocity');
+            if (opennessEl) opennessEl.innerText = FaceTracker.mouthOpenness.toFixed(3);
+            if (stateEl) {
+                stateEl.innerText = FaceTracker.isMouthOpen ? 'OPEN' : 'CLOSED';
+                stateEl.style.color = FaceTracker.isMouthOpen ? '#ec4899' : '#22d3ee';
+            }
+            if (velocityEl) velocityEl.innerText = (FaceTracker.mouthVelocity >= 0 ? '+' : '') + FaceTracker.mouthVelocity.toFixed(4);
+
+            if (!gameActive) return;
+
+            // Collisions
+            const rect = gameContainer.getBoundingClientRect();
+            targets.forEach(food => {
+                let x = parseFloat(food.style.left);
+                let y = parseFloat(food.style.top);
+                x += parseFloat(food.dataset.vx);
+                y += parseFloat(food.dataset.vy);
+                if (x < 0 || x > rect.width - 70) food.dataset.vx *= -1;
+                if (y < rect.height * 0.15 || y > rect.height * 0.85 - 70) food.dataset.vy *= -1;
+                food.style.left = x + 'px';
+                food.style.top = y + 'px';
+
+                const dx = FaceTracker.cursorX - (x + 35);
+                const dy = FaceTracker.cursorY - (y + 35);
+                const dist = Math.sqrt(dx*dx + dy*dy);
+
+                if (dist < 70 && FaceTracker.isMouthOpen) {
+                    destroyFood(food, true);
+                }
+            });
+        }
+    </script>
+</body>
+</html>
