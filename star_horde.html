@@ -331,29 +331,38 @@
             
             // Dynamic recovery: reduce pressure if recently hit
             const timeSinceDeath = now - lastDeathTime;
-            const recoveryFactor = Math.max(0, 1 - (timeSinceDeath / 10000)); // 10s recovery window
+            const recoveryFactor = Math.max(0, 1 - (timeSinceDeath / 15000)); // 15s recovery window
             
-            const baseDiff = elapsedMins * 1.5 + (heroPower * 0.5);
-            const intensity = Math.max(0.2, baseDiff * (1 - recoveryFactor * 0.5));
+            // Slower base scaling
+            const baseDiff = elapsedMins * 1.0 + (heroPower * 0.3);
+            const intensity = Math.max(0.1, baseDiff * (1 - recoveryFactor * 0.8));
 
             return {
-                hordeDensity: 0.05 + Math.min(0.25, intensity * 0.03),
-                supportDensity: 0.02 + Math.min(0.08, intensity * 0.01),
-                enemyHP: Math.floor(1 + intensity * 0.4),
-                neutralHP: Math.floor(8 + intensity * 2.5), // Buffed neutrals significantly
-                speed: Math.min(0.35, 0.08 + intensity * 0.015),
+                intensity: intensity,
+                hordeDensity: 0.03 + Math.min(0.2, intensity * 0.02),
+                supportDensity: 0.01 + Math.min(0.06, intensity * 0.01),
+                baseEnemyHP: Math.floor(1 + intensity * 0.5),
+                baseNeutralHP: Math.floor(4 + intensity * 2.0),
+                speed: Math.min(0.3, 0.05 + intensity * 0.01), // Slower speed
                 projectileSpeed: Math.min(1.0, 0.4 + intensity * 0.02),
-                sizeScale: 1 + Math.min(1.5, intensity * 0.05)
+                sizeScale: 0.8 + Math.min(1.8, intensity * 0.08)
             };
         }
 
         function addEntityToScene(x, z, type, hp, val, metrics) {
             let mesh;
+            // Variable size randomness
+            const sizeVariation = metrics.intensity > 0.5 ? (Math.random() * 0.5 + 0.8) : 1.0;
+            const finalSize = metrics.sizeScale * sizeVariation;
+
             if(type === 'ENEMY') {
                 mesh = new THREE.Mesh(new THREE.ConeGeometry(0.6, 1.2, 4), enemyMat);
                 mesh.rotation.x = Math.PI;
+                // Scale HP by size
+                hp = Math.max(1, Math.floor(hp * finalSize));
             } else if(type === 'NEUTRAL') {
                 mesh = new THREE.Mesh(new THREE.BoxGeometry(1.2, 1.2, 1.2), neutralMat);
+                hp = Math.floor(hp * finalSize);
             } else {
                 mesh = new THREE.Mesh(new THREE.IcosahedronGeometry(0.7, 1), powerupMat);
             }
@@ -379,8 +388,7 @@
             mesh.userData.hp = hp;
             mesh.userData.maxHP = hp;
             
-            const scale = metrics.sizeScale;
-            mesh.scale.set(scale, scale, scale);
+            mesh.scale.set(finalSize, finalSize, finalSize);
             
             scene.add(mesh);
             entities.push(mesh);
@@ -400,7 +408,7 @@
                 const spread = 1.2 * metrics.sizeScale;
                 for(let i=0; i<clusterSize; i++) {
                     const xOffset = (i - (clusterSize-1)/2) * spread;
-                    addEntityToScene(laneX + xOffset, -60, 'ENEMY', metrics.enemyHP, 0, metrics);
+                    addEntityToScene(laneX + xOffset, -60, 'ENEMY', metrics.baseEnemyHP, 0, metrics);
                 }
             } else {
                 if(Math.random() > metrics.supportDensity) return;
@@ -410,7 +418,7 @@
                     const val = -Math.floor(Math.random() * 3) - 1; 
                     addEntityToScene(laneX, -60, 'POWERUP', 1, val, metrics);
                 } else {
-                    addEntityToScene(laneX, -60, 'NEUTRAL', metrics.neutralHP, 0, metrics);
+                    addEntityToScene(laneX, -60, 'NEUTRAL', metrics.baseNeutralHP, 0, metrics);
                 }
             }
         }
@@ -443,10 +451,16 @@
         function gameOver() {
             gameState = 'GAMEOVER';
             const govl = document.getElementById('game-overlay');
-            govl.classList.remove('hidden');
-            govl.querySelector('h1').innerText = "FLEET DESTROYED";
-            govl.querySelector('p').innerText = "Sector Score: " + score;
-            govl.querySelector('button').innerText = "RESTART MISSION";
+            const aiBtn = document.getElementById('ai-mode-btn');
+            
+            // Show overlay using display flex to override start-btn's none
+            govl.style.display = 'flex';
+            
+            document.getElementById('overlay-title').innerText = "FLEET DESTROYED";
+            document.getElementById('overlay-sub').innerText = "Final Sector Score: " + score;
+            document.getElementById('start-btn').innerText = "RESTART MISSION";
+            
+            if (aiBtn) aiBtn.style.display = 'none';
         }
 
         // --- CORE LOOP ---
@@ -616,9 +630,12 @@
             const govl = document.getElementById('game-overlay');
             govl.style.display = 'none';
             
+            if (gameState === 'GAMEOVER') {
+                resetGame();
+            }
+            
             gameState = 'PLAYING';
             gameStartTime = Date.now();
-            resetGame();
         };
 
         // Mouse/Touch Control Fallback
