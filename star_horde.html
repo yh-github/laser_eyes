@@ -4,11 +4,9 @@
     <meta charset="UTF-8">
     <title>Star Horde - Laser Eyes</title>
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <script src="https://cdn.tailwindcss.com"></script>
     <link rel="stylesheet" href="shared.css">
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/webgazer@2.1.1/dist/webgazer.js" onerror="window.webgazerLoadError = true;"></script>
-    <script src="tracker.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js" defer></script>
+    <script src="tracker.js" defer></script>
 
     <style>
         body, html {
@@ -21,46 +19,75 @@
             position: relative; width: 100%; height: 100%;
             display: flex; flex-direction: column;
         }
-        #game-canvas {
-            display: block; width: 100%; height: 100%;
-        }
+        #game-canvas { display: block; width: 100%; height: 100%; }
+
         .hud {
             position: absolute; top: 20px; left: 20px; right: 20px;
             pointer-events: none; z-index: 50;
-            display: flex; justify-content: space-between;
-            align-items: flex-start;
+            display: flex; justify-content: space-between; align-items: flex-start;
         }
         .glass-panel {
-            background: rgba(15, 23, 42, 0.6);
-            backdrop-filter: blur(12px);
-            border: 1px solid rgba(255, 255, 255, 0.1);
-            padding: 12px 20px;
-            border-radius: 16px;
-            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
+            background: rgba(15, 23, 42, 0.6); backdrop-filter: blur(12px);
+            border: 1px solid rgba(255,255,255,0.1); padding: 12px 20px;
+            border-radius: 16px; box-shadow: 0 8px 32px rgba(0,0,0,0.4);
         }
         .stat-label { font-size: 10px; color: #94a3b8; text-transform: uppercase; letter-spacing: 1px; }
         .stat-value { font-size: 24px; font-weight: 800; color: #38bdf8; font-style: italic; }
-        
+        .stat-value.amber { color: #fbbf24; }
+
         #game-overlay {
             position: absolute; inset: 0; z-index: 100;
-            background: rgba(2, 6, 23, 0.85);
+            background: rgba(2,6,23,0.85);
             display: flex; flex-direction: column;
             align-items: center; justify-content: center;
-            text-align: center; p: 20px;
+            text-align: center; padding: 20px;
         }
-        
+        #overlay-title {
+            font-size: clamp(2.5rem, 8vw, 4rem); font-weight: 900;
+            font-style: italic; margin-bottom: 1rem; letter-spacing: -0.04em;
+            text-transform: uppercase;
+            background: linear-gradient(90deg, #818cf8, #38bdf8);
+            -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+        #overlay-sub {
+            color: #94a3b8; max-width: 24rem; margin-bottom: 1rem;
+            font-size: 0.95rem;
+        }
+
         .btn-premium {
             background: linear-gradient(135deg, #6366f1 0%, #a855f7 100%);
             padding: 16px 40px; border-radius: 12px;
-            font-weight: 700; font-size: 18px;
-            box-shadow: 0 4px 20px rgba(99, 102, 241, 0.4);
-            transition: all 0.2s;
+            font-weight: 700; font-size: 18px; color: white; border: none; cursor: pointer;
+            box-shadow: 0 4px 20px rgba(99,102,241,0.4); transition: all 0.2s;
         }
-        .btn-premium:hover { transform: translateY(-2px); box-shadow: 0 8px 30px rgba(99, 102, 241, 0.6); }
+        .btn-premium:hover { transform: translateY(-2px); box-shadow: 0 8px 30px rgba(99,102,241,0.6); }
         .btn-premium:active { transform: translateY(0); }
+        .btn-premium.disabled {
+            background: #1e293b; color: #475569;
+            box-shadow: none; pointer-events: none; opacity: 0.6;
+        }
+        .btn-secondary {
+            background: transparent; border: 1px solid rgba(99,102,241,0.3);
+            color: #818cf8; padding: 10px 24px; border-radius: 10px;
+            font-size: 13px; font-weight: 600; cursor: pointer;
+            transition: all 0.2s; margin-top: 12px;
+        }
+        .btn-secondary:hover { background: rgba(99,102,241,0.1); border-color: #818cf8; }
 
-        #debug-land-canvas { display: none; } /* Managed by tracker.js */
-        
+        .ctrl-hint {
+            font-size: 10px; color: #475569; text-transform: uppercase;
+            letter-spacing: 0.1em; margin-top: 1rem;
+        }
+        .abort-link {
+            font-size: 12px; color: #475569; text-transform: uppercase;
+            letter-spacing: 0.1em; margin-top: 2rem; cursor: pointer;
+            border: none; background: none; transition: color 0.2s;
+        }
+        .abort-link:hover { color: white; }
+
+        #debug-land-canvas { display: none; }
+
         .lane-indicator {
             position: absolute; bottom: 40px; left: 50%;
             transform: translateX(-50%);
@@ -69,37 +96,52 @@
         .lane-dot { width: 4px; height: 4px; background: cyan; border-radius: 50%; }
         .lane-dot.active { transform: scale(3); opacity: 1; box-shadow: 0 0 10px cyan; transition: all 0.2s; }
 
+        /* AI Loading Overlay */
+        #ai-load-overlay {
+            position: absolute; inset: 0; z-index: 300;
+            background: rgba(2,6,23,0.97);
+            display: none; flex-direction: column;
+            align-items: center; justify-content: center;
+            text-align: center; padding: 20px;
+        }
+        #ai-load-overlay.visible { display: flex; }
+        #ai-load-title {
+            font-size: 1.5rem; font-weight: 700; margin-bottom: 0.5rem; color: #38bdf8;
+        }
+        #ai-load-status {
+            font-size: 0.75rem; font-family: monospace;
+            color: #818cf8; margin-bottom: 1rem;
+            border: 1px solid rgba(99,102,241,0.2);
+            padding: 8px 16px; border-radius: 8px;
+            background: rgba(99,102,241,0.05);
+            animation: pulse-status 2s infinite;
+        }
+
         /* Calibration Styles */
         #calib-overlay {
             position: absolute; inset: 0; z-index: 200;
-            background: rgba(2, 6, 23, 0.98);
-            display: none; flex-direction: column; align-items: center; justify-content: center;
+            background: rgba(2,6,23,0.98);
+            display: none; flex-direction: column;
+            align-items: center; justify-content: center;
         }
         .calib-crosshair {
             width: 60px; height: 60px; border: 2px solid #38bdf8; border-radius: 50%;
-            position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%);
+            position: absolute; top: 50%; left: 50%; transform: translate(-50%,-50%);
         }
 
-        /* Loading Enhancements */
         @keyframes pulse-status {
-            0%, 100% { opacity: 1; transform: scale(1); }
-            50% { opacity: 0.7; transform: scale(0.98); }
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.6; }
         }
-        .animate-pulse-status { animation: pulse-status 2s cubic-bezier(0.4, 0, 0.6, 1) infinite; }
-        
         #progress-bar-container {
-            width: 100%; height: 4px; background: rgba(99, 102, 241, 0.1);
-            border-radius: 2px; margin-top: 12px; overflow: hidden;
+            width: 240px; height: 4px;
+            background: rgba(99,102,241,0.1);
+            border-radius: 2px; overflow: hidden; margin-top: 12px;
         }
         #progress-bar-fill {
-            height: 100%; width: 0%; background: linear-gradient(90deg, #6366f1, #38bdf8);
+            height: 100%; width: 0%;
+            background: linear-gradient(90deg, #6366f1, #38bdf8);
             transition: width 0.5s ease;
-        }
-        
-        .btn-premium.disabled {
-            background: #1e293b; color: #475569;
-            box-shadow: none; pointer-events: none;
-            opacity: 0.6;
         }
     </style>
 </head>
@@ -112,7 +154,7 @@
             </div>
             <div class="glass-panel">
                 <div class="stat-label">Sector Score</div>
-                <div id="score" class="stat-value text-amber-400">0</div>
+                <div id="score" class="stat-value amber">0</div>
             </div>
         </div>
 
@@ -123,40 +165,41 @@
 
         <!-- Start/Game Over Overlay -->
         <div id="game-overlay">
-            <h1 class="text-6xl font-black italic mb-4 bg-clip-text text-transparent bg-gradient-to-r from-indigo-400 to-cyan-400 uppercase tracking-tighter">Star Horde</h1>
-            <p class="text-slate-400 max-w-sm mb-4">Navigate the 2.5D expanse. Gather your fleet. Survive the invasion.</p>
-            
-            <div id="loading-container" class="mb-8 w-64 mx-auto">
-                <div id="loading-status" class="text-xs font-mono text-indigo-400 border border-indigo-400/20 px-4 py-2 rounded bg-indigo-400/5 animate-pulse-status">
-                    Waking AI Core...
-                </div>
-                <div id="progress-bar-container">
-                    <div id="progress-bar-fill"></div>
-                </div>
-            </div>
+            <div id="overlay-title">Star Horde</div>
+            <p id="overlay-sub">Navigate the 2.5D expanse. Gather your fleet. Survive the invasion.</p>
 
-            <button id="start-btn" class="btn-premium disabled">READYING ENGINES...</button>
-            <p class="mt-4 text-[10px] text-slate-500 uppercase tracking-widest">Control: Mouse / Touch</p>
-            <button onclick="window.location.href='index.html'" class="mt-8 text-xs text-slate-500 uppercase tracking-widest hover:text-white transition-colors">Abort to Menu</button>
+            <button id="start-btn" class="btn-premium">INITIATE MISSION</button>
+            <button id="ai-mode-btn" class="btn-secondary">⚡ Enable Head Tracking (AI)</button>
+            <p class="ctrl-hint">Control: Mouse / Touch / Head</p>
+            <button onclick="window.location.href='index.html'" class="abort-link">Abort to Menu</button>
+        </div>
+
+        <!-- AI Loading Overlay (shown only when user opts into head tracking) -->
+        <div id="ai-load-overlay">
+            <div id="ai-load-title">Booting Neural Core</div>
+            <div id="ai-load-status">Initializing...</div>
+            <div id="progress-bar-container">
+                <div id="progress-bar-fill"></div>
+            </div>
         </div>
 
         <!-- Calibration Overlay -->
-        <div id="calib-overlay" class="hidden">
-            <h2 class="text-2xl font-bold mb-2">Aligning Sensors</h2>
-            <p id="calib-status" class="text-cyan-400 mb-2">Move your head to the center</p>
-            <p id="calib-hint" class="text-xs text-slate-500 mb-8">Look at the crosshair and hold still</p>
-            <div class="w-full h-1 bg-slate-800 max-w-[200px] rounded-full overflow-hidden">
-                <div id="nose-calib-progress" class="h-full bg-indigo-500 transition-all" style="width: 0%"></div>
+        <div id="calib-overlay">
+            <h2 style="font-size:1.5rem;font-weight:700;margin-bottom:0.5rem">Aligning Sensors</h2>
+            <p id="calib-status" style="color:#38bdf8;margin-bottom:0.5rem">Move your head to the center</p>
+            <p id="calib-hint" style="font-size:0.75rem;color:#64748b;margin-bottom:2rem">Look at the crosshair and hold still</p>
+            <div style="width:200px;height:4px;background:#1e293b;border-radius:2px;overflow:hidden">
+                <div id="nose-calib-progress" style="height:100%;background:#6366f1;transition:width 0.3s;width:0%"></div>
             </div>
             <div class="calib-crosshair"></div>
         </div>
 
-        <div id="calib-nose-dot" style="position: absolute; width:10px; height:10px; background:cyan; border-radius:50%; pointer-events:none; z-index:250; display:none;"></div>
+        <div id="calib-nose-dot" style="position:absolute;width:10px;height:10px;background:cyan;border-radius:50%;pointer-events:none;z-index:250;display:none"></div>
 
         <!-- Tracker.js Placeholders -->
-        <div id="intro-overlay" class="hidden"></div>
-        <div id="intro-error-box" class="hidden"></div>
-        <div id="status-box" class="hidden">
+        <div id="intro-overlay" style="display:none"></div>
+        <div id="intro-error-box" style="display:none"></div>
+        <div id="status-box" style="display:none">
             <p id="loading-msg"></p>
             <p id="action-msg"></p>
         </div>
@@ -192,16 +235,17 @@
         directionalLight.position.set(10, 20, 10);
         scene.add(directionalLight);
 
-        // Background Starfield
+        // Background Starfield — fewer particles on mobile
+        const isMobile = navigator.maxTouchPoints > 0 && window.innerWidth < 768;
+        const starCount = isMobile ? 800 : 3000;
         const starGeo = new THREE.BufferGeometry();
-        const starCount = 4000;
         const starPos = new Float32Array(starCount * 3);
         const starSpeeds = new Float32Array(starCount);
         for(let i=0; i<starCount; i++) {
             starPos[i*3] = (Math.random() - 0.5) * 120;
             starPos[i*3+1] = (Math.random() - 0.5) * 60;
             starPos[i*3+2] = (Math.random() - 0.5) * 200;
-            starSpeeds[i] = Math.random() * 0.2 + 0.05; // Starting very slow
+            starSpeeds[i] = Math.random() * 0.2 + 0.05;
         }
         starGeo.setAttribute('position', new THREE.BufferAttribute(starPos, 3));
         const starMat = new THREE.PointsMaterial({ color: 0xffffff, size: 0.1, transparent: true, opacity: 0.8 });
@@ -278,9 +322,6 @@
             }
 
             fleetGroup.position.z = 6; // Move ship lower on screen
-        }
-
-            fleetGroup.position.z = 6; 
         }
 
         function getDifficultyMetrics() {
@@ -605,45 +646,48 @@
         updateFleet();
         animate();
 
-        // Initialize AI on load like other games for better "warm-up"
-        window.addEventListener('load', () => {
-            const status = document.getElementById('loading-status');
+        // ---- HEAD TRACKING: LAZY LOAD ----
+        // WebGazer is NOT loaded unless the user opts in.
+        // This saves ~15MB of neural model downloads on every page load.
+        function loadHeadTracking() {
+            const overlay = document.getElementById('ai-load-overlay');
+            const status = document.getElementById('ai-load-status');
             const fill = document.getElementById('progress-bar-fill');
-            const btn = document.getElementById('start-btn');
-            
-            const updateLoading = (msg, pct) => {
-                if (status) status.innerText = msg;
-                if (fill) fill.style.width = pct + '%';
+
+            overlay.classList.add('visible');
+
+            const updateAI = (msg, pct) => {
+                status.innerText = msg;
+                fill.style.width = pct + '%';
             };
 
-            updateLoading("Verifying Neural Sensors...", 10);
-            
-            // Sequential initialization messages
-            setTimeout(() => updateLoading("Downloading AI Models (15MB)...", 30), 1000);
-            setTimeout(() => updateLoading("Warming up Space-Time Engine...", 60), 3000);
+            updateAI('Downloading Neural Engine (~15MB)...', 5);
 
-            FaceTracker.init().then(success => {
-                if (success) {
-                    updateLoading("AI Systems Online. Ships Ready.", 100);
-                    if (status) status.classList.remove('animate-pulse-status');
-                    if (btn) {
-                        btn.innerText = "INITIATE MISSION";
-                        btn.classList.remove('disabled');
+            // Inject webgazer script dynamically
+            const script = document.createElement('script');
+            script.src = 'https://cdn.jsdelivr.net/npm/webgazer@2.1.1/dist/webgazer.js';
+            script.onerror = () => { window.webgazerLoadError = true; };
+            script.onload = () => {
+                updateAI('Requesting camera access...', 40);
+                FaceTracker.init().then(success => {
+                    if (success) {
+                        updateAI('Head Tracking Online!', 100);
+                        setTimeout(() => overlay.classList.remove('visible'), 1000);
+                    } else {
+                        updateAI('AI Failed — using Mouse/Touch.', 100);
+                        setTimeout(() => overlay.classList.remove('visible'), 1500);
                     }
-                } else {
-                    updateLoading("AI Failed. Falling back to Mouse.", 100);
-                    if (btn) {
-                        btn.innerText = "INITIATE MISSION (MOUSE)";
-                        btn.classList.remove('disabled');
-                    }
-                }
-            }).catch(err => {
-                updateLoading("Boot Error: " + err.message, 100);
-                if (btn) {
-                    btn.innerText = "INITIATE (MANUAL MODE)";
-                    btn.classList.remove('disabled');
-                }
-            });
+                }).catch(err => {
+                    updateAI('Error: ' + err.message, 100);
+                    setTimeout(() => overlay.classList.remove('visible'), 2000);
+                });
+            };
+            document.head.appendChild(script);
+        }
+
+        document.getElementById('ai-mode-btn').addEventListener('click', () => {
+            document.getElementById('ai-mode-btn').style.display = 'none';
+            loadHeadTracking();
         });
     </script>
 </body>
