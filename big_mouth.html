@@ -10,6 +10,48 @@
     <script src="https://cdn.jsdelivr.net/npm/webgazer@2.1.1/dist/webgazer.js"
         onerror="window.webgazerLoadError = true;"></script>
     <link rel="stylesheet" href="shared.css">
+    <style>
+        /* Local overrides for Big Mouth mode */
+        #mouth-cursor {
+            width: 130px;
+            height: 90px;
+            /* Thicker dropshadow for visibility */
+            filter: drop-shadow(0 0 15px rgba(236, 72, 153, 0.7));
+        }
+        
+        .target.food-item {
+            width: 60px;
+            height: 60px;
+            border-width: 2px;
+            background: rgba(0, 0, 0, 0.2) !important;
+            backdrop-filter: blur(4px);
+        }
+
+        .food-item {
+            font-size: 45px;
+            transition: transform 0.2s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+        }
+
+        /* Thicker lips via stroke */
+        .lip-outer {
+            stroke: #be185d;
+            stroke-width: 3.5;
+            stroke-linejoin: round;
+        }
+
+        /* Paused state overlay */
+        #pause-indicator {
+            position: absolute;
+            inset: 0;
+            background: rgba(0,0,0,0.3);
+            display: none;
+            align-items: center;
+            justify-content: center;
+            z-index: 40;
+            pointer-events: none;
+        }
+        #pause-indicator.visible { display: flex; }
+    </style>
 </head>
 
 <body class="bg-black flex items-center justify-center text-white font-sans">
@@ -225,6 +267,7 @@
                     <stop offset="100%" stop-color="#dc2626" />
                 </linearGradient>
             </defs>
+            <!-- Outer lips with thicker stroke -->
             <path id="lip-upper" class="lip-outer" d="M 15,40 Q 35,38 60,36 Q 85,38 105,40 Q 85,38 60,38 Q 35,38 15,40 Z" fill="url(#lip-gradient)" />
             <path id="lip-lower" class="lip-outer" d="M 15,40 Q 35,42 60,44 Q 85,42 105,40 Q 85,42 60,42 Q 35,42 15,40 Z" fill="url(#lip-gradient)" />
             <path id="mouth-inner" d="M 25,40 Q 60,40 95,40 Q 60,40 25,40 Z" fill="url(#inner-gradient)" />
@@ -233,6 +276,10 @@
             <ellipse id="mouth-tongue" cx="60" cy="45" rx="18" ry="0" fill="url(#tongue-gradient)" opacity="0" />
             <path class="lip-shine" d="M 30,37 Q 45,34 60,35 Q 75,34 90,37" fill="none" stroke="rgba(255,255,255,0.3)" stroke-width="1.5" stroke-linecap="round" />
         </svg>
+
+        <div id="pause-indicator" class="flex flex-col">
+            <div class="text-white/20 text-xs font-black uppercase tracking-[0.3em]">Game Paused</div>
+        </div>
 
         <div id="calib-nose-dot"></div>
     </div>
@@ -247,8 +294,14 @@
         let targets = [];
         let loopInterval;
         let gameActive = false;
+        let gamePaused = false;
         let goodPoints = 0;
         let badPoints = 0;
+
+        // Snapping Config
+        let snappingEnabled = true;
+        let snapStrength = 0.55;
+        let snapRange = 160;
 
         const healthyFoods = ['🍏', '🍎', '🍐', '🍊', '🍋', '🍌', '🍉', '🍇', '🍓', '🫐', '🍈', '🍒', '🍑', '🥭', '🍍', '🥥', '🥝', '🍅', '🍆', '🥑', '🥦', '🥬', '🥒', '🌽', '🥕', '🫑', '🥔', '🍠', '🥩', '🍗', '🍖', '🧀'];
         const badFoods = ['🍔', '🍟', '🍕', '🌭', '🥪', '🌮', '🌯', '🍿', '🍦', '🍧', '🍨', '🍩', '🍪', '🎂', '🍰', '🧁', '🥧', '🍫', '🍬', '🍭', '🍮'];
@@ -273,6 +326,9 @@
             sideMenu.classList.toggle('active');
             mainMenuBtn.classList.remove('hidden');
             mouthMenuView.classList.add('hidden');
+            
+            gamePaused = sideMenu.classList.contains('active');
+            document.getElementById('pause-indicator').classList.toggle('visible', gamePaused);
         });
 
         openMouthBtn.addEventListener('click', (e) => {
@@ -319,6 +375,8 @@
         resumeBtn.addEventListener('click', () => {
             sideMenu.classList.remove('active');
             menuBtn.classList.remove('active');
+            gamePaused = false;
+            document.getElementById('pause-indicator').classList.remove('visible');
         });
 
         camToggle.addEventListener('change', () => {
@@ -332,6 +390,8 @@
             if (!sideMenu.contains(e.target) && e.target !== menuBtn) {
                 sideMenu.classList.remove('active');
                 menuBtn.classList.remove('active');
+                gamePaused = false;
+                document.getElementById('pause-indicator').classList.remove('visible');
             }
         });
 
@@ -474,8 +534,32 @@
             }
 
             mouthCursor.style.display = 'block';
-            mouthCursor.style.left = FaceTracker.cursorX + 'px';
-            mouthCursor.style.top = FaceTracker.cursorY + 'px';
+            
+            let displayX = FaceTracker.cursorX;
+            let displayY = FaceTracker.cursorY;
+
+            // Magnetic Snapping (Healthy food only)
+            if (snappingEnabled && targets.length > 0) {
+                let nearest = null;
+                let minDist = snapRange;
+                targets.forEach(t => {
+                    if (t.dataset.type === 'healthy') {
+                        const rect = t.getBoundingClientRect();
+                        const tx = rect.left + rect.width/2;
+                        const ty = rect.top + rect.height/2;
+                        const d = Math.sqrt(Math.pow(displayX - tx, 2) + Math.pow(displayY - ty, 2));
+                        if (d < minDist) { minDist = d; nearest = {x:tx, y:ty}; }
+                    }
+                });
+                if (nearest) {
+                    const weight = snapStrength * Math.pow(1 - (minDist/snapRange), 1.5);
+                    displayX = displayX * (1-weight) + nearest.x * weight;
+                    displayY = displayY * (1-weight) + nearest.y * weight;
+                }
+            }
+
+            mouthCursor.style.left = displayX + 'px';
+            mouthCursor.style.top = displayY + 'px';
             updateMouthSVG(FaceTracker.mouthOpenness);
 
             // Update debug displays in settings
@@ -489,7 +573,7 @@
             }
             if (velocityEl) velocityEl.innerText = (FaceTracker.mouthVelocity >= 0 ? '+' : '') + FaceTracker.mouthVelocity.toFixed(4);
 
-            if (!gameActive) return;
+            if (!gameActive || gamePaused) return;
 
             // Collisions
             const rect = gameContainer.getBoundingClientRect();
@@ -498,16 +582,16 @@
                 let y = parseFloat(food.style.top);
                 x += parseFloat(food.dataset.vx);
                 y += parseFloat(food.dataset.vy);
-                if (x < 0 || x > rect.width - 70) food.dataset.vx *= -1;
-                if (y < rect.height * 0.15 || y > rect.height * 0.85 - 70) food.dataset.vy *= -1;
+                if (x < 0 || x > rect.width - 60) food.dataset.vx *= -1;
+                if (y < rect.height * 0.15 || y > rect.height * 0.85 - 60) food.dataset.vy *= -1;
                 food.style.left = x + 'px';
                 food.style.top = y + 'px';
 
-                const dx = FaceTracker.cursorX - (x + 35);
-                const dy = FaceTracker.cursorY - (y + 35);
+                const dx = displayX - (x + 30);
+                const dy = displayY - (y + 30);
                 const dist = Math.sqrt(dx*dx + dy*dy);
 
-                if (dist < 70 && FaceTracker.isMouthOpen) {
+                if (dist < 65 && FaceTracker.isMouthOpen) {
                     destroyFood(food, true);
                 }
             });
