@@ -81,32 +81,32 @@
         </div>
 
         <!-- Dashboard -->
-        <div id="overlay" class="absolute inset-0 z-50 flex flex-col items-center p-8 pt-16 text-center bg-[radial-gradient(circle_at_top,#1e293b_0%,#020617_100%)]">
+        <div id="overlay" class="absolute inset-0 z-50 flex flex-col items-center p-8 pt-16 text-center bg-[radial-gradient(circle_at_top,#1e293b_0%,#020617_100%)] hidden">
             <h1 class="text-4xl font-black mb-1 text-white uppercase tracking-tighter italic">Mission Select</h1>
             <p class="text-sm mb-12 text-slate-500 font-medium">Choose your experience</p>
 
             <div class="menu-grid">
-                <button onclick="window.location.href='standard.html'" class="launcher-btn btn-standard">
+                <button id="launch-standard" class="launcher-btn btn-standard">
                     <span class="icon">🎯</span>
                     <span>Standard</span>
                 </button>
-                <button onclick="window.location.href='big_mouth.html'" class="launcher-btn btn-bigmouth">
+                <button id="launch-bigmouth" class="launcher-btn btn-bigmouth">
                     <span class="icon">👄</span>
                     <span>Big Mouth</span>
                 </button>
-                <button onclick="window.location.href='space_evaders.html'" class="launcher-btn btn-space">
+                <button id="launch-space" class="launcher-btn btn-space">
                     <span class="icon">🚀</span>
                     <span>Evaders</span>
                 </button>
-                <button onclick="window.location.href='star_horde.html'" class="launcher-btn btn-star">
+                <button id="launch-star" class="launcher-btn btn-star">
                     <span class="icon">👾</span>
                     <span>Horde</span>
                 </button>
-                <button onclick="window.location.href='uncle_sam.html'" class="launcher-btn btn-unclesam">
+                <button id="launch-unclesam" class="launcher-btn btn-unclesam">
                     <span class="icon">🎩</span>
                     <span>Uncle Sam</span>
                 </button>
-                <button onclick="window.location.href='glass.html'" class="launcher-btn btn-glass">
+                <button id="launch-glass" class="launcher-btn btn-glass">
                     <span class="icon">💎</span>
                     <span>The Glass</span>
                 </button>
@@ -140,6 +140,25 @@
             const videoContainer = document.getElementById('webgazerVideoContainer');
             if (videoContainer) {
                 videoContainer.style.setProperty('display', camToggle.checked ? 'block' : 'none', 'important');
+            }
+        });
+
+        const navMap = {
+            'launch-standard': 'standard.html',
+            'launch-bigmouth': 'big_mouth.html',
+            'launch-space': 'space_evaders.html',
+            'launch-star': 'star_horde.html',
+            'launch-unclesam': 'uncle_sam.html',
+            'launch-glass': 'glass.html'
+        };
+
+        Object.entries(navMap).forEach(([id, url]) => {
+            const btn = document.getElementById(id);
+            if (btn) {
+                btn.addEventListener('click', () => {
+                    console.log(`Navigating to ${url}`);
+                    window.location.href = url;
+                });
             }
         });
 
