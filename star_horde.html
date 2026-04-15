@@ -416,11 +416,14 @@
             entities.push(mesh);
         }
 
-        function spawnEntity() {
-            const metrics = getDifficultyMetrics();
+        function spawnEntity(metrics) {
+            // Check for existing powerups to prevent clustering
+            const nearbyPowerups = entities.some(e => e.position.z < -50 && (e.userData.type === 'POWERUP' || e.userData.type === 'WEAPON_UPGRADE'));
             
             // Spawn weapon upgrade once per level after 10 seconds
             if(!weaponUpgradeSpawned && levelTime > 10) {
+                if (nearbyPowerups) return; // Wait for space
+                
                 weaponUpgradeSpawned = true;
                 const lane = Math.random() > 0.5 ? 1 : 0;
                 addEntityToScene(LANE_X[lane], -60, 'WEAPON_UPGRADE', 30, 0, metrics);
@@ -446,6 +449,7 @@
                 
                 const isPowerup = Math.random() < 0.15;
                 if(isPowerup) {
+                    if (nearbyPowerups) return; // Avoid powerup clusters
                     const val = -Math.floor(Math.random() * 3) - 1; 
                     addEntityToScene(laneX, -60, 'POWERUP', 1, val, metrics);
                 } else {
@@ -479,6 +483,7 @@
                 proj.position.copy(worldPos);
                 proj.position.z -= 1.0;
                 proj.userData.speed = metrics.projectileSpeed;
+                proj.userData.hitList = []; // Track entities hit to avoid multi-ripening
                 scene.add(proj);
                 projectiles.push(proj);
             });
@@ -541,8 +546,11 @@
                 // Tilting effect
                 fleetGroup.rotation.z = (lerpX - LANE_X[currentLane]) * 0.2;
 
+                // Update Metrics (Moving to top to avoid reference errors in loops)
+                const metrics = getDifficultyMetrics();
+
                 // Spawning
-                spawnEntity(); 
+                spawnEntity(metrics); 
 
                 // Lane Swapping
                 laneSwapTimer++;
@@ -581,6 +589,20 @@
                     // Collision with entities
                     for(let j=entities.length-1; j>=0; j--) {
                         const e = entities[j];
+                        
+                        // Shots pass through collectibles but can ripen them
+                        if (e.userData.type === 'POWERUP' || e.userData.type === 'UPGRADE_CORE') {
+                            const dist = p.position.distanceTo(e.position);
+                            if (dist < 1.8 * e.scale.x && !p.userData.hitList.includes(e.id)) {
+                                if (e.userData.type === 'POWERUP') {
+                                    e.userData.val++;
+                                    updatePowerupLabel(e);
+                                }
+                                p.userData.hitList.push(e.id);
+                            }
+                            continue;
+                        }
+                        
                         const dist = p.position.distanceTo(e.position);
                         if(dist < 1.8 * e.scale.x) { // Account for scaling
                             if(e.userData.type === 'ENEMY' || e.userData.type === 'NEUTRAL' || e.userData.type === 'WEAPON_UPGRADE') {
@@ -620,11 +642,13 @@
                 }
 
                 // Update Entities
-                const metrics = getDifficultyMetrics();
                 const time = Date.now() * 0.005;
                 for(let i=entities.length-1; i>=0; i--) {
                     const e = entities[i];
-                    e.position.z += metrics.speed;
+                    
+                    // Special powerups move 60% slower
+                    const moveMult = (e.userData.type === 'WEAPON_UPGRADE' || e.userData.type === 'UPGRADE_CORE') ? 0.4 : 1.0;
+                    e.position.z += metrics.speed * moveMult;
                     
                     // Simple pulse animation
                     const pulse = 1 + Math.sin(time + i) * 0.05;
