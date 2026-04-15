@@ -14,6 +14,34 @@ const FaceTracker = {
     headTilt: 0,
     isRoaring: false,
     
+    // Dedicated mouth state (separate from isRoaring)
+    isMouthOpen: false,
+    mouthVelocity: 0,
+    prevMouthOpenness: 0,
+    _velocityHoldCounter: 0,
+    
+    // Mouth Detection Config (exposed to settings UI)
+    mouthDetection: {
+        approach: 'hysteresis',  // 'multiMetric' | 'velocityGated' | 'hysteresis'
+        
+        // Shared
+        smoothing: 0.35,          // EMA factor for raw openness (higher = more responsive)
+        
+        // Multi-Metric weights & threshold
+        marWeight: 0.5,
+        areaWeight: 0.3,
+        chinWeight: 0.2,
+        openThreshold: 0.30,
+        
+        // Velocity-Gated
+        velocityThreshold: 0.03,
+        holdFrames: 10,
+        
+        // Hysteresis (Schmitt Trigger)
+        hystOpenThreshold: 0.38,
+        hystCloseThreshold: 0.18,
+    },
+    
     // Internal state
     noseCenter: { x: 0, y: 0 },
     noseSensitivity: 3.5,
@@ -296,6 +324,23 @@ const FaceTracker = {
         this.updateNoseTracking();
     },
 
+    // Compute inner mouth area using Shoelace formula on inner lip landmarks
+    _computeInnerMouthArea(positions) {
+        // Inner lip indices: 56, 57, 58, 59, 60, 61 (varies by model)
+        // Using the points we know: 57 (top inner), 61 (bottom inner), 
+        // 56 (left inner), 60 (right inner), plus intermediates
+        const innerPoints = [56, 57, 58, 59, 60, 61].map(i => positions[i]).filter(Boolean);
+        if (innerPoints.length < 3) return 0;
+        
+        let area = 0;
+        for (let i = 0; i < innerPoints.length; i++) {
+            const j = (i + 1) % innerPoints.length;
+            area += innerPoints[i][0] * innerPoints[j][1];
+            area -= innerPoints[j][0] * innerPoints[i][1];
+        }
+        return Math.abs(area) / 2;
+    },
+
     updateFacialExpressions() {
         let positions = null;
         try {
@@ -320,15 +365,98 @@ const FaceTracker = {
 
         const faceWidth = this.getDistance(positions[1], positions[13]);
         const faceHeight = this.getDistance(positions[33], positions[7]);
+        const md = this.mouthDetection;
+        const emaResponsive = md.smoothing;       // higher = more responsive
+        const emaSmooth = 1 - md.smoothing;        // complement
 
-        const currentMouthHeight = this.getDistance(positions[60], positions[57]);
-        const currentMouthWidth = this.getDistance(positions[44], positions[50]);
+        // ─── Compute raw mouth metrics ───
+        // 1) Vertical MAR: inner lip vertical / outer lip width
+        const innerTop = positions[57];   // top inner lip
+        const innerBot = positions[61];   // bottom inner lip
+        const outerLeft = positions[44];  // left mouth corner
+        const outerRight = positions[50]; // right mouth corner
+        
+        const currentMouthHeight = this.getDistance(innerTop, innerBot);
+        const currentMouthWidth = this.getDistance(outerLeft, outerRight);
         const currentMAR = currentMouthHeight / Math.max(currentMouthWidth, 1);
         
-        const baseMAR = this.neutralBaselines.captured ? this.neutralBaselines.baseMAR : 0.15;
-        const targetMouthOpenness = Math.min(Math.max(currentMAR - baseMAR, 0) / 0.35, 1);
-        this.mouthOpenness = this.mouthOpenness * 0.7 + targetMouthOpenness * 0.3;
+        // 2) Inner mouth area ratio (normalized by face area)
+        const innerArea = this._computeInnerMouthArea(positions);
+        const faceArea = faceWidth * faceHeight;
+        const areaRatio = innerArea / Math.max(faceArea, 1);
+        
+        // 3) Chin-nose separation (jaw drop indicator)
+        const noseTip = positions[62];
+        const chin = positions[7];
+        const currentNoseToChin = this.getDistance(noseTip, chin) / Math.max(faceHeight, 1);
 
+        // ─── Compute normalized openness for each metric ───
+        const baseMAR = this.neutralBaselines.captured ? this.neutralBaselines.baseMAR : 0.15;
+        const baseNoseToChin = this.neutralBaselines.captured ? this.neutralBaselines.noseToChin : 0.45;
+        
+        // Neutral area baseline (captured or estimated)
+        if (!this.neutralBaselines._baseAreaRatio && this.neutralBaselines.captured) {
+            // Compute on first frame after calibration
+            this.neutralBaselines._baseAreaRatio = areaRatio;
+        }
+        const baseAreaRatio = this.neutralBaselines._baseAreaRatio || 0.005;
+        
+        const marScore = Math.min(Math.max(currentMAR - baseMAR, 0) / 0.35, 1);
+        const areaScore = Math.min(Math.max(areaRatio - baseAreaRatio, 0) / 0.03, 1);
+        const chinScore = Math.min(Math.max((currentNoseToChin / baseNoseToChin) - 1, 0) / 0.25, 1);
+
+        // ─── Apply selected approach ───
+        let targetMouthOpenness;
+        
+        if (md.approach === 'multiMetric') {
+            // Weighted combination of all 3 metrics
+            const totalWeight = md.marWeight + md.areaWeight + md.chinWeight;
+            targetMouthOpenness = (marScore * md.marWeight + areaScore * md.areaWeight + chinScore * md.chinWeight) / Math.max(totalWeight, 0.01);
+        } else {
+            // velocityGated and hysteresis both use the multi-metric signal as input
+            const totalWeight = md.marWeight + md.areaWeight + md.chinWeight;
+            targetMouthOpenness = (marScore * md.marWeight + areaScore * md.areaWeight + chinScore * md.chinWeight) / Math.max(totalWeight, 0.01);
+        }
+
+        // EMA smoothing
+        this.prevMouthOpenness = this.mouthOpenness;
+        this.mouthOpenness = this.mouthOpenness * emaSmooth + targetMouthOpenness * emaResponsive;
+        
+        // Compute velocity (rate of change)
+        this.mouthVelocity = this.mouthOpenness - this.prevMouthOpenness;
+
+        // ─── Determine isMouthOpen based on approach ───
+        if (md.approach === 'multiMetric') {
+            this.isMouthOpen = this.mouthOpenness > md.openThreshold;
+        } else if (md.approach === 'velocityGated') {
+            // Must both exceed threshold AND be opening fast enough (or be in hold period)
+            if (this.mouthOpenness > md.openThreshold && this.mouthVelocity > md.velocityThreshold) {
+                this.isMouthOpen = true;
+                this._velocityHoldCounter = md.holdFrames;
+            } else if (this._velocityHoldCounter > 0 && this.mouthOpenness > md.openThreshold * 0.7) {
+                // Hold state: keep open for N frames after velocity drops
+                this._velocityHoldCounter--;
+                this.isMouthOpen = true;
+            } else {
+                this.isMouthOpen = false;
+                this._velocityHoldCounter = 0;
+            }
+        } else if (md.approach === 'hysteresis') {
+            // Schmitt trigger: different thresholds for opening vs closing
+            if (this.isMouthOpen) {
+                // Currently open → close only when below low threshold
+                if (this.mouthOpenness < md.hystCloseThreshold) {
+                    this.isMouthOpen = false;
+                }
+            } else {
+                // Currently closed → open only when above high threshold
+                if (this.mouthOpenness > md.hystOpenThreshold) {
+                    this.isMouthOpen = true;
+                }
+            }
+        }
+
+        // ─── Eyebrow, pucker, tilt (unchanged) ───
         const currentEyebrowDist = this.getDistance(positions[16], positions[24]) / faceHeight;
         const baseEyebrowDist = this.neutralBaselines.captured ? this.neutralBaselines.eyebrowDist : 0.08;
         const targetEyebrowRaise = Math.min(Math.max((currentEyebrowDist / baseEyebrowDist) - 1, 0) / 0.35, 1);
@@ -346,13 +474,12 @@ const FaceTracker = {
         const targetHeadTilt = Math.min(Math.max(Math.abs(relativeAngle) / 20, 0), 1);
         this.headTilt = this.headTilt * 0.8 + targetHeadTilt * 0.2;
 
+        // isRoaring for standard/PoC mode (combines all triggers)
         const isEyebrowRaised = this.eyebrowRaise > 0.6;
         const isPuckering = this.puckerStrength > 0.7;
-        const isMouthOpen = this.mouthOpenness > 0.3;
-        
-        this.isRoaring = isMouthOpen || isEyebrowRaised || isPuckering;
+        this.isRoaring = this.isMouthOpen || isEyebrowRaised || isPuckering;
 
-        // UI Updates if elements exist
+        // ─── UI gauge updates ───
         const gaugeMouth = document.getElementById('gauge-mouth');
         const gaugeEyebrows = document.getElementById('gauge-eyebrows');
         const gaugePucker = document.getElementById('gauge-pucker');
@@ -360,7 +487,7 @@ const FaceTracker = {
 
         if (gaugeMouth) {
             gaugeMouth.style.width = (this.mouthOpenness * 100) + '%';
-            if (isMouthOpen) gaugeMouth.classList.add('active'); else gaugeMouth.classList.remove('active');
+            if (this.isMouthOpen) gaugeMouth.classList.add('active'); else gaugeMouth.classList.remove('active');
         }
         if (gaugeEyebrows) {
             gaugeEyebrows.style.width = (this.eyebrowRaise * 100) + '%';
@@ -374,6 +501,17 @@ const FaceTracker = {
             gaugeTilt.style.width = (this.headTilt * 100) + '%';
             if (this.headTilt > 0.8) gaugeTilt.classList.add('active'); else gaugeTilt.classList.remove('active');
         }
+
+        // ─── Live debug readout ───
+        const debugOpenness = document.getElementById('debug-mouth-openness');
+        const debugState = document.getElementById('debug-mouth-state');
+        const debugVelocity = document.getElementById('debug-mouth-velocity');
+        if (debugOpenness) debugOpenness.textContent = this.mouthOpenness.toFixed(3);
+        if (debugState) {
+            debugState.textContent = this.isMouthOpen ? 'OPEN' : 'CLOSED';
+            debugState.style.color = this.isMouthOpen ? '#f43f5e' : '#22d3ee';
+        }
+        if (debugVelocity) debugVelocity.textContent = (this.mouthVelocity >= 0 ? '+' : '') + this.mouthVelocity.toFixed(4);
     },
 
     updateNoseTracking() {

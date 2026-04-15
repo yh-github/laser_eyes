@@ -186,6 +186,9 @@
                     <button id="open-magnet-btn" class="w-full text-left text-xs font-bold text-gray-300 py-2 flex justify-between items-center hover:text-cyan-400 chargeable transition-colors">
                         MAGNETISM SETTINGS <span class="opacity-50">&gt;</span>
                     </button>
+                    <button id="open-mouth-btn" class="w-full text-left text-xs font-bold text-gray-300 py-2 flex justify-between items-center hover:text-pink-400 chargeable transition-colors">
+                        MOUTH DETECTION <span class="opacity-50">&gt;</span>
+                    </button>
                 </div>
 
                 <div class="menu-divider"></div>
@@ -219,6 +222,59 @@
 
                 <label class="menu-label">Range</label>
                 <input type="range" id="snap-range" class="snap-slider" min="50" max="300" value="150">
+            </div>
+
+            <div id="mouth-menu-view" class="hidden">
+                <div class="flex items-center mb-6">
+                    <button id="close-mouth-btn" class="text-xs font-bold text-gray-400 hover:text-white mr-3 chargeable py-1 transition-colors uppercase tracking-wider">&lt; Back</button>
+                    <div class="menu-header mb-0" style="color: #ec4899;">Mouth Detection</div>
+                </div>
+
+                <label class="menu-label">Approach</label>
+                <select id="mouth-approach" class="approach-select">
+                    <option value="hysteresis">Hysteresis (Schmitt)</option>
+                    <option value="multiMetric">Multi-Metric</option>
+                    <option value="velocityGated">Velocity-Gated</option>
+                </select>
+
+                <label class="menu-label">Smoothing</label>
+                <input type="range" id="mouth-smoothing" class="snap-slider" min="5" max="80" value="35">
+
+                <!-- Multi-Metric params -->
+                <div id="params-multiMetric" class="approach-params">
+                    <label class="menu-label">Open Threshold</label>
+                    <input type="range" id="mm-threshold" class="snap-slider" min="5" max="70" value="30">
+                    <label class="menu-label">MAR Weight</label>
+                    <input type="range" id="mm-mar-weight" class="snap-slider" min="0" max="100" value="50">
+                    <label class="menu-label">Area Weight</label>
+                    <input type="range" id="mm-area-weight" class="snap-slider" min="0" max="100" value="30">
+                    <label class="menu-label">Chin Weight</label>
+                    <input type="range" id="mm-chin-weight" class="snap-slider" min="0" max="100" value="20">
+                </div>
+
+                <!-- Velocity-Gated params -->
+                <div id="params-velocityGated" class="approach-params">
+                    <label class="menu-label">Open Threshold</label>
+                    <input type="range" id="vg-threshold" class="snap-slider" min="5" max="70" value="30">
+                    <label class="menu-label">Velocity Threshold</label>
+                    <input type="range" id="vg-velocity" class="snap-slider" min="1" max="20" value="3">
+                    <label class="menu-label">Hold Frames</label>
+                    <input type="range" id="vg-hold" class="snap-slider" min="1" max="30" value="10">
+                </div>
+
+                <!-- Hysteresis params -->
+                <div id="params-hysteresis" class="approach-params active">
+                    <label class="menu-label">Open Threshold (high)</label>
+                    <input type="range" id="hyst-open" class="snap-slider" min="10" max="80" value="38">
+                    <label class="menu-label">Close Threshold (low)</label>
+                    <input type="range" id="hyst-close" class="snap-slider" min="5" max="60" value="18">
+                </div>
+
+                <div class="debug-readout">
+                    <div><span class="label">Openness:</span> <span class="value" id="debug-mouth-openness">0.000</span></div>
+                    <div><span class="label">State:</span> <span class="value" id="debug-mouth-state" style="color:#22d3ee">CLOSED</span></div>
+                    <div><span class="label">Velocity:</span> <span class="value" id="debug-mouth-velocity">+0.0000</span></div>
+                </div>
             </div>
         </div>
 
@@ -261,6 +317,45 @@
                 <circle cx="20" cy="20" r="18"></circle>
             </svg>
         </div>
+
+        <!-- SVG Mouth Cursor (Big Mouth mode) -->
+        <svg id="mouth-cursor" viewBox="0 0 120 80">
+            <defs>
+                <linearGradient id="lip-gradient" x1="0%" y1="0%" x2="0%" y2="100%">
+                    <stop offset="0%" stop-color="#f472b6" />
+                    <stop offset="50%" stop-color="#ec4899" />
+                    <stop offset="100%" stop-color="#be185d" />
+                </linearGradient>
+                <linearGradient id="inner-gradient" x1="0%" y1="0%" x2="0%" y2="100%">
+                    <stop offset="0%" stop-color="#1a0a10" />
+                    <stop offset="100%" stop-color="#2d0a18" />
+                </linearGradient>
+                <linearGradient id="tongue-gradient" x1="0%" y1="0%" x2="0%" y2="100%">
+                    <stop offset="0%" stop-color="#f87171" />
+                    <stop offset="100%" stop-color="#dc2626" />
+                </linearGradient>
+            </defs>
+
+            <!-- Outer lips -->
+            <path id="lip-upper" class="lip-outer" d="M 15,40 Q 35,38 60,36 Q 85,38 105,40 Q 85,38 60,38 Q 35,38 15,40 Z" fill="url(#lip-gradient)" />
+            <path id="lip-lower" class="lip-outer" d="M 15,40 Q 35,42 60,44 Q 85,42 105,40 Q 85,42 60,42 Q 35,42 15,40 Z" fill="url(#lip-gradient)" />
+
+            <!-- Inner mouth (darkness) -->
+            <path id="mouth-inner" d="M 25,40 Q 60,40 95,40 Q 60,40 25,40 Z" fill="url(#inner-gradient)" />
+
+            <!-- Teeth top -->
+            <rect id="teeth-top" x="35" y="38" width="50" height="0" rx="2" fill="rgba(255,255,255,0.9)" />
+
+            <!-- Teeth bottom -->
+            <rect id="teeth-bottom" x="35" y="40" width="50" height="0" rx="2" fill="rgba(240,240,240,0.85)" />
+
+            <!-- Tongue -->
+            <ellipse id="mouth-tongue" cx="60" cy="45" rx="18" ry="0" fill="url(#tongue-gradient)" opacity="0" />
+
+            <!-- Lip shine highlight -->
+            <path class="lip-shine" d="M 30,37 Q 45,34 60,35 Q 75,34 90,37" fill="none" stroke="rgba(255,255,255,0.3)" stroke-width="1.5" stroke-linecap="round" />
+        </svg>
+
         <div id="calib-nose-dot"></div>
     </div>
 
@@ -326,6 +421,10 @@
 
         debugToggle.addEventListener('change', (e) => FaceTracker.showDebugLandmarks = e.target.checked);
 
+        const openMouthBtn = document.getElementById('open-mouth-btn');
+        const mouthMenuView = document.getElementById('mouth-menu-view');
+        const closeMouthBtn = document.getElementById('close-mouth-btn');
+
         menuBtn.addEventListener('click', (e) => {
             e.stopPropagation();
             menuBtn.classList.toggle('active');
@@ -333,6 +432,7 @@
             // reset to main view
             mainMenuBtn.classList.remove('hidden');
             magnetMenuBtn.classList.add('hidden');
+            mouthMenuView.classList.add('hidden');
         });
 
         openMagnetBtn.addEventListener('click', (e) => {
@@ -345,6 +445,70 @@
             e.stopPropagation();
             magnetMenuBtn.classList.add('hidden');
             mainMenuBtn.classList.remove('hidden');
+        });
+
+        openMouthBtn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            mainMenuBtn.classList.add('hidden');
+            mouthMenuView.classList.remove('hidden');
+        });
+
+        closeMouthBtn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            mouthMenuView.classList.add('hidden');
+            mainMenuBtn.classList.remove('hidden');
+        });
+
+        // ─── Mouth Detection Settings Wiring ───
+        const mouthApproachSelect = document.getElementById('mouth-approach');
+        const mouthSmoothingSlider = document.getElementById('mouth-smoothing');
+
+        function showApproachParams(approach) {
+            document.querySelectorAll('.approach-params').forEach(el => el.classList.remove('active'));
+            const target = document.getElementById('params-' + approach);
+            if (target) target.classList.add('active');
+        }
+
+        mouthApproachSelect.addEventListener('change', (e) => {
+            FaceTracker.mouthDetection.approach = e.target.value;
+            showApproachParams(e.target.value);
+        });
+
+        mouthSmoothingSlider.addEventListener('input', (e) => {
+            FaceTracker.mouthDetection.smoothing = parseInt(e.target.value) / 100;
+        });
+
+        // Multi-Metric sliders
+        document.getElementById('mm-threshold')?.addEventListener('input', (e) => {
+            FaceTracker.mouthDetection.openThreshold = parseInt(e.target.value) / 100;
+        });
+        document.getElementById('mm-mar-weight')?.addEventListener('input', (e) => {
+            FaceTracker.mouthDetection.marWeight = parseInt(e.target.value) / 100;
+        });
+        document.getElementById('mm-area-weight')?.addEventListener('input', (e) => {
+            FaceTracker.mouthDetection.areaWeight = parseInt(e.target.value) / 100;
+        });
+        document.getElementById('mm-chin-weight')?.addEventListener('input', (e) => {
+            FaceTracker.mouthDetection.chinWeight = parseInt(e.target.value) / 100;
+        });
+
+        // Velocity-Gated sliders
+        document.getElementById('vg-threshold')?.addEventListener('input', (e) => {
+            FaceTracker.mouthDetection.openThreshold = parseInt(e.target.value) / 100;
+        });
+        document.getElementById('vg-velocity')?.addEventListener('input', (e) => {
+            FaceTracker.mouthDetection.velocityThreshold = parseInt(e.target.value) / 1000;
+        });
+        document.getElementById('vg-hold')?.addEventListener('input', (e) => {
+            FaceTracker.mouthDetection.holdFrames = parseInt(e.target.value);
+        });
+
+        // Hysteresis sliders
+        document.getElementById('hyst-open')?.addEventListener('input', (e) => {
+            FaceTracker.mouthDetection.hystOpenThreshold = parseInt(e.target.value) / 100;
+        });
+        document.getElementById('hyst-close')?.addEventListener('input', (e) => {
+            FaceTracker.mouthDetection.hystCloseThreshold = parseInt(e.target.value) / 100;
         });
 
         resumeBtn.addEventListener('click', () => {
@@ -631,79 +795,155 @@
             };
         }
 
+        const mouthCursor = document.getElementById('mouth-cursor');
+
+        function updateMouthSVG(openness) {
+            // openness: 0 (closed) to 1 (wide open)
+            const o = Math.max(0, Math.min(1, openness));
+            
+            // Lip spread — opens vertically
+            const lipSpread = o * 16; // max 16px vertical spread
+            const upperY = 40 - lipSpread;
+            const lowerY = 40 + lipSpread;
+            const bulge = 2 + o * 6; // lip curve intensity
+            
+            // Upper lip path
+            const upperLip = document.getElementById('lip-upper');
+            if (upperLip) {
+                upperLip.setAttribute('d',
+                    `M 15,40 Q 35,${40 - bulge} 60,${upperY} Q 85,${40 - bulge} 105,40 Q 85,${upperY + 2} 60,${upperY + 2} Q 35,${upperY + 2} 15,40 Z`);
+            }
+            
+            // Lower lip path
+            const lowerLip = document.getElementById('lip-lower');
+            if (lowerLip) {
+                lowerLip.setAttribute('d',
+                    `M 15,40 Q 35,${40 + bulge} 60,${lowerY} Q 85,${40 + bulge} 105,40 Q 85,${lowerY - 2} 60,${lowerY - 2} Q 35,${lowerY - 2} 15,40 Z`);
+            }
+            
+            // Inner mouth
+            const inner = document.getElementById('mouth-inner');
+            if (inner) {
+                const innerSpread = o * 14;
+                inner.setAttribute('d',
+                    `M 25,40 Q 40,${40 - innerSpread} 60,${40 - innerSpread} Q 80,${40 - innerSpread} 95,40 Q 80,${40 + innerSpread} 60,${40 + innerSpread} Q 40,${40 + innerSpread} 25,40 Z`);
+            }
+            
+            // Teeth (visible from ~20% open)
+            const teethTop = document.getElementById('teeth-top');
+            const teethBot = document.getElementById('teeth-bottom');
+            if (teethTop && teethBot) {
+                const teethVis = Math.max(0, (o - 0.15) / 0.85);
+                const teethH = teethVis * 5;
+                teethTop.setAttribute('height', teethH);
+                teethTop.setAttribute('y', upperY + 1);
+                teethBot.setAttribute('height', teethH * 0.8);
+                teethBot.setAttribute('y', lowerY - teethH * 0.8 - 1);
+            }
+            
+            // Tongue (visible from ~40% open)
+            const tongue = document.getElementById('mouth-tongue');
+            if (tongue) {
+                const tongueVis = Math.max(0, (o - 0.35) / 0.65);
+                tongue.setAttribute('ry', tongueVis * 8);
+                tongue.setAttribute('rx', 14 + tongueVis * 4);
+                tongue.setAttribute('cy', 40 + lipSpread * 0.4);
+                tongue.setAttribute('opacity', tongueVis * 0.9);
+            }
+
+            // Glow effect based on openness
+            const glowSize = 8 + o * 20;
+            mouthCursor.style.filter = `drop-shadow(0 0 ${glowSize}px rgba(236, 72, 153, ${0.4 + o * 0.4}))`;
+        }
+
+        function triggerChompAnimation() {
+            mouthCursor.classList.remove('eating');
+            // Force reflow to restart animation
+            void mouthCursor.offsetWidth;
+            mouthCursor.classList.add('eating');
+            setTimeout(() => mouthCursor.classList.remove('eating'), 400);
+        }
+
         function updateLaser() {
             if (!FaceTracker.isStarted) {
                 laserDot.style.display = 'none';
+                mouthCursor.style.display = 'none';
                 return;
             }
-            laserDot.style.display = 'block';
+
+            const isBigMouth = currentGameMode === 'bigmouth';
+
+            // Show/hide correct cursor
+            laserDot.style.display = isBigMouth ? 'none' : 'block';
+            mouthCursor.style.display = isBigMouth ? 'block' : 'none';
 
             let displayX = FaceTracker.cursorX;
             let displayY = FaceTracker.cursorY;
 
-            if (snappingEnabled && currentGameMode !== 'bigmouth') {
-                // Find nearest target for visual snapping
-                let nearestTarget = null;
-                let minDist = snapRange;
+            if (isBigMouth) {
+                // SVG mouth follows cursor
+                mouthCursor.style.left = displayX + 'px';
+                mouthCursor.style.top = displayY + 'px';
+                updateMouthSVG(FaceTracker.mouthOpenness);
+            } else {
+                // Standard laser dot behavior
+                if (snappingEnabled) {
+                    let nearestTarget = null;
+                    let minDist = snapRange;
 
-                targets.forEach(target => {
-                    // Lenient snapping: ignore bad foods
-                    if (currentGameMode === 'bigmouth' && target.dataset.type === 'bad') return;
+                    targets.forEach(target => {
+                        const tx = parseFloat(target.dataset.vpX);
+                        const ty = parseFloat(target.dataset.vpY);
+                        const dx = FaceTracker.cursorX - tx;
+                        const dy = FaceTracker.cursorY - ty;
+                        const dist = Math.sqrt(dx * dx + dy * dy);
+                        if (dist < minDist) {
+                            minDist = dist;
+                            nearestTarget = target;
+                        }
+                    });
 
-                    const tx = parseFloat(target.dataset.vpX);
-                    const ty = parseFloat(target.dataset.vpY);
-                    const dx = FaceTracker.cursorX - tx;
-                    const dy = FaceTracker.cursorY - ty;
-                    const dist = Math.sqrt(dx * dx + dy * dy);
-                    if (dist < minDist) {
-                        minDist = dist;
-                        nearestTarget = target;
+                    if (nearestTarget) {
+                        const tx = parseFloat(nearestTarget.dataset.vpX);
+                        const ty = parseFloat(nearestTarget.dataset.vpY);
+
+                        const distanceFactor = Math.pow(1 - (minDist / snapRange), 1.5);
+                        const weight = snapStrength * distanceFactor;
+
+                        displayX = FaceTracker.cursorX * (1 - weight) + tx * weight;
+                        displayY = FaceTracker.cursorY * (1 - weight) + ty * weight;
+
+                        displayX += (Math.random() - 0.5) * (5 * distanceFactor);
+                        displayY += (Math.random() - 0.5) * (5 * distanceFactor);
+
+                        const expansion = FaceTracker.isRoaring ? (1 + FaceTracker.mouthOpenness * 1.5) : 1;
+                        laserDot.style.scale = (1 + (0.5 * distanceFactor) + Math.random() * 0.2) * expansion;
+                    } else {
+                        const expansion = FaceTracker.isRoaring ? (1 + FaceTracker.mouthOpenness * 1.5) : 1;
+                        laserDot.style.scale = expansion;
                     }
-                });
-
-                if (nearestTarget) {
-                    const tx = parseFloat(nearestTarget.dataset.vpX);
-                    const ty = parseFloat(nearestTarget.dataset.vpY);
-
-                    const distanceFactor = Math.pow(1 - (minDist / snapRange), 1.5);
-                    const weight = snapStrength * distanceFactor;
-
-                    displayX = FaceTracker.cursorX * (1 - weight) + tx * weight;
-                    displayY = FaceTracker.cursorY * (1 - weight) + ty * weight;
-
-                    displayX += (Math.random() - 0.5) * (5 * distanceFactor);
-                    displayY += (Math.random() - 0.5) * (5 * distanceFactor);
-
-                    // Beam expansion logic
-                    const expansion = FaceTracker.isRoaring ? (1 + FaceTracker.mouthOpenness * 1.5) : 1;
-                    laserDot.style.scale = (1 + (0.5 * distanceFactor) + Math.random() * 0.2) * expansion;
                 } else {
                     const expansion = FaceTracker.isRoaring ? (1 + FaceTracker.mouthOpenness * 1.5) : 1;
                     laserDot.style.scale = expansion;
                 }
-            } else {
-                const expansion = FaceTracker.isRoaring ? (1 + FaceTracker.mouthOpenness * 1.5) : 1;
-                laserDot.style.scale = expansion;
-            }
 
-            laserDot.style.left = displayX + 'px';
-            laserDot.style.top = displayY + 'px';
+                laserDot.style.left = displayX + 'px';
+                laserDot.style.top = displayY + 'px';
 
-            // Visual feedback for firing strength
-            const firingStrength = Math.max(FaceTracker.mouthOpenness, FaceTracker.eyebrowRaise, FaceTracker.puckerStrength);
-            if (FaceTracker.isRoaring) {
-                // Large beam effect
-                const glow = 20 + (firingStrength * 40);
-                laserDot.style.boxShadow = `0 0 ${glow}px ${glow / 3}px rgba(0, 242, 255, ${0.4 + firingStrength})`;
-                laserDot.style.background = `#fff`;
-                laserDot.style.width = '20px';
-                laserDot.style.height = '20px';
-            } else {
-                // "Pilot Light" mode: sharp micro-dot
-                laserDot.style.boxShadow = `0 0 10px 2px #00f2ff, 0 0 20px rgba(0, 242, 255, 0.4)`;
-                laserDot.style.background = `white`;
-                laserDot.style.width = '8px';
-                laserDot.style.height = '8px';
+                // Visual feedback for firing strength
+                const firingStrength = Math.max(FaceTracker.mouthOpenness, FaceTracker.eyebrowRaise, FaceTracker.puckerStrength);
+                if (FaceTracker.isRoaring) {
+                    const glow = 20 + (firingStrength * 40);
+                    laserDot.style.boxShadow = `0 0 ${glow}px ${glow / 3}px rgba(0, 242, 255, ${0.4 + firingStrength})`;
+                    laserDot.style.background = `#fff`;
+                    laserDot.style.width = '20px';
+                    laserDot.style.height = '20px';
+                } else {
+                    laserDot.style.boxShadow = `0 0 10px 2px #00f2ff, 0 0 20px rgba(0, 242, 255, 0.4)`;
+                    laserDot.style.background = `white`;
+                    laserDot.style.width = '8px';
+                    laserDot.style.height = '8px';
+                }
             }
         }
 
@@ -857,10 +1097,9 @@
                     const distance = Math.sqrt(dx * dx + dy * dy);
 
                     if (currentGameMode === 'bigmouth') {
-                        // Big Mouth eating mechanic: hover + mouth open
-                        // Using a slightly lower threshold for "open" to feel more responsive
-                        // but requires the mouth to actually be open (not just smoothed towards it)
-                        if (distance < 70 && FaceTracker.mouthOpenness > 0.35) {
+                        // Big Mouth eating mechanic: hover + mouth open (uses dedicated isMouthOpen flag)
+                        if (distance < 70 && FaceTracker.isMouthOpen) {
+                            triggerChompAnimation();
                             destroyFood(target, true);
                         }
                     } else {
