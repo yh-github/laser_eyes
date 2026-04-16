@@ -13,10 +13,13 @@
     <style>
         /* Local overrides for Big Mouth mode */
         #mouth-cursor {
-            width: 130px;
-            height: 90px;
+            width: 160px;
+            height: 120px;
             /* Thicker dropshadow for visibility */
             filter: drop-shadow(0 0 15px rgba(236, 72, 153, 0.7));
+            z-index: 50;
+            cursor: pointer;
+            pointer-events: auto; /* Enable tapping the mouth */
         }
         
         .target.food-item {
@@ -344,16 +347,22 @@
                     <stop offset="0%" stop-color="#f87171" />
                     <stop offset="100%" stop-color="#dc2626" />
                 </linearGradient>
+                <clipPath id="mouth-clip">
+                    <path id="mouth-clip-path" d="M 25,40 Q 60,40 95,40 Q 60,40 25,40 Z" />
+                </clipPath>
             </defs>
             <path id="mouth-inner" d="M 25,40 Q 60,40 95,40 Q 60,40 25,40 Z" fill="url(#inner-gradient)" />
             <ellipse id="mouth-tongue" cx="60" cy="45" rx="18" ry="0" fill="url(#tongue-gradient)" opacity="0" />
             
-            <!-- Teeth behind lips -->
-            <g id="teeth-top" class="teeth-row">
+            <!-- Zone for swallowed food (between layers) -->
+            <g id="swallow-zone"></g>
+
+            <!-- Teeth behind lips, clipped to mouth opening -->
+            <g id="teeth-top" class="teeth-row" clip-path="url(#mouth-clip)">
                 <path d="M 35,40 L 85,40 L 85,40 L 35,40 Z" fill="white" />
                 <path d="M 45,40 L 45,45 M 55,40 L 55,45 M 65,40 L 65,45 M 75,40 L 75,45" stroke="rgba(0,0,0,0.1)" stroke-width="0.5" />
             </g>
-            <g id="teeth-bottom" class="teeth-row">
+            <g id="teeth-bottom" class="teeth-row" clip-path="url(#mouth-clip)">
                 <path d="M 35,40 L 85,40 L 85,40 L 35,40 Z" fill="#f0f0f0" />
                 <path d="M 45,35 L 45,40 M 55,35 L 55,40 M 65,35 L 65,40 M 75,35 L 75,40" stroke="rgba(0,0,0,0.1)" stroke-width="0.5" />
             </g>
@@ -393,6 +402,15 @@
         let calibrationMode = false;
         let calibrationRecords = [];
         let candidates = [];
+
+        // Manual Interaction
+        let manualMouthOpen = false;
+        document.getElementById('mouth-cursor').addEventListener('pointerdown', (e) => {
+            if (!gameActive || gamePaused) return;
+            e.stopPropagation();
+            manualMouthOpen = !manualMouthOpen;
+            console.log('[Interaction] Mouth Toggled:', manualMouthOpen);
+        });
         
         function generateCandidates() {
             const pool = [];
@@ -805,21 +823,52 @@
                 else badPoints++;
                 updateBigMouthScore();
                 
+                // Get absolute positions
+                const foodRect = food.getBoundingClientRect();
+                const mouthRect = mouthCursor.getBoundingClientRect();
+                
                 // Sucking animation: Move toward mouth center and scale down
                 const mouthX = parseFloat(mouthCursor.style.left);
                 const mouthY = parseFloat(mouthCursor.style.top);
                 
-                food.style.transition = 'all 0.25s cubic-bezier(0.5, 0, 0.5, 1)';
+                // Visual sucking starts in screen space
+                food.style.transition = 'all 0.2s cubic-bezier(0.5, 0, 0.5, 1)';
                 food.style.left = (mouthX - 30) + 'px';
                 food.style.top = (mouthY - 30) + 'px';
-                food.style.transform = 'scale(0.1) rotate(180deg)';
-                food.style.opacity = '0';
+                food.style.transform = 'scale(0.5)';
+                food.style.opacity = '0.8';
                 
-                // Chomp exactly when it hits center
+                // After initial move, "swallow" it by moving into SVG layer
                 setTimeout(() => {
-                    triggerChompAnimation();
+                    const swallowZone = document.getElementById('swallow-zone');
+                    const foodEmoji = food.innerText;
+                    
+                    // Create SVG equivalent
+                    const svgFood = document.createElementNS("http://www.w3.org/2000/svg", "text");
+                    svgFood.setAttribute("x", "60");
+                    svgFood.setAttribute("y", "40");
+                    svgFood.setAttribute("text-anchor", "middle");
+                    svgFood.setAttribute("dominant-baseline", "middle");
+                    svgFood.setAttribute("font-size", "20");
+                    svgFood.textContent = foodEmoji;
+                    svgFood.style.transition = 'all 0.3s ease-in';
+                    svgFood.setAttribute("transform", "scale(1.5)");
+                    
+                    swallowZone.appendChild(svgFood);
                     food.remove();
-                }, 200);
+                    
+                    // Animate inside SVG
+                    requestAnimationFrame(() => {
+                        svgFood.setAttribute("transform", "scale(0.1) rotate(180)");
+                        svgFood.setAttribute("opacity", "0");
+                        svgFood.setAttribute("y", "50"); // Move "deeper" into throat
+                    });
+                    
+                    setTimeout(() => {
+                        triggerChompAnimation();
+                        svgFood.remove();
+                    }, 250);
+                }, 150);
             } else {
                 food.remove();
             }
@@ -860,7 +909,9 @@
             // Inner mouth opening — follows the lips
             const innerSpread = o * 35; 
             const innerInset = 25 - o * 15;
-            document.getElementById('mouth-inner').setAttribute('d', `M ${innerInset},40 Q 40,${40-innerSpread} 60,${40-innerSpread} Q 80,${40-innerSpread} ${120-innerInset},40 Q 80,${40+innerSpread} 60,${40+innerSpread} Q 40,${40+innerSpread} ${innerInset},40 Z`);
+            const innerPath = `M ${innerInset},40 Q 40,${40-innerSpread} 60,${40-innerSpread} Q 80,${40-innerSpread} ${120-innerInset},40 Q 80,${40+innerSpread} 60,${40+innerSpread} Q 40,${40+innerSpread} ${innerInset},40 Z`;
+            document.getElementById('mouth-inner').setAttribute('d', innerPath);
+            document.getElementById('mouth-clip-path').setAttribute('d', innerPath);
             
             // Shine follows upper lip shape
             document.getElementById('lip-shine').setAttribute('d', `M ${lipInset+15},${peakY+4} Q 54,${peakY+2} 60,${dipY+2} Q 66,${peakY+2} ${lipWidth-15},${peakY+4}`);
@@ -930,7 +981,9 @@
 
             mouthCursor.style.left = displayX + 'px';
             mouthCursor.style.top = displayY + 'px';
-            updateMouthSVG(FaceTracker.mouthOpenness);
+            
+            const effectiveOpenness = manualMouthOpen ? 1.0 : FaceTracker.mouthOpenness;
+            updateMouthSVG(effectiveOpenness);
 
             // Parallel Calibration Engine
             if (FaceTracker._lastMetrics) {
@@ -968,7 +1021,7 @@
                 const dy = displayY - (y + 30);
                 const dist = Math.sqrt(dx*dx + dy*dy);
 
-                if (dist < 65 && FaceTracker.isMouthOpen) {
+                if (dist < 65 && (FaceTracker.isMouthOpen || manualMouthOpen)) {
                     destroyFood(food, true);
                 }
             });
