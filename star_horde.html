@@ -295,9 +295,19 @@
         let overdiveTimer = 0;
         let threatBudget = 0;
         const threatRecoveryRate = 0.05; 
-        let laneWorkload = [0, 0]; // Tracks total HP in each lane
+        let laneWorkload = [0, 0]; 
         let lastLaneSwitchTime = 0;
         let powerupsOnScreen = 0;
+
+        // Director AI States
+        const DIRECTOR_PHASES = {
+            STAGING: { duration: 4, threatMult: 0.2, densityMult: 0.5, speedMult: 0.9 },
+            ESCALATION: { duration: 10, threatMult: 1.0, densityMult: 1.0, speedMult: 1.0 },
+            PEAK: { duration: 8, threatMult: 1.8, densityMult: 1.4, speedMult: 1.1 },
+            RECOVERY: { duration: 6, threatMult: 0.1, densityMult: 0.1, speedMult: 0.8 }
+        };
+        let directorState = 'STAGING';
+        let stateTimer = 0;
         
         const fleetGroup = new THREE.Group();
         scene.add(fleetGroup);
@@ -370,18 +380,22 @@
             const recoveryFactor = Math.max(0, 1 - (timeSinceDeath / 10000));
             
             const baseDiff = (currentLevel - 1) * 1.5 + elapsedMins * 0.8 + (heroPower * 0.2);
-            const intensity = Math.max(0.1, baseDiff * (1 - recoveryFactor * 0.8));
+            let intensity = Math.max(0.1, baseDiff * (1 - recoveryFactor * 0.8));
 
-            // Breather logic: Much less aggressive penalty
-            let threatGain = (0.12 + intensity * 0.1) * (1 - recoveryFactor * 0.4);
+            // DIRECTOR STATE INFLUENCE
+            const phase = DIRECTOR_PHASES[directorState];
+            intensity *= phase.speedMult;
+
+            // Breather logic: Much less aggressive penalty (Director handles it now)
+            let threatGain = (0.12 + intensity * 0.1) * (1 - recoveryFactor * 0.4) * phase.threatMult;
             if (powerupsOnScreen > 0) threatGain *= 0.8;
 
             return {
                 intensity: intensity,
                 threatGain: threatGain,
-                hordeDensity: 0.04 + Math.min(0.25, intensity * 0.03),
-                supportDensity: 0.005 + Math.min(0.03, intensity * 0.005), // Halved support density
-                speed: Math.min(0.28, 0.04 + intensity * 0.008), // Much slower base speed
+                hordeDensity: (0.04 + Math.min(0.25, intensity * 0.03)) * phase.densityMult,
+                supportDensity: 0.005 + Math.min(0.03, intensity * 0.005), 
+                speed: Math.min(0.35, (0.04 + intensity * 0.008) * phase.speedMult), 
                 projectileSpeed: Math.min(1.4, 0.4 + intensity * 0.035),
                 playerDPS: fleetCount * (60 / SHOOT_COOLDOWN)
             };
@@ -573,6 +587,21 @@
             requestAnimationFrame(animate);
             
             if(gameState === 'PLAYING') {
+                // Director State Machine
+                stateTimer += 1/60;
+                if (stateTimer >= DIRECTOR_PHASES[directorState].duration) {
+                    stateTimer = 0;
+                    const phases = Object.keys(DIRECTOR_PHASES);
+                    const currIdx = phases.indexOf(directorState);
+                    directorState = phases[(currIdx + 1) % phases.length];
+                }
+
+                // Skip escalation if in overdrive
+                if (directorState === 'ESCALATION' && overdiveTimer > 0) {
+                    directorState = 'PEAK';
+                    stateTimer = 0;
+                }
+
                 // Background scroll
                 const positions = stars.geometry.attributes.position.array;
                 for(let i=0; i<starCount; i++) {
