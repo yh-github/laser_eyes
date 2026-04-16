@@ -397,7 +397,16 @@
                 fleetGroup.add(shield);
             }
 
-            fleetGroup.position.z = 6; // Move ship lower on screen
+        function updateHUD() {
+            updateFleet();
+            const shipCountEl = document.getElementById('ship-count');
+            if (shipCountEl) {
+                shipCountEl.innerText = fleetCount + (shieldCount > 0 ? ` (+${shieldCount}🛡️)` : '');
+            }
+            const scoreEl = document.getElementById('score');
+            if (scoreEl) {
+                scoreEl.innerText = score;
+            }
         }
 
         function getDifficultyMetrics() {
@@ -451,6 +460,49 @@
             const sprite = new THREE.Sprite(spriteMaterial);
             sprite.scale.set(2.0, 1.0, 1);
             return { sprite, texture, context, canvas, fontsize, fontface };
+        }
+
+        function spawnCollectionShips(startPos, count) {
+            for (let i = 0; i < Math.min(count, 5); i++) {
+                const ghost = createShipMesh();
+                ghost.position.copy(startPos);
+                ghost.position.x += (Math.random() - 0.5) * 2;
+                ghost.position.y += (Math.random() - 0.5) * 2;
+                
+                // Make it look "ghostly"
+                ghost.traverse(child => {
+                    if (child.material) {
+                        child.material = child.material.clone();
+                        child.material.transparent = true;
+                        child.material.opacity = 0.6;
+                        child.material.emissive = new THREE.Color(0x38bdf8);
+                        child.material.emissiveIntensity = 0.5;
+                    }
+                });
+                
+                scene.add(ghost);
+                
+                const duration = 600 + Math.random() * 400;
+                const startTime = Date.now();
+                
+                const ani = setInterval(() => {
+                    const elapsed = Date.now() - startTime;
+                    const t = elapsed / duration;
+                    
+                    if (t >= 1) {
+                        clearInterval(ani);
+                        scene.remove(ghost);
+                        return;
+                    }
+                    
+                    // Destination is fleet position
+                    const dest = new THREE.Vector3();
+                    fleetGroup.getWorldPosition(dest);
+                    ghost.position.lerp(dest, 0.1);
+                    ghost.scale.setScalar(1 - t);
+                    ghost.rotation.z += 0.1;
+                }, 16);
+            }
         }
 
         function addEntityToScene(x, z, type, hp, val, metrics, archetype = null) {
@@ -812,6 +864,17 @@
                                                  }
                                              }
                                              score += 500;
+                                             updateHUD();
+                                             
+                                             // Animation for shot-based collection
+                                             if (collectedVal > 0) {
+                                                 spawnCollectionShips(e.position, collectedVal);
+                                             }
+                                             
+                                             if (fleetCount <= 0) {
+                                                 gameOver();
+                                                 return;
+                                             }
 
                                              // trigger explosion
                                              entities.forEach((targetMesh) => {
@@ -995,12 +1058,10 @@
                             scene.remove(e);
                             entities.splice(i, 1);
                             
-                            if(fleetCount <= 0) {
+                             if(fleetCount <= 0) {
                                 gameOver();
                             } else {
-                                updateFleet();
-                                document.getElementById('ship-count').innerText = fleetCount + (shieldCount > 0 ? ` (+${shieldCount}🛡️)` : '');
-                                document.getElementById('score').innerText = score;
+                                updateHUD();
                             }
                             continue;
                         }
@@ -1019,7 +1080,7 @@
 
                             document.getElementById('ship-count').innerText = fleetCount + (shieldCount > 0 ? ` (+${shieldCount}🛡️)` : '');
                             if(fleetCount <= 0) gameOver();
-                            else updateFleet();
+                            else updateHUD();
                         }
 
                         // Cleanup workloads
@@ -1087,7 +1148,12 @@
             if (gameState === 'PLAYING') togglePause();
         });
         window.addEventListener('mousedown', (e) => {
-            if (gameState === 'PLAYING') togglePause();
+            if (gameState === 'PLAYING') {
+                // Only pause if clicking top 75%
+                if (e.clientY < window.innerHeight * 0.75) {
+                    togglePause();
+                }
+            }
         });
 
         function resetGame() {
@@ -1110,9 +1176,7 @@
             projectiles.forEach(p => scene.remove(p));
             entities.length = 0;
             projectiles.length = 0;
-            updateFleet();
-            document.getElementById('score').innerText = "0";
-            document.getElementById('ship-count').innerText = "1";
+            updateHUD();
             lerpX = 0;
             currentLane = 0;
         }

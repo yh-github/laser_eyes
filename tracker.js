@@ -218,8 +218,12 @@ const FaceTracker = {
             webgazer.showVideoPreview(true).showPredictionPoints(false);
 
             // Center cursor initially
-            this.cursorX = window.innerWidth / 2;
-            this.cursorY = window.innerHeight / 2;
+            const appContainer = document.getElementById(this.appContainerId) || document.body;
+            const screenW = appContainer.clientWidth;
+            const screenH = appContainer.clientHeight;
+            
+            this.cursorX = screenW / 2;
+            this.cursorY = screenH / 2;
             this.lastNoseX = this.cursorX;
             this.lastNoseY = this.cursorY;
 
