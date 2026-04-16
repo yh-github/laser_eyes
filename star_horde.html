@@ -796,16 +796,20 @@
                                              const explosionRadius = 11.0;
                                              const explosionDamage = 5;
 
-                                             // auto collect first
                                              let collectedVal = e.userData.val;
                                              if(collectedVal > 0) {
-                                                 if(fleetCount < MAX_FLEET_COUNT) {
-                                                     fleetCount = Math.min(MAX_FLEET_COUNT, fleetCount + collectedVal);
-                                                 } else {
-                                                     shieldCount = Math.min(3, shieldCount + 1);
+                                                 let pool = collectedVal;
+                                                 while (pool > 0) {
+                                                     if (fleetCount < MAX_FLEET_COUNT) { fleetCount++; }
+                                                     else if (shieldCount < 3) { shieldCount++; }
+                                                     pool--;
                                                  }
                                              } else if (collectedVal < 0) {
-                                                 fleetCount += collectedVal;
+                                                 let dmg = -collectedVal;
+                                                 while (dmg > 0) {
+                                                     if (shieldCount > 0) { shieldCount--; } else { fleetCount--; }
+                                                     dmg--;
+                                                 }
                                              }
                                              score += 500;
 
@@ -965,13 +969,18 @@
                                 let collectedVal = e.userData.val;
                                 
                                 if(collectedVal > 0) {
-                                    if(fleetCount < MAX_FLEET_COUNT) {
-                                        fleetCount = Math.min(MAX_FLEET_COUNT, fleetCount + collectedVal);
-                                    } else {
-                                        shieldCount = Math.min(3, shieldCount + 1);
+                                    let pool = collectedVal;
+                                    while(pool > 0) {
+                                        if (fleetCount < MAX_FLEET_COUNT) { fleetCount++; }
+                                        else if (shieldCount < 3) { shieldCount++; }
+                                        pool--;
                                     }
                                 } else if (collectedVal < 0) {
-                                    fleetCount += collectedVal;
+                                    let dmg = -collectedVal;
+                                    while(dmg > 0) {
+                                        if (shieldCount > 0) { shieldCount--; } else { fleetCount--; }
+                                        dmg--;
+                                    }
                                 }
                                 score += 500;
                             }
