@@ -56,6 +56,20 @@
             0% { transform: scale(0.5); opacity: 1; }
             100% { transform: scale(2.5); opacity: 0; }
         }
+
+        #mouth-cursor.eating {
+            animation: gulp 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+        }
+
+        @keyframes gulp {
+            0% { transform: translate(-50%, -50%) scale(1); }
+            40% { transform: translate(-50%, -50%) scale(1.15); }
+            100% { transform: translate(-50%, -50%) scale(1); }
+        }
+
+        .teeth-row {
+            filter: drop-shadow(0 2px 2px rgba(0,0,0,0.3));
+        }
     </style>
 </head>
 
@@ -331,14 +345,22 @@
                     <stop offset="100%" stop-color="#dc2626" />
                 </linearGradient>
             </defs>
-            <!-- Outer lips with thicker stroke -->
+            <path id="mouth-inner" d="M 25,40 Q 60,40 95,40 Q 60,40 25,40 Z" fill="url(#inner-gradient)" />
+            <ellipse id="mouth-tongue" cx="60" cy="45" rx="18" ry="0" fill="url(#tongue-gradient)" opacity="0" />
+            
+            <!-- Teeth behind lips -->
+            <g id="teeth-top" class="teeth-row">
+                <path d="M 35,40 L 85,40 L 85,40 L 35,40 Z" fill="white" />
+                <path d="M 45,40 L 45,45 M 55,40 L 55,45 M 65,40 L 65,45 M 75,40 L 75,45" stroke="rgba(0,0,0,0.1)" stroke-width="0.5" />
+            </g>
+            <g id="teeth-bottom" class="teeth-row">
+                <path d="M 35,40 L 85,40 L 85,40 L 35,40 Z" fill="#f0f0f0" />
+                <path d="M 45,35 L 45,40 M 55,35 L 55,40 M 65,35 L 65,40 M 75,35 L 75,40" stroke="rgba(0,0,0,0.1)" stroke-width="0.5" />
+            </g>
+
             <path id="lip-upper" class="lip-outer" d="M 15,40 Q 35,38 60,36 Q 85,38 105,40 Q 85,38 60,38 Q 35,38 15,40 Z" fill="url(#lip-gradient)" />
             <path id="lip-lower" class="lip-outer" d="M 15,40 Q 35,42 60,44 Q 85,42 105,40 Q 85,42 60,42 Q 35,42 15,40 Z" fill="url(#lip-gradient)" />
-            <path id="mouth-inner" d="M 25,40 Q 60,40 95,40 Q 60,40 25,40 Z" fill="url(#inner-gradient)" />
-            <rect id="teeth-top" x="35" y="38" width="50" height="0" rx="2" fill="rgba(255,255,255,0.9)" />
-            <rect id="teeth-bottom" x="35" y="40" width="50" height="0" rx="2" fill="rgba(240,240,240,0.85)" />
-            <ellipse id="mouth-tongue" cx="60" cy="45" rx="18" ry="0" fill="url(#tongue-gradient)" opacity="0" />
-            <path class="lip-shine" d="M 30,37 Q 45,34 60,35 Q 75,34 90,37" fill="none" stroke="rgba(255,255,255,0.3)" stroke-width="1.5" stroke-linecap="round" />
+            <path class="lip-shine" id="lip-shine" d="M 30,37 Q 45,34 60,35 Q 75,34 90,37" fill="none" stroke="rgba(255,255,255,0.3)" stroke-width="1.5" stroke-linecap="round" />
         </svg>
 
         <div id="pause-indicator" class="flex flex-col">
@@ -782,11 +804,22 @@
                 if (food.dataset.type === 'healthy') goodPoints++;
                 else badPoints++;
                 updateBigMouthScore();
-                triggerChompAnimation();
-                food.style.transition = 'all 0.3s ease-out';
-                food.style.transform = 'scale(2)';
+                
+                // Sucking animation: Move toward mouth center and scale down
+                const mouthX = parseFloat(mouthCursor.style.left);
+                const mouthY = parseFloat(mouthCursor.style.top);
+                
+                food.style.transition = 'all 0.25s cubic-bezier(0.5, 0, 0.5, 1)';
+                food.style.left = (mouthX - 30) + 'px';
+                food.style.top = (mouthY - 30) + 'px';
+                food.style.transform = 'scale(0.1) rotate(180deg)';
                 food.style.opacity = '0';
-                setTimeout(() => food.remove(), 300);
+                
+                // Chomp exactly when it hits center
+                setTimeout(() => {
+                    triggerChompAnimation();
+                    food.remove();
+                }, 200);
             } else {
                 food.remove();
             }
@@ -799,32 +832,44 @@
         function updateMouthSVG(openness) {
             const o = Math.max(0, Math.min(1, openness));
             // Much wider spread for dramatic open mouth (near-circle at full open)
-            const lipSpread = o * 32;
+            const lipSpread = o * 42; 
             const upperY = 40 - lipSpread;
             const lowerY = 40 + lipSpread;
-            const bulge = 2 + o * 18;
+            const bulge = 1 + o * 22; 
             
             // Lips pull apart much wider
-            const lipInset = 15 - o * 8;  // sides move outward when open
-            document.getElementById('lip-upper').setAttribute('d', `M ${lipInset},40 Q 35,${40-bulge} 60,${upperY} Q 85,${40-bulge} ${120-lipInset},40 Q 85,${upperY+2} 60,${upperY+2} Q 35,${upperY+2} ${lipInset},40 Z`);
-            document.getElementById('lip-lower').setAttribute('d', `M ${lipInset},40 Q 35,${40+bulge} 60,${lowerY} Q 85,${40+bulge} ${120-lipInset},40 Q 85,${lowerY-2} 60,${lowerY-2} Q 35,${lowerY-2} ${lipInset},40 Z`);
+            const lipInset = 15 - o * 12; 
+            const lipWidth = 120 - lipInset;
+            
+            document.getElementById('lip-upper').setAttribute('d', `M ${lipInset},40 Q 35,${40-bulge} 60,${upperY} Q 85,${40-bulge} ${lipWidth},40 Q 85,${upperY+4} 60,${upperY+4} Q 35,${upperY+4} ${lipInset},40 Z`);
+            document.getElementById('lip-lower').setAttribute('d', `M ${lipInset},40 Q 35,${40+bulge} 60,${lowerY} Q 85,${40+bulge} ${lipWidth},40 Q 85,${lowerY-4} 60,${lowerY-4} Q 35,${lowerY-4} ${lipInset},40 Z`);
+            
             // Inner mouth opening — almost circular at full open
-            const innerSpread = o * 30;
-            const innerInset = 25 - o * 12;
+            const innerSpread = o * 38; 
+            const innerInset = 25 - o * 15;
             document.getElementById('mouth-inner').setAttribute('d', `M ${innerInset},40 Q 40,${40-innerSpread} 60,${40-innerSpread} Q 80,${40-innerSpread} ${120-innerInset},40 Q 80,${40+innerSpread} 60,${40+innerSpread} Q 40,${40+innerSpread} ${innerInset},40 Z`);
             
+            // Shine follows upper lip
+            document.getElementById('lip-shine').setAttribute('d', `M ${lipInset+15},${upperY+8} Q 60,${upperY+5} ${lipWidth-15},${upperY+8}`);
+
             const teethVis = Math.max(0, (o-0.1)/0.9);
-            const teethH = teethVis * 7;
-            document.getElementById('teeth-top').setAttribute('height', teethH);
-            document.getElementById('teeth-top').setAttribute('y', upperY + 1);
-            document.getElementById('teeth-bottom').setAttribute('height', teethH * 0.8);
-            document.getElementById('teeth-bottom').setAttribute('y', lowerY - teethH * 0.8 - 1);
+            const teethH = teethVis * 10;
+            
+            // Update teeth paths inside groups
+            const teethTopPath = document.getElementById('teeth-top').querySelector('path');
+            teethTopPath.setAttribute('d', `M 35,${upperY+4} L 85,${upperY+4} L 85,${upperY+4+teethH} Q 60,${upperY+6+teethH} 35,${upperY+4+teethH} Z`);
+            
+            const teethBottomPath = document.getElementById('teeth-bottom').querySelector('path');
+            teethBottomPath.setAttribute('d', `M 35,${lowerY-4} L 85,${lowerY-4} L 85,${lowerY-4-teethH*0.8} Q 60,${lowerY-6-teethH*0.8} 35,${lowerY-4-teethH*0.8} Z`);
+            
+            // Hide dividers if closed
+            document.querySelectorAll('.teeth-row path:last-child').forEach(p => p.setAttribute('opacity', teethVis));
             
             const tongue = document.getElementById('mouth-tongue');
             const tongueVis = Math.max(0, (o-0.25)/0.75);
-            tongue.setAttribute('ry', tongueVis * 14);
-            tongue.setAttribute('rx', 14 + tongueVis * 10);
-            tongue.setAttribute('cy', 40 + lipSpread * 0.35);
+            tongue.setAttribute('ry', tongueVis * 18);
+            tongue.setAttribute('rx', 14 + tongueVis * 12);
+            tongue.setAttribute('cy', 40 + lipSpread * 0.45);
             tongue.setAttribute('opacity', tongueVis * 0.9);
 
             mouthCursor.style.filter = `drop-shadow(0 0 ${8+o*25}px rgba(236,72,153,${0.4+o*0.5}))`;
