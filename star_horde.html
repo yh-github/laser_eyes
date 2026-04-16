@@ -796,10 +796,15 @@
                                              const explosionDamage = 5;
 
                                              // auto collect first
-                                             if(fleetCount < MAX_FLEET_COUNT) {
-                                                 fleetCount = Math.min(MAX_FLEET_COUNT, fleetCount + 9);
-                                             } else {
-                                                 shieldCount = Math.min(3, shieldCount + 1);
+                                             let collectedVal = e.userData.val;
+                                             if(collectedVal > 0) {
+                                                 if(fleetCount < MAX_FLEET_COUNT) {
+                                                     fleetCount = Math.min(MAX_FLEET_COUNT, fleetCount + collectedVal);
+                                                 } else {
+                                                     shieldCount = Math.min(3, shieldCount + 1);
+                                                 }
+                                             } else if (collectedVal < 0) {
+                                                 fleetCount += collectedVal;
                                              }
                                              score += 500;
 
@@ -956,12 +961,16 @@
                             } else {
                                 // Powerup logic
                                 // Even if armored, you can collect it normally
-                                let collectedVal = e.userData.val > 0 ? e.userData.val : 1;
+                                let collectedVal = e.userData.val;
                                 
-                                if(fleetCount < MAX_FLEET_COUNT) {
-                                    fleetCount = Math.min(MAX_FLEET_COUNT, fleetCount + collectedVal);
-                                } else {
-                                    shieldCount = Math.min(3, shieldCount + 1);
+                                if(collectedVal > 0) {
+                                    if(fleetCount < MAX_FLEET_COUNT) {
+                                        fleetCount = Math.min(MAX_FLEET_COUNT, fleetCount + collectedVal);
+                                    } else {
+                                        shieldCount = Math.min(3, shieldCount + 1);
+                                    }
+                                } else if (collectedVal < 0) {
+                                    fleetCount += collectedVal;
                                 }
                                 score += 500;
                             }
