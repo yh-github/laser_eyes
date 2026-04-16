@@ -19,6 +19,12 @@ const FaceTracker = {
     mouthVelocity: 0,
     prevMouthOpenness: 0,
     _velocityHoldCounter: 0,
+    _openFrameCount: 0,
+    
+    // Head velocity tracking (for FP suppression)
+    _headVelocity: 0,
+    _headVelocitySmoothed: 0,
+    _prevNoseForVelocity: null,
     
     // Mouth Detection Config (exposed to settings UI)
     mouthDetection: {
@@ -32,6 +38,9 @@ const FaceTracker = {
         holdFrames: 10,
         hystOpenThreshold: 0.38,
         hystCloseThreshold: 0.18,
+        // FP suppression
+        headVelocityGate: 0,      // 0 = disabled, >0 = suppress open when head moves faster than this
+        debounceFrames: 0,        // 0 = disabled, >0 = require N consecutive open frames
     },
 
     // --- NEW: Multi-Detector Support ---
@@ -42,7 +51,8 @@ const FaceTracker = {
             prevMouthOpenness: 0,
             mouthVelocity: 0,
             isMouthOpen: false,
-            _velocityHoldCounter: 0
+            _velocityHoldCounter: 0,
+            _openFrameCount: 0
         };
     },
 
@@ -79,6 +89,26 @@ const FaceTracker = {
                 if (detector.mouthOpenness > md.hystOpenThreshold) detector.isMouthOpen = true;
             }
         }
+
+        // Post-processing: head velocity gate (suppress FPs during fast head movement)
+        if (md.headVelocityGate > 0 && metrics.headVelocity !== undefined) {
+            if (metrics.headVelocity > md.headVelocityGate) {
+                detector.isMouthOpen = false;
+            }
+        }
+
+        // Post-processing: frame debounce (require N consecutive open frames)
+        if (md.debounceFrames > 0) {
+            if (detector.isMouthOpen) {
+                detector._openFrameCount = (detector._openFrameCount || 0) + 1;
+                if (detector._openFrameCount < md.debounceFrames) {
+                    detector.isMouthOpen = false; // not yet confirmed
+                }
+            } else {
+                detector._openFrameCount = 0;
+            }
+        }
+
         return detector.isMouthOpen;
     },
     
@@ -456,8 +486,17 @@ const FaceTracker = {
         const areaScore = Math.min(Math.max(areaRatio - baseAreaRatio, 0) / 0.03, 1);
         const chinScore = Math.min(Math.max((currentNoseToChin / baseNoseToChin) - 1, 0) / 0.25, 1);
 
+        // ─── Head velocity (for FP suppression) ───
+        if (this._prevNoseForVelocity) {
+            const hdx = noseTip[0] - this._prevNoseForVelocity[0];
+            const hdy = noseTip[1] - this._prevNoseForVelocity[1];
+            this._headVelocity = Math.sqrt(hdx * hdx + hdy * hdy);
+            this._headVelocitySmoothed = this._headVelocitySmoothed * 0.7 + this._headVelocity * 0.3;
+        }
+        this._prevNoseForVelocity = [noseTip[0], noseTip[1]];
+
         // ─── Determine isMouthOpen based on detector logic ───
-        const metrics = { marScore, areaScore, chinScore };
+        const metrics = { marScore, areaScore, chinScore, headVelocity: this._headVelocitySmoothed };
         this.evaluateDetector(this, metrics);
         
         // Expose metrics for multi-calibration
