@@ -831,36 +831,51 @@
 
         function updateMouthSVG(openness) {
             const o = Math.max(0, Math.min(1, openness));
-            // Much wider spread for dramatic open mouth (near-circle at full open)
-            const lipSpread = o * 42; 
+            // Much wider spread for dramatic open mouth
+            const lipSpread = o * 40; 
             const upperY = 40 - lipSpread;
             const lowerY = 40 + lipSpread;
-            const bulge = 1 + o * 22; 
+            const horizontalStretch = o * 12;
             
-            // Lips pull apart much wider
-            const lipInset = 15 - o * 12; 
+            const lipInset = 15 - horizontalStretch; 
             const lipWidth = 120 - lipInset;
             
-            document.getElementById('lip-upper').setAttribute('d', `M ${lipInset},40 Q 35,${40-bulge} 60,${upperY} Q 85,${40-bulge} ${lipWidth},40 Q 85,${upperY+4} 60,${upperY+4} Q 35,${upperY+4} ${lipInset},40 Z`);
-            document.getElementById('lip-lower').setAttribute('d', `M ${lipInset},40 Q 35,${40+bulge} 60,${lowerY} Q 85,${40+bulge} ${lipWidth},40 Q 85,${lowerY-4} 60,${lowerY-4} Q 35,${lowerY-4} ${lipInset},40 Z`);
+            // Anatomical Thickness
+            const baseThick = 6;
+            const centerThick = baseThick + (1 - o) * 6; // Thicker when closed
             
-            // Inner mouth opening — almost circular at full open
-            const innerSpread = o * 38; 
+            // --- UPPER LIP (Cupid's Bow) ---
+            // Outer edge with 2 peaks and a dip at center (X=60)
+            const peakY = upperY;
+            const dipY = upperY + 3;
+            const upperOuter = `M ${lipInset},40 Q 35,${peakY} 54,${peakY} Q 60,${dipY} 66,${peakY} Q 85,${peakY} ${lipWidth},40`;
+            const upperInner = `Q 85,${upperY + centerThick} 60,${upperY + centerThick} Q 35,${upperY + centerThick} ${lipInset},40`;
+            document.getElementById('lip-upper').setAttribute('d', `${upperOuter} ${upperInner} Z`);
+            
+            // --- LOWER LIP ---
+            const lowerOuter = `M ${lipInset},40 Q 60,${lowerY + 2} ${lipWidth},40`;
+            const lowerInner = `Q 85,${lowerY - centerThick} 60,${lowerY - centerThick} Q 35,${lowerY - centerThick} ${lipInset},40`;
+            document.getElementById('lip-lower').setAttribute('d', `${lowerOuter} ${lowerInner} Z`);
+            
+            // Inner mouth opening — follows the lips
+            const innerSpread = o * 35; 
             const innerInset = 25 - o * 15;
             document.getElementById('mouth-inner').setAttribute('d', `M ${innerInset},40 Q 40,${40-innerSpread} 60,${40-innerSpread} Q 80,${40-innerSpread} ${120-innerInset},40 Q 80,${40+innerSpread} 60,${40+innerSpread} Q 40,${40+innerSpread} ${innerInset},40 Z`);
             
-            // Shine follows upper lip
-            document.getElementById('lip-shine').setAttribute('d', `M ${lipInset+15},${upperY+8} Q 60,${upperY+5} ${lipWidth-15},${upperY+8}`);
+            // Shine follows upper lip shape
+            document.getElementById('lip-shine').setAttribute('d', `M ${lipInset+15},${peakY+4} Q 54,${peakY+2} 60,${dipY+2} Q 66,${peakY+2} ${lipWidth-15},${peakY+4}`);
 
             const teethVis = Math.max(0, (o-0.1)/0.9);
             const teethH = teethVis * 10;
+            const teethGap = upperY + centerThick;
             
             // Update teeth paths inside groups
             const teethTopPath = document.getElementById('teeth-top').querySelector('path');
-            teethTopPath.setAttribute('d', `M 35,${upperY+4} L 85,${upperY+4} L 85,${upperY+4+teethH} Q 60,${upperY+6+teethH} 35,${upperY+4+teethH} Z`);
+            teethTopPath.setAttribute('d', `M 35,${teethGap} L 85,${teethGap} L 85,${teethGap+teethH} Q 60,${teethGap+2+teethH} 35,${teethGap+teethH} Z`);
             
             const teethBottomPath = document.getElementById('teeth-bottom').querySelector('path');
-            teethBottomPath.setAttribute('d', `M 35,${lowerY-4} L 85,${lowerY-4} L 85,${lowerY-4-teethH*0.8} Q 60,${lowerY-6-teethH*0.8} 35,${lowerY-4-teethH*0.8} Z`);
+            const bottomTeethGap = lowerY - centerThick;
+            teethBottomPath.setAttribute('d', `M 35,${bottomTeethGap} L 85,${bottomTeethGap} L 85,${bottomTeethGap-teethH*0.8} Q 60,${bottomTeethGap-2-teethH*0.8} 35,${bottomTeethGap-teethH*0.8} Z`);
             
             // Hide dividers if closed
             document.querySelectorAll('.teeth-row path:last-child').forEach(p => p.setAttribute('opacity', teethVis));
