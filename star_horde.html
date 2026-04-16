@@ -255,15 +255,24 @@
         
         // --- THREE.JS SETUP ---
         const canvas = document.getElementById('game-canvas');
-        let renderer;
+        let renderer = null;
         try {
             renderer = new THREE.WebGLRenderer({ canvas, antialias: true, alpha: true, powerPreference: "high-performance", failIfMajorPerformanceCaveat: false });
         } catch (e) {
-            console.error(e);
-            renderer = new THREE.WebGLRenderer({ canvas });
+            try {
+                renderer = new THREE.WebGLRenderer({ canvas });
+            } catch(e2) {
+                const govl = document.getElementById('game-overlay');
+                if (govl) {
+                    govl.innerHTML = "<h2 style='color:#ef4444; font-size: 2.5rem; font-style:italic; font-weight:900;'>WEBGL BLOCKED</h2><p style='color:#94a3b8; margin-top:1rem; max-width:400px; line-height:1.4;'>My apologies—you are completely right. If this is your only window, it's not a context limit.</p><p style='color:#94a3b8; margin-top:1rem; max-width:400px; line-height:1.4;'>Because you are on Linux with integrated graphics, your Chrome installation has <b>disabled WebGL</b> by default. The code works, but Chrome refuses to run it natively.</p>";
+                }
+                throw new Error("WebGL Blocked by Chrome.");
+            }
         }
-        renderer.setSize(window.innerWidth, window.innerHeight);
-        renderer.setPixelRatio(window.devicePixelRatio);
+        if (renderer) {
+            renderer.setSize(window.innerWidth, window.innerHeight);
+            renderer.setPixelRatio(window.devicePixelRatio);
+        }
 
         const scene = new THREE.Scene();
         const camera = new THREE.PerspectiveCamera(60, window.innerWidth / window.innerHeight, 0.1, 1000);
@@ -507,7 +516,7 @@
             entities.push(mesh);
         }
 
-        function spawnEntity(metrics) {
+    function spawnEntity(metrics) {
             const laneDistance = 65; 
             const travelTime = laneDistance / metrics.speed;
             const laneCapacity = metrics.playerDPS * travelTime * 1.2;
@@ -523,6 +532,13 @@
                     weaponUpgradeSpawned = true;
                     const lane = Math.random() > 0.5 ? 1 : 0;
                     addEntityToScene(LANE_X[lane], -60, 'WEAPON_UPGRADE', 30, 0, metrics);
+                    
+                    // Add large wave in the other lane to force the player to make a choice
+                    const otherLaneX = LANE_X[1 - lane];
+                    for(let k = 0; k < 6; k++) {
+                        addEntityToScene(otherLaneX + (Math.random()*4-2), -65 - (k * 7), 'ENEMY', null, 0, metrics, ARCHETYPES.FIGHTER);
+                    }
+                    
                     return;
                 }
             }
@@ -531,7 +547,7 @@
 
             // DIRECTOR BEHAVIOR: No enemies during RECOVERY
             if (directorState === 'RECOVERY') {
-                if(Math.random() < 0.05 && !nearbyPowerups) {
+                if(Math.random() < 0.1 && !nearbyPowerups) {
                     const lane = Math.random() > 0.5 ? 1 : 0;
                     // Spawn powerups with a larger initial negative value
                     addEntityToScene(LANE_X[lane], -60, 'POWERUP', 1, -15, metrics);
@@ -549,7 +565,7 @@
             // Collectibles and Neutrals
             if(!isHordeLane) {
                 if(Math.random() < metrics.supportDensity) {
-                    const isPowerup = Math.random() < 0.2;
+                    const isPowerup = Math.random() < 0.4;
                     if(isPowerup && !nearbyPowerups) {
                         addEntityToScene(laneX, -60, 'POWERUP', 1, -15, metrics);
                     } else if (threatBudget >= ARCHETYPES.ASTEROID.cost && laneWorkload[lane] + ARCHETYPES.ASTEROID.hp < laneCapacity) {
@@ -588,11 +604,11 @@
 
         function updatePowerupLabel(e) {
             // Scale and styling updates
-            if(e.userData.val >= 9 && !e.userData.armored) {
+            if(e.userData.val >= 3 && !e.userData.armored) {
                  e.userData.armored = true;
                  e.userData.armorHP = 5;
                  e.userData.torus.material = neutralMat; // apply asteriod material
-                 e.userData.val = 9; // Cap at +9
+                 e.userData.val = 3; // Cap at +3
                  
                  const shieldSph = new THREE.Mesh(new THREE.SphereGeometry(1.2, 16, 16), new THREE.MeshPhongMaterial({ color: 0xfbbf24, transparent: true, opacity: 0.6 }));
                  e.add(shieldSph);
@@ -776,7 +792,7 @@
                                          e.userData.armorHP--;
                                          if(e.userData.armorHP <= 0) {
                                              // ARMOR BREAK + EXPLOSION!
-                                             const explosionRadius = 15.0;
+                                             const explosionRadius = 11.0;
                                              const explosionDamage = 5;
 
                                              // auto collect first
@@ -798,15 +814,26 @@
                                              });
 
                                              powerupsOnScreen--;
+                                             
+                                             // Local visual explosion
+                                             const expSphere = new THREE.Mesh(new THREE.SphereGeometry(1, 16, 16), new THREE.MeshBasicMaterial({ color: 0xfbbf24, transparent: true, opacity: 0.8 }));
+                                             expSphere.position.copy(e.position);
+                                             scene.add(expSphere);
+                                             let blastS = 1;
+                                             const expInterval = setInterval(() => {
+                                                 blastS += 0.8;
+                                                 expSphere.scale.set(blastS, blastS, blastS);
+                                                 expSphere.material.opacity -= 0.05;
+                                                 if (expSphere.material.opacity <= 0 || blastS > explosionRadius) {
+                                                     clearInterval(expInterval);
+                                                     scene.remove(expSphere);
+                                                     expSphere.geometry.dispose();
+                                                     expSphere.material.dispose();
+                                                 }
+                                             }, 16);
+
                                              scene.remove(e);
                                              entities.splice(j, 1);
-                                             
-                                             // Add visual flash effect to screen for explosion
-                                             const flash = document.getElementById('flash-overlay');
-                                             if(flash) {
-                                                 flash.style.opacity = '0.8';
-                                                 setTimeout(() => { flash.style.opacity = '0'; }, 50);
-                                             }
 
                                          } else {
                                              if(e.userData.armorShield) {
