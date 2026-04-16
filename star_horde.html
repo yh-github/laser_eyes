@@ -280,7 +280,10 @@
         let weaponUpgradeSpawned = false; // Once per level
         const overdiveTimer = 0;
         let threatBudget = 0;
-        const threatRecoveryRate = 0.05; // Base credits per frame
+        const threatRecoveryRate = 0.05; 
+        let laneWorkload = [0, 0]; // Tracks total HP in each lane
+        let lastLaneSwitchTime = 0;
+        let powerupsOnScreen = 0;
         
         const fleetGroup = new THREE.Group();
         scene.add(fleetGroup);
@@ -346,26 +349,27 @@
         function getDifficultyMetrics() {
             const now = Date.now();
             const elapsedMins = (now - gameStartTime) / 60000;
-            const heroPower = fleetCount + (shieldCount * 2);
+            const heroPower = fleetCount + (shieldCount * 0.5); // Effective DPS base
             
             // Dynamic recovery: reduce pressure if recently hit
             const timeSinceDeath = now - lastDeathTime;
-            const recoveryFactor = Math.max(0, 1 - (timeSinceDeath / 15000)); // 15s recovery window
+            const recoveryFactor = Math.max(0, 1 - (timeSinceDeath / 12000));
             
-            // Slower base scaling + LEVEL scale
-            const baseDiff = (currentLevel - 1) * 1.5 + elapsedMins * 0.8 + (heroPower * 0.3);
+            const baseDiff = (currentLevel - 1) * 1.5 + elapsedMins * 0.8 + (heroPower * 0.2);
             const intensity = Math.max(0.1, baseDiff * (1 - recoveryFactor * 0.8));
+
+            // Breather logic: slice threat gain if powerups are drifting
+            let threatGain = (0.08 + intensity * 0.06) * (1 - recoveryFactor * 0.5);
+            if (powerupsOnScreen > 0) threatGain *= 0.4;
 
             return {
                 intensity: intensity,
-                threatGain: (0.1 + intensity * 0.08) * (1 - recoveryFactor * 0.5),
+                threatGain: threatGain,
                 hordeDensity: 0.03 + Math.min(0.2, intensity * 0.02),
                 supportDensity: 0.01 + Math.min(0.06, intensity * 0.01),
-                baseEnemyHP: Math.floor(1 + intensity * 0.5),
-                baseNeutralHP: Math.floor(4 + intensity * 2.0),
-                speed: Math.min(0.35, 0.05 + intensity * 0.012), 
-                projectileSpeed: Math.min(1.2, 0.4 + intensity * 0.025),
-                globalSizeScale: 1.0 // Removed the dynamic scaling to fix the glitch
+                speed: Math.min(0.38, 0.05 + intensity * 0.015), 
+                projectileSpeed: Math.min(1.4, 0.4 + intensity * 0.035),
+                playerDPS: fleetCount * (60 / SHOOT_COOLDOWN)
             };
         }
 
@@ -425,7 +429,15 @@
             mesh.userData.maxHP = hp;
             mesh.userData.speedMult = archetype ? archetype.speedMult : 1.0;
             mesh.userData.baseScale = finalSize; // FIX: Store base scale
+            mesh.userData.lane = x < 0 ? 0 : 1;
             
+            // Track workload
+            if (type === 'ENEMY' || type === 'NEUTRAL' || type === 'WEAPON_UPGRADE') {
+                laneWorkload[mesh.userData.lane] += hp;
+            } else if (type === 'POWERUP' || type === 'UPGRADE_CORE') {
+                powerupsOnScreen++;
+            }
+
             mesh.scale.set(finalSize, finalSize, finalSize);
             
             scene.add(mesh);
@@ -433,51 +445,63 @@
         }
 
         function spawnEntity(metrics) {
+            const laneDistance = 65; // Spawn at -60, player at 5
+            const travelTime = laneDistance / metrics.speed;
+            const laneCapacity = metrics.playerDPS * travelTime * 0.6; // 60% safety buffer
+
             // Check for existing powerups to prevent clustering
             const nearbyPowerups = entities.some(e => e.position.z < -50 && (e.userData.type === 'POWERUP' || e.userData.type === 'WEAPON_UPGRADE'));
             
-            // Spawn weapon upgrade once per level after 10 seconds
-            if(!weaponUpgradeSpawned && levelTime > 10) {
+            // Spawn weapon upgrade once per level
+            if(!weaponUpgradeSpawned && levelTime > 15) {
                 if (nearbyPowerups) return; 
-                
                 weaponUpgradeSpawned = true;
                 const lane = Math.random() > 0.5 ? 1 : 0;
                 addEntityToScene(LANE_X[lane], -60, 'WEAPON_UPGRADE', 30, 0, metrics);
                 return;
             }
 
-            // --- THREAT BUDGET SPAWNING ---
             if(threatBudget <= 0) return;
 
             const lane = Math.random() > 0.5 ? 1 : 0;
-            const isHordeLane = lane === hordeLane;
             const laneX = LANE_X[lane];
+            const isHordeLane = lane === hordeLane;
             
-            // Collectibles and Neutrals (Low frequency, mostly budget-restricted)
+            // THROUGHPUT CHECK: Can player destroy what's currently in this lane?
+            if (laneWorkload[lane] > laneCapacity) return;
+
+            // Collectibles and Neutrals
             if(!isHordeLane) {
                 if(Math.random() < metrics.supportDensity) {
                     const isPowerup = Math.random() < 0.2;
                     if(isPowerup && !nearbyPowerups) {
                         const val = -Math.floor(Math.random() * 3) - 1; 
                         addEntityToScene(laneX, -60, 'POWERUP', 1, val, metrics);
-                    } else if (threatBudget >= ARCHETYPES.ASTEROID.cost) {
+                    } else if (threatBudget >= ARCHETYPES.ASTEROID.cost && laneWorkload[lane] + ARCHETYPES.ASTEROID.hp < laneCapacity) {
                         threatBudget -= ARCHETYPES.ASTEROID.cost;
                         addEntityToScene(laneX, -60, 'NEUTRAL', null, 0, metrics, ARCHETYPES.ASTEROID);
                     }
                 }
             } else {
-                // Main Horde Lane: Pick an archetype based on budget
+                // Main Horde Lane: Pick an archetype based on budget AND lane capacity
                 const possible = [];
-                if (threatBudget >= ARCHETYPES.SCOUT.cost) possible.push(ARCHETYPES.SCOUT);
-                if (threatBudget >= ARCHETYPES.FIGHTER.cost) possible.push(ARCHETYPES.FIGHTER);
-                if (threatBudget >= ARCHETYPES.BEHEMOTH.cost && Math.random() < 0.2) possible.push(ARCHETYPES.BEHEMOTH);
+                if (threatBudget >= ARCHETYPES.SCOUT.cost && laneWorkload[lane] + ARCHETYPES.SCOUT.hp < laneCapacity) possible.push(ARCHETYPES.SCOUT);
+                if (threatBudget >= ARCHETYPES.FIGHTER.cost && laneWorkload[lane] + ARCHETYPES.FIGHTER.hp < laneCapacity) possible.push(ARCHETYPES.FIGHTER);
+                if (threatBudget >= ARCHETYPES.BEHEMOTH.cost && laneWorkload[lane] + ARCHETYPES.BEHEMOTH.hp < laneCapacity && Math.random() < 0.15) possible.push(ARCHETYPES.BEHEMOTH);
 
                 if (possible.length > 0) {
                     const arch = possible[Math.floor(Math.random() * possible.length)];
+                    
+                    // Switch Complexity Check
+                    const now = Date.now();
+                    const forcedSwitch = arch.type === 'ENEMY' && (now - lastLaneSwitchTime < 2000);
+                    if (forcedSwitch) return; // Wait 2s before forcing another switch
+
                     threatBudget -= arch.cost;
+                    lastLaneSwitchTime = now;
 
                     // Clusters for Scouts
-                    const clusterSize = arch === ARCHETYPES.SCOUT ? (Math.floor(Math.random() * 3) + 1) : 1;
+                    const clusterSize = arch === ARCHETYPES.SCOUT ? (Math.floor(Math.random() * 2) + 1) : 1;
                     const spread = 1.0 * arch.baseScale;
                     for(let i=0; i<clusterSize; i++) {
                         const xOffset = (i - (clusterSize-1)/2) * spread;
@@ -640,6 +664,7 @@
                         if(dist < 1.8 * e.userData.baseScale) { // Account for scaling
                             if(e.userData.type === 'ENEMY' || e.userData.type === 'NEUTRAL' || e.userData.type === 'WEAPON_UPGRADE') {
                                 e.userData.hp--;
+                                laneWorkload[e.userData.lane]--; // Reduce workload
                                 if(e.userData.hp <= 0) {
                                     if(e.userData.type === 'WEAPON_UPGRADE') {
                                         // Crack the shell!
@@ -715,6 +740,13 @@
                                 score += 500;
                             }
                             
+                            // Cleanup workloads
+                            if (e.userData.type === 'POWERUP' || e.userData.type === 'UPGRADE_CORE') {
+                                powerupsOnScreen--;
+                            } else {
+                                laneWorkload[e.userData.lane] -= e.userData.hp;
+                            }
+
                             scene.remove(e);
                             entities.splice(i, 1);
                             
@@ -740,6 +772,14 @@
                             if(fleetCount <= 0) gameOver();
                             else updateFleet();
                         }
+
+                        // Cleanup workloads
+                        if (e.userData.type === 'POWERUP' || e.userData.type === 'UPGRADE_CORE') {
+                            powerupsOnScreen--;
+                        } else {
+                            laneWorkload[e.userData.lane] -= e.userData.hp;
+                        }
+
                         scene.remove(e);
                         entities.splice(i, 1);
                     }
@@ -799,7 +839,10 @@
             levelTime = 0;
             weaponUpgradeSpawned = false;
             overdiveTimer = 0;
-            threatBudget = 0; // Reset budget
+            threatBudget = 0; 
+            laneWorkload = [0, 0];
+            lastLaneSwitchTime = 0;
+            powerupsOnScreen = 0;
             entities.forEach(e => scene.remove(e));
             projectiles.forEach(p => scene.remove(p));
             entities.length = 0;
