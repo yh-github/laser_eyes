@@ -604,11 +604,12 @@
 
         function updatePowerupLabel(e) {
             // Scale and styling updates
-            if(e.userData.val >= 3 && !e.userData.armored) {
+            const armThreshold = 2 + currentLevel;
+            if(e.userData.val >= armThreshold && !e.userData.armored) {
                  e.userData.armored = true;
                  e.userData.armorHP = 5;
                  e.userData.torus.material = neutralMat; // apply asteriod material
-                 e.userData.val = 3; // Cap at +3
+                 e.userData.val = armThreshold; // Cap at threshold
                  
                  const shieldSph = new THREE.Mesh(new THREE.SphereGeometry(1.2, 16, 16), new THREE.MeshPhongMaterial({ color: 0xfbbf24, transparent: true, opacity: 0.6 }));
                  e.add(shieldSph);
