@@ -526,8 +526,17 @@
         document.getElementById('hub-calib-btn').onclick = () => {
             document.getElementById('hub-overlay').classList.add('hidden');
             calibrationMode = true;
-            document.getElementById('calibration-view').classList.remove('hidden');
             FaceTracker.showDebugLandmarks = true;
+            
+            FaceTracker.startCalibration(() => {
+                document.getElementById('calibration-view').classList.remove('hidden');
+                
+                const videoContainer = document.getElementById('webgazerVideoContainer');
+                if (videoContainer) {
+                    videoContainer.style.setProperty('display', 'block', 'important');
+                    camToggle.checked = true;
+                }
+            });
         };
 
         document.getElementById('calib-tap-zone').onpointerdown = (e) => {
@@ -542,7 +551,7 @@
                 correctStatus: correctStatus ? 'OPEN' : 'CLOSED',
                 tapPos: { x: e.clientX, y: e.clientY },
                 mouthPos: { x: FaceTracker.cursorX, y: FaceTracker.cursorY },
-                landmarks: JSON.parse(JSON.stringify(FaceTracker._lastLandmarks)),
+                landmarks: FaceTracker._lastLandmarks ? JSON.parse(JSON.stringify(FaceTracker._lastLandmarks)) : [],
                 results: []
             };
 
