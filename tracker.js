@@ -23,23 +23,63 @@ const FaceTracker = {
     // Mouth Detection Config (exposed to settings UI)
     mouthDetection: {
         approach: 'hysteresis',  // 'multiMetric' | 'velocityGated' | 'hysteresis'
-        
-        // Shared
-        smoothing: 0.35,          // EMA factor for raw openness (higher = more responsive)
-        
-        // Multi-Metric weights & threshold
+        smoothing: 0.35,
         marWeight: 0.5,
         areaWeight: 0.3,
         chinWeight: 0.2,
         openThreshold: 0.30,
-        
-        // Velocity-Gated
         velocityThreshold: 0.03,
         holdFrames: 10,
-        
-        // Hysteresis (Schmitt Trigger)
         hystOpenThreshold: 0.38,
         hystCloseThreshold: 0.18,
+    },
+
+    // --- NEW: Multi-Detector Support ---
+    createDetector(config) {
+        return {
+            config: JSON.parse(JSON.stringify(config || this.mouthDetection)),
+            mouthOpenness: 0,
+            prevMouthOpenness: 0,
+            mouthVelocity: 0,
+            isMouthOpen: false,
+            _velocityHoldCounter: 0
+        };
+    },
+
+    evaluateDetector(detector, metrics) {
+        const md = detector.config;
+        const { marScore, areaScore, chinScore } = metrics;
+        const emaResponsive = md.smoothing;
+        const emaSmooth = 1 - md.smoothing;
+
+        const totalWeight = (md.marWeight || 0) + (md.areaWeight || 0) + (md.chinWeight || 0);
+        const targetMouthOpenness = (marScore * (md.marWeight || 0) + areaScore * (md.areaWeight || 0) + chinScore * (md.chinWeight || 0)) / Math.max(totalWeight, 0.01);
+
+        detector.prevMouthOpenness = detector.mouthOpenness;
+        detector.mouthOpenness = detector.mouthOpenness * emaSmooth + targetMouthOpenness * emaResponsive;
+        detector.mouthVelocity = detector.mouthOpenness - detector.prevMouthOpenness;
+
+        if (md.approach === 'multiMetric') {
+            detector.isMouthOpen = detector.mouthOpenness > md.openThreshold;
+        } else if (md.approach === 'velocityGated') {
+            if (detector.mouthOpenness > md.openThreshold && detector.mouthVelocity > md.velocityThreshold) {
+                detector.isMouthOpen = true;
+                detector._velocityHoldCounter = md.holdFrames;
+            } else if (detector._velocityHoldCounter > 0 && detector.mouthOpenness > md.openThreshold * 0.7) {
+                detector._velocityHoldCounter--;
+                detector.isMouthOpen = true;
+            } else {
+                detector.isMouthOpen = false;
+                detector._velocityHoldCounter = 0;
+            }
+        } else if (md.approach === 'hysteresis') {
+            if (detector.isMouthOpen) {
+                if (detector.mouthOpenness < md.hystCloseThreshold) detector.isMouthOpen = false;
+            } else {
+                if (detector.mouthOpenness > md.hystOpenThreshold) detector.isMouthOpen = true;
+            }
+        }
+        return detector.isMouthOpen;
     },
     
     // Internal state
@@ -405,56 +445,13 @@ const FaceTracker = {
         const areaScore = Math.min(Math.max(areaRatio - baseAreaRatio, 0) / 0.03, 1);
         const chinScore = Math.min(Math.max((currentNoseToChin / baseNoseToChin) - 1, 0) / 0.25, 1);
 
-        // ─── Apply selected approach ───
-        let targetMouthOpenness;
+        // ─── Determine isMouthOpen based on detector logic ───
+        const metrics = { marScore, areaScore, chinScore };
+        this.evaluateDetector(this, metrics);
         
-        if (md.approach === 'multiMetric') {
-            // Weighted combination of all 3 metrics
-            const totalWeight = md.marWeight + md.areaWeight + md.chinWeight;
-            targetMouthOpenness = (marScore * md.marWeight + areaScore * md.areaWeight + chinScore * md.chinWeight) / Math.max(totalWeight, 0.01);
-        } else {
-            // velocityGated and hysteresis both use the multi-metric signal as input
-            const totalWeight = md.marWeight + md.areaWeight + md.chinWeight;
-            targetMouthOpenness = (marScore * md.marWeight + areaScore * md.areaWeight + chinScore * md.chinWeight) / Math.max(totalWeight, 0.01);
-        }
-
-        // EMA smoothing
-        this.prevMouthOpenness = this.mouthOpenness;
-        this.mouthOpenness = this.mouthOpenness * emaSmooth + targetMouthOpenness * emaResponsive;
-        
-        // Compute velocity (rate of change)
-        this.mouthVelocity = this.mouthOpenness - this.prevMouthOpenness;
-
-        // ─── Determine isMouthOpen based on approach ───
-        if (md.approach === 'multiMetric') {
-            this.isMouthOpen = this.mouthOpenness > md.openThreshold;
-        } else if (md.approach === 'velocityGated') {
-            // Must both exceed threshold AND be opening fast enough (or be in hold period)
-            if (this.mouthOpenness > md.openThreshold && this.mouthVelocity > md.velocityThreshold) {
-                this.isMouthOpen = true;
-                this._velocityHoldCounter = md.holdFrames;
-            } else if (this._velocityHoldCounter > 0 && this.mouthOpenness > md.openThreshold * 0.7) {
-                // Hold state: keep open for N frames after velocity drops
-                this._velocityHoldCounter--;
-                this.isMouthOpen = true;
-            } else {
-                this.isMouthOpen = false;
-                this._velocityHoldCounter = 0;
-            }
-        } else if (md.approach === 'hysteresis') {
-            // Schmitt trigger: different thresholds for opening vs closing
-            if (this.isMouthOpen) {
-                // Currently open → close only when below low threshold
-                if (this.mouthOpenness < md.hystCloseThreshold) {
-                    this.isMouthOpen = false;
-                }
-            } else {
-                // Currently closed → open only when above high threshold
-                if (this.mouthOpenness > md.hystOpenThreshold) {
-                    this.isMouthOpen = true;
-                }
-            }
-        }
+        // Expose metrics for multi-calibration
+        this._lastMetrics = metrics;
+        this._lastLandmarks = positions;
 
         // ─── Eyebrow, pucker, tilt (unchanged) ───
         const currentEyebrowDist = this.getDistance(positions[16], positions[24]) / faceHeight;

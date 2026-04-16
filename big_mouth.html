@@ -88,34 +88,72 @@
             </div>
         </div>
 
-        <!-- UI Overlay (Mini Menu) -->
-        <div id="overlay"
-            class="absolute inset-0 z-50 flex flex-col items-center justify-center bg-gray-900 bg-opacity-95 p-6 text-center hidden">
+        <!-- HUB: Play / Calibration Select -->
+        <div id="hub-overlay"
+            class="absolute inset-0 z-[110] flex flex-col items-center justify-center bg-[radial-gradient(circle_at_top,#1e293b_0%,#020617_100%)] p-8 text-center hidden">
             <h1 class="text-5xl font-black mb-2 text-pink-500 uppercase tracking-tighter italic">Big Mouth</h1>
-            <p class="text-md mb-8 text-gray-400">
-                Eat the healthy foods by opening your mouth.<br>
-                Avoid the junk food!
-            </p>
+            <p class="text-sm mb-12 text-slate-400 font-medium">Research & Development Hub</p>
 
-            <div class="flex flex-col gap-3 w-full max-w-[280px] mb-4">
-                <button id="start-btn"
-                    class="w-full py-4 bg-pink-600 hover:bg-pink-500 rounded-xl text-xl font-bold shadow-2xl shadow-pink-900/40 transition-all active:scale-95 chargeable">
-                    START EATING
+            <div class="flex flex-col gap-4 w-full max-w-[280px]">
+                <button id="hub-play-btn"
+                    class="w-full py-5 bg-pink-600 hover:bg-pink-500 rounded-2xl text-xl font-black shadow-2xl transition-all active:scale-95 flex items-center justify-center gap-3">
+                    <span>🎮</span> PLAY MISSION
+                </button>
+                <button id="hub-calib-btn"
+                    class="w-full py-5 bg-slate-800 hover:bg-slate-700 border border-slate-700 rounded-2xl text-lg font-bold transition-all active:scale-95 flex items-center justify-center gap-3">
+                    <span>🔬</span> CALIBRATION
                 </button>
                 <button onclick="window.location.href='index.html'"
-                    class="w-full py-2 text-gray-500 hover:text-white text-xs font-bold uppercase tracking-widest transition-colors">
-                    Back to Menu
+                    class="w-full py-2 text-slate-600 hover:text-slate-400 text-xs font-bold uppercase tracking-widest transition-colors mt-4">
+                    Back to Launcher
                 </button>
             </div>
+        </div>
 
-            <!-- Dynamic Status / Error Box -->
-            <div id="status-box"
-                class="mt-8 p-5 rounded-2xl bg-black/40 hidden max-w-sm border border-white/10 backdrop-blur-md">
-                <div class="flex items-center gap-3 mb-2">
-                    <div class="w-2 h-2 rounded-full bg-pink-500 animate-ping"></div>
-                    <p id="loading-msg" class="text-white text-sm font-semibold"></p>
+        <!-- CALIBRATION VIEW -->
+        <div id="calibration-view" class="absolute inset-0 z-40 bg-black hidden pointer-events-none">
+            <!-- Recording UI -->
+            <div id="calib-tap-zone" class="absolute inset-0 pointer-events-auto flex flex-col items-center justify-end pb-20 p-6 text-center">
+                <div class="backdrop-blur-xl bg-pink-600/20 border border-pink-500/30 p-8 rounded-[2.5rem] w-full max-w-[320px] shadow-2xl animate-pulse">
+                    <p class="text-pink-400 text-sm font-black mb-2 uppercase tracking-widest">Truth Recorder</p>
+                    <p class="text-white text-xs leading-relaxed opacity-80">
+                        Move your mouth. If the system is **WRONG**, tap the screen to record a correction.
+                    </p>
                 </div>
-                <p id="action-msg" class="text-gray-500 text-xs text-left leading-relaxed"></p>
+            </div>
+
+            <!-- Stats Overlay (Top) -->
+            <div class="absolute top-20 left-6 right-6 flex items-center justify-between">
+                <div class="bg-black/60 backdrop-blur-md px-4 py-2 rounded-2xl border border-white/5">
+                    <span class="text-[10px] text-slate-500 font-bold uppercase tracking-widest mr-2">Records</span>
+                    <span id="calib-count" class="text-pink-500 font-black">0</span>
+                </div>
+                <button id="show-results-btn" class="pointer-events-auto px-6 py-2 bg-pink-600 rounded-full text-[10px] font-black uppercase tracking-widest active:scale-95">
+                    VIEW RESULTS
+                </button>
+            </div>
+        </div>
+
+        <!-- RESULTS DASHBOARD -->
+        <div id="results-overlay" class="absolute inset-0 z-[120] bg-slate-950 p-8 pt-16 flex flex-col hidden">
+            <div class="flex items-center justify-between mb-8">
+                <div>
+                    <h2 class="text-3xl font-black text-white italic uppercase tracking-tighter">Ranking</h2>
+                    <p id="results-count-text" class="text-[10px] text-slate-500 font-bold uppercase tracking-[0.2em]"></p>
+                </div>
+                <div class="flex gap-2">
+                    <button id="download-raw-btn" class="p-2 bg-slate-800 rounded-xl" title="Download JSON">💾</button>
+                    <button id="close-results-btn" class="p-2 bg-slate-800 rounded-xl" title="Close">✕</button>
+                </div>
+            </div>
+
+            <div id="results-table-container" class="flex-1 overflow-y-auto pr-2 custom-scrollbar">
+                <!-- Table injected here -->
+            </div>
+
+            <div class="mt-8 pt-8 border-t border-slate-900 flex flex-col gap-3">
+                <button id="reset-calib-btn" class="w-full py-4 bg-slate-900 hover:bg-slate-800 text-xs font-bold uppercase tracking-widest rounded-2xl transition-all">Reset All Data</button>
+                <button id="exit-calib-btn" class="w-full py-4 bg-pink-600 text-xs font-bold uppercase tracking-widest rounded-2xl transition-all">Back to Hub</button>
             </div>
         </div>
 
@@ -303,6 +341,46 @@
         let snapStrength = 0.55;
         let snapRange = 160;
 
+        // Calibration Data
+        let calibrationMode = false;
+        let calibrationRecords = [];
+        let candidates = [];
+        
+        function generateCandidates() {
+            const pool = [];
+            // Current Setting
+            pool.push({ id: 'Current', config: FaceTracker.mouthDetection });
+            
+            // Hysteresis variants
+            const hystRanges = [[0.3, 0.15], [0.38, 0.18], [0.45, 0.22], [0.55, 0.25]];
+            hystRanges.forEach((r, i) => pool.push({
+                id: `Hyst-H${r[0]}`,
+                config: { ...FaceTracker.mouthDetection, approach: 'hysteresis', hystOpenThreshold: r[0], hystCloseThreshold: r[1] }
+            }));
+
+            // Multi-Metric variants
+            const mmThresholds = [0.2, 0.3, 0.4];
+            mmThresholds.forEach(t => pool.push({
+                id: `MM-T${t}`,
+                config: { ...FaceTracker.mouthDetection, approach: 'multiMetric', openThreshold: t }
+            }));
+
+            // Velocity variants
+            const velSens = [0.015, 0.03, 0.05];
+            velSens.forEach(v => pool.push({
+                id: `Vel-V${v}`,
+                config: { ...FaceTracker.mouthDetection, approach: 'velocityGated', velocityThreshold: v, holdFrames: 8 }
+            }));
+
+            return pool.map(c => ({
+                ...c,
+                detector: FaceTracker.createDetector(c.config),
+                correct: 0,
+                fp: 0,
+                fn: 0
+            }));
+        }
+
         const healthyFoods = ['🍏', '🍎', '🍐', '🍊', '🍋', '🍌', '🍉', '🍇', '🍓', '🫐', '🍈', '🍒', '🍑', '🥭', '🍍', '🥥', '🥝', '🍅', '🍆', '🥑', '🥦', '🥬', '🥒', '🌽', '🥕', '🫑', '🥔', '🍠', '🥩', '🍗', '🍖', '🧀'];
         const badFoods = ['🍔', '🍟', '🍕', '🌭', '🥪', '🌮', '🌯', '🍿', '🍦', '🍧', '🍨', '🍩', '🍪', '🎂', '🍰', '🧁', '🥧', '🍫', '🍬', '🍭', '🍮'];
 
@@ -404,9 +482,172 @@
             FaceTracker.init().then(success => {
                 if(success) {
                     if (!loopInterval) loopInterval = setInterval(gameLoop, 30);
+                    // Open HUB initially instead of standard overlay
+                    overlay.classList.add('hidden');
+                    document.getElementById('hub-overlay').classList.remove('hidden');
+                    candidates = generateCandidates();
                 }
             });
         });
+
+        // Hub Navigation
+        document.getElementById('hub-play-btn').onclick = () => {
+            document.getElementById('hub-overlay').classList.add('hidden');
+            overlay.classList.remove('hidden'); // Show standard start overlay
+        };
+
+        document.getElementById('hub-calib-btn').onclick = () => {
+            document.getElementById('hub-overlay').classList.add('hidden');
+            calibrationMode = true;
+            document.getElementById('calibration-view').classList.remove('hidden');
+            FaceTracker.showDebugLandmarks = true;
+        };
+
+        document.getElementById('calib-tap-zone').onclick = (e) => {
+            if (!calibrationMode) return;
+            const now = new Date();
+            const timeStr = now.toLocaleTimeString();
+            const correctStatus = !FaceTracker.isMouthOpen; // inverse current
+            
+            const record = {
+                timestamp: timeStr,
+                correctStatus: correctStatus ? 'OPEN' : 'CLOSED',
+                tapPos: { x: e.clientX, y: e.clientY },
+                mouthPos: { x: FaceTracker.cursorX, y: FaceTracker.cursorY },
+                landmarks: JSON.parse(JSON.stringify(FaceTracker._lastLandmarks)),
+                results: []
+            };
+
+            candidates.forEach(c => {
+                const wasCorrect = c.detector.isMouthOpen === correctStatus;
+                if (wasCorrect) c.correct++;
+                else {
+                    if (c.detector.isMouthOpen) c.fp++; else c.fn++;
+                }
+                record.results.push({ id: c.id, correct: wasCorrect, state: c.detector.isMouthOpen });
+            });
+
+            calibrationRecords.push(record);
+            document.getElementById('calib-count').innerText = calibrationRecords.length;
+            
+            // Visual feedback for tap
+            const ripple = document.createElement('div');
+            ripple.className = 'absolute w-20 h-20 border-4 border-pink-500 rounded-full animate-ping pointer-events-none';
+            ripple.style.left = (e.clientX - 40) + 'px';
+            ripple.style.top = (e.clientY - 40) + 'px';
+            document.body.appendChild(ripple);
+            setTimeout(() => ripple.remove(), 1000);
+        };
+
+        document.getElementById('show-results-btn').onclick = () => {
+            renderResults();
+            document.getElementById('results-overlay').classList.remove('hidden');
+        };
+
+        document.getElementById('close-results-btn').onclick = () => {
+            document.getElementById('results-overlay').classList.add('hidden');
+        };
+
+        document.getElementById('reset-calib-btn').onclick = () => {
+            if (confirm("Clear all calibration data?")) {
+                calibrationRecords = [];
+                candidates.forEach(c => { c.correct = 0; c.fp = 0; c.fn = 0; });
+                document.getElementById('calib-count').innerText = '0';
+                renderResults();
+            }
+        };
+
+        document.getElementById('exit-calib-btn').onclick = () => {
+            document.getElementById('results-overlay').classList.add('hidden');
+            document.getElementById('calibration-view').classList.add('hidden');
+            document.getElementById('hub-overlay').classList.remove('hidden');
+            calibrationMode = false;
+            FaceTracker.showDebugLandmarks = false;
+        };
+
+        function renderResults() {
+            const container = document.getElementById('results-table-container');
+            document.getElementById('results-count-text').innerText = `${calibrationRecords.length} DATA POINTS RECORDED`;
+            
+            if (calibrationRecords.length === 0) {
+                container.innerHTML = `<div class="p-12 text-slate-700 text-center font-bold">NO DATA YET. GO TAPPING!</div>`;
+                return;
+            }
+
+            // Sort candidates by accuracy
+            const sorted = [...candidates].sort((a, b) => {
+                const accA = a.correct / calibrationRecords.length;
+                const accB = b.correct / calibrationRecords.length;
+                return accB - accA;
+            });
+
+            let html = `<table class="w-full text-left text-[11px]">
+                <thead class="sticky top-0 bg-slate-950 text-slate-500 uppercase tracking-widest font-black">
+                    <tr>
+                        <th class="py-4 pr-4">Method ID</th>
+                        <th class="py-4 pr-4 text-center">Acc %</th>
+                        <th class="py-4 pr-4 text-center text-red-500">FP</th>
+                        <th class="py-4 pr-4 text-center text-blue-500">FN</th>
+                        <th class="py-4 text-right">Action</th>
+                    </tr>
+                </thead>
+                <tbody class="divide-y divide-slate-900">`;
+
+            sorted.forEach((c, idx) => {
+                const acc = Math.round((c.correct / calibrationRecords.length) * 100);
+                const isBest = idx === 0 && acc > 50;
+                
+                html += `<tr class="${isBest ? 'bg-pink-500/5' : ''}">
+                    <td class="py-4 pr-4 font-bold ${isBest ? 'text-pink-400' : 'text-slate-300'}">
+                        ${c.id} ${isBest ? '⭐' : ''}
+                    </td>
+                    <td class="py-4 pr-4 text-center font-black ${acc > 80 ? 'text-green-400' : 'text-slate-400'}">${acc}%</td>
+                    <td class="py-4 pr-4 text-center text-red-500/60 font-medium">${c.fp}</td>
+                    <td class="py-4 pr-4 text-center text-blue-500/60 font-medium">${c.fn}</td>
+                    <td class="py-4 text-right">
+                        <button onclick="applyConfig('${c.id}')" class="text-pink-500 hover:text-pink-300 font-bold mr-3">Apply</button>
+                        <button onclick="pruneConfig('${c.id}')" class="text-slate-700 hover:text-white">✕</button>
+                    </td>
+                </tr>`;
+            });
+
+            html += `</tbody></table>`;
+            container.innerHTML = html;
+        }
+
+        window.applyConfig = (id) => {
+            const cand = candidates.find(c => c.id === id);
+            if (cand) {
+                FaceTracker.mouthDetection = JSON.parse(JSON.stringify(cand.config));
+                alert(`Applied ${id} to current session.`);
+                // Sync UI sliders if open
+                if (typeof showApproachParams === 'function') {
+                    document.getElementById('mouth-approach').value = cand.config.approach;
+                    showApproachParams(cand.config.approach);
+                }
+            }
+        };
+
+        window.pruneConfig = (id) => {
+            if (confirm(`Remove ${id} from future evaluations?`)) {
+                candidates = candidates.filter(c => c.id !== id);
+                renderResults();
+            }
+        };
+
+        document.getElementById('download-raw-btn').onclick = () => {
+            const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify({
+                metadata: { device: navigator.userAgent, timestamp: new Date().toISOString() },
+                records: calibrationRecords,
+                candidates: candidates.map(c => ({ id: c.id, config: c.config, stats: { correct: c.correct, fp: c.fp, fn: c.fn } }))
+            }, null, 2));
+            const downloadAnchorNode = document.createElement('a');
+            downloadAnchorNode.setAttribute("href",     dataStr);
+            downloadAnchorNode.setAttribute("download", "mouth_calibration_data.json");
+            document.body.appendChild(downloadAnchorNode);
+            downloadAnchorNode.click();
+            downloadAnchorNode.remove();
+        };
 
         document.getElementById('start-btn').addEventListener('click', () => {
             FaceTracker.startCalibration(startGame);
@@ -561,6 +802,13 @@
             mouthCursor.style.left = displayX + 'px';
             mouthCursor.style.top = displayY + 'px';
             updateMouthSVG(FaceTracker.mouthOpenness);
+
+            // Parallel Calibration Engine
+            if (FaceTracker._lastMetrics) {
+                candidates.forEach(c => {
+                    FaceTracker.evaluateDetector(c.detector, FaceTracker._lastMetrics);
+                });
+            }
 
             // Update debug displays in settings
             const opennessEl = document.getElementById('debug-mouth-openness');
