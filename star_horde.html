@@ -229,7 +229,7 @@
         const MAX_FLEET_COUNT = 24; // Increased cap for more "Horde" feeling
         const LANE_LERP_FACTOR = 0.08;
         const LEVEL_DURATION = 90; // Seconds
-        const OVERDRIVE_DURATION = 10 * 60; // 600 frames at 60fps
+        const OVERDRIVE_DURATION = 15 * 60; // 15 seconds at 60fps
         
         const ARCHETYPES = {
             SCOUT: { type: 'ENEMY', baseScale: 0.6, speedMult: 1.8, hp: 1, cost: 0.6, color: 0xf43f5e },
@@ -440,10 +440,11 @@
         function spawnEntity(metrics) {
             const laneDistance = 65; 
             const travelTime = laneDistance / metrics.speed;
-            const laneCapacity = metrics.playerDPS * travelTime * 1.2; // 120% saturation allowed
+            const laneCapacity = metrics.playerDPS * travelTime * 1.2;
 
-            // Check for existing powerups to prevent clustering
-            const nearbyPowerups = entities.some(e => e.position.z < -50 && (e.userData.type === 'POWERUP' || e.userData.type === 'WEAPON_UPGRADE'));
+            // Robust Proximity Check: No powerups/cores too close together
+            const ProximityTypes = ['POWERUP', 'WEAPON_UPGRADE', 'UPGRADE_CORE'];
+            const nearbyPowerups = entities.some(e => e.position.z < -45 && ProximityTypes.includes(e.userData.type));
             
             // Spawn weapon upgrade once per level
             if(!weaponUpgradeSpawned && levelTime > 15) {
@@ -643,13 +644,20 @@
                     for(let j=entities.length-1; j>=0; j--) {
                         const e = entities[j];
                         
-                        // Shots pass through collectibles but can ripen them
+                        // Shots pass through collectibles but can ripen/auto-collect them
                         if (e.userData.type === 'POWERUP' || e.userData.type === 'UPGRADE_CORE') {
                             const dist = p.position.distanceTo(e.position);
                             if (dist < 1.8 * e.userData.baseScale && !p.userData.hitList.includes(e.id)) {
                                 if (e.userData.type === 'POWERUP') {
                                     e.userData.val++;
                                     updatePowerupLabel(e);
+                                } else if (e.userData.type === 'UPGRADE_CORE') {
+                                    // AUTO-COLLECT ON SHOT
+                                    overdiveTimer = OVERDRIVE_DURATION;
+                                    score += 1000;
+                                    powerupsOnScreen--;
+                                    scene.remove(e);
+                                    entities.splice(j, 1);
                                 }
                                 p.userData.hitList.push(e.id);
                             }
