@@ -5,7 +5,7 @@
     <title>Star Horde - Laser Eyes</title>
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <link rel="stylesheet" href="shared.css">
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js" crossorigin="anonymous"></script>
     <script src="tracker.js" defer></script>
 
     <style>
@@ -152,6 +152,11 @@
             text-align: center; cursor: pointer;
         }
         #pause-overlay.visible { display: flex; }
+
+        #flash-overlay {
+            position: absolute; inset: 0; z-index: 200; pointer-events: none;
+            background: white; opacity: 0; transition: opacity 0.05s;
+        }
     </style>
 </head>
 <body>
@@ -217,6 +222,7 @@
             <div style="font-size: 3rem; font-weight: 900; font-style: italic; color: #38bdf8; margin-bottom: 0.5rem;">PAUSED</div>
             <p style="color: #94a3b8;">Click or press Space to resume</p>
         </div>
+        <div id="flash-overlay"></div>
 
         <canvas id="game-canvas"></canvas>
         <div id="error-log" style="position:absolute; top:0; left:0; right:0; background:rgba(255,0,0,0.8); color:white; pading:20px; font-family:monospace; display:none; z-index:9999;"></div>
@@ -249,7 +255,13 @@
         
         // --- THREE.JS SETUP ---
         const canvas = document.getElementById('game-canvas');
-        const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, alpha: true });
+        let renderer;
+        try {
+            renderer = new THREE.WebGLRenderer({ canvas, antialias: true, alpha: true, powerPreference: "high-performance", failIfMajorPerformanceCaveat: false });
+        } catch (e) {
+            console.error(e);
+            renderer = new THREE.WebGLRenderer({ canvas });
+        }
         renderer.setSize(window.innerWidth, window.innerHeight);
         renderer.setPixelRatio(window.devicePixelRatio);
 
@@ -451,7 +463,7 @@
             } else if (type === 'POWERUP' || type === 'UPGRADE_CORE') {
                 mesh = new THREE.Group();
                 const torus = new THREE.Mesh(new THREE.TorusGeometry(0.4, 0.15, 12, 24), powerupMat);
-                torus.rotation.y = Math.PI / 2;
+                // Faces hero
                 mesh.add(torus);
                 mesh.userData.torus = torus;
                 
@@ -581,6 +593,10 @@
                  e.userData.armorHP = 5;
                  e.userData.torus.material = neutralMat; // apply asteriod material
                  e.userData.val = 9; // Cap at +9
+                 
+                 const shieldSph = new THREE.Mesh(new THREE.SphereGeometry(1.2, 16, 16), new THREE.MeshPhongMaterial({ color: 0xfbbf24, transparent: true, opacity: 0.6 }));
+                 e.add(shieldSph);
+                 e.userData.armorShield = shieldSph;
             }
             
             // Update Text Label
@@ -593,9 +609,8 @@
 
                 let message = e.userData.val > 0 ? "+" + e.userData.val : e.userData.val.toString();
                 if (e.userData.armored) {
-                     message = "ARMOR " + e.userData.armorHP;
                      ctx.fillStyle = "rgba(251, 191, 36, 1.0)"; // Amber color for armor
-                     e.userData.textObj.sprite.scale.set(2.4, 1.2, 1);
+                     e.userData.textObj.sprite.scale.set(2.0, 1.0, 1);
                 } else {
                      ctx.fillStyle = "rgba(255, 255, 255, 1.0)";
                      e.userData.textObj.sprite.scale.set(2.0, 1.0, 1);
@@ -787,15 +802,17 @@
                                              entities.splice(j, 1);
                                              
                                              // Add visual flash effect to screen for explosion
-                                             const govl = document.getElementById('game-overlay');
-                                             govl.style.display = 'block';
-                                             govl.style.background = 'rgba(255, 255, 255, 0.4)';
-                                             setTimeout(()=>{
-                                                  govl.style.background = 'rgba(2,6,23,0.85)';
-                                                  if(gameState === 'PLAYING') govl.style.display = 'none';
-                                             }, 50);
+                                             const flash = document.getElementById('flash-overlay');
+                                             if(flash) {
+                                                 flash.style.opacity = '0.8';
+                                                 setTimeout(() => { flash.style.opacity = '0'; }, 50);
+                                             }
 
                                          } else {
+                                             if(e.userData.armorShield) {
+                                                 e.userData.armorShield.scale.setScalar(0.7 + 0.3 * (e.userData.armorHP/5));
+                                                 e.userData.armorShield.material.opacity = 0.3 + 0.3 * (e.userData.armorHP/5);
+                                             }
                                              // Visual flash on hit
                                              if(e.userData.torus.material) {
                                                  e.userData.torus.material.emissiveIntensity = 2;
@@ -872,8 +889,12 @@
                     // Simple pulse animation
                     const pulse = 1 + Math.sin(time + i) * 0.05;
                     let finalS = e.userData.baseScale * pulse;
-                    // Include ripening visual scale factor!
-                    if (e.userData.type === 'POWERUP' || e.userData.type === 'UPGRADE_CORE') {
+                    
+                    if (e.userData.type === 'NEUTRAL') {
+                        // Scale asteroids based on HP
+                        const hpRatio = Math.max(0.3, (e.userData.hp || 1) / (e.userData.maxHP || 1));
+                        finalS *= hpRatio;
+                    } else if (e.userData.type === 'POWERUP' || e.userData.type === 'UPGRADE_CORE') {
                         const adjustedVal = Math.max(0, (e.userData.val || 0) + 15);
                         finalS = e.userData.baseScale * (1 + (adjustedVal / 24)) * pulse;
                     }
@@ -882,7 +903,7 @@
                     if(e.userData.type === 'ENEMY') {
                          e.rotation.y += 0.05;
                     } else if (e.userData.type === 'POWERUP' || e.userData.type === 'UPGRADE_CORE') {
-                         e.userData.torus.rotation.x -= 0.02; // Rotate inner component
+                         e.userData.torus.rotation.z -= 0.02; // Rotate inner component
                     } else {
                          e.rotation.y -= 0.02;
                     }
@@ -1071,6 +1092,7 @@
 
             const script = document.createElement('script');
             script.src = 'https://cdn.jsdelivr.net/npm/webgazer@2.1.1/dist/webgazer.js';
+            script.crossOrigin = "anonymous";
             script.onerror = () => { window.webgazerLoadError = true; };
             script.onload = () => {
                 updateAI('Requesting camera access...', 40);
