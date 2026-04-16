@@ -47,7 +47,7 @@ const FaceTracker = {
     },
 
     evaluateDetector(detector, metrics) {
-        const md = detector.config;
+        const md = detector.config || detector.mouthDetection;
         const { marScore, areaScore, chinScore } = metrics;
         const emaResponsive = md.smoothing;
         const emaSmooth = 1 - md.smoothing;

@@ -530,8 +530,9 @@
             FaceTracker.showDebugLandmarks = true;
         };
 
-        document.getElementById('calib-tap-zone').onclick = (e) => {
+        document.getElementById('calib-tap-zone').onpointerdown = (e) => {
             if (!calibrationMode) return;
+            e.preventDefault(); // Prevent duplicate touch events
             const now = new Date();
             const timeStr = now.toLocaleTimeString();
             const correctStatus = !FaceTracker.isMouthOpen; // inverse current
