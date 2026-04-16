@@ -110,6 +110,27 @@
             </div>
         </div>
 
+        <!-- STRETCH GOAL: Original Start Menu (Restored) -->
+        <div id="overlay"
+            class="absolute inset-0 z-[105] flex flex-col items-center justify-center bg-gray-900 bg-opacity-95 p-6 text-center hidden">
+            <h1 class="text-5xl font-black mb-2 text-pink-500 uppercase tracking-tighter italic">Big Mouth</h1>
+            <p class="text-md mb-8 text-gray-400">
+                Eat the healthy foods by opening your mouth.<br>
+                Avoid the junk food!
+            </p>
+
+            <div class="flex flex-col gap-3 w-full max-w-[280px] mb-4">
+                <button id="start-btn"
+                    class="w-full py-4 bg-pink-600 hover:bg-pink-500 rounded-xl text-xl font-bold shadow-2xl shadow-pink-900/40 transition-all active:scale-95 chargeable">
+                    START EATING
+                </button>
+                <button id="overlay-back-btn"
+                    class="w-full py-2 text-gray-500 hover:text-white text-xs font-bold uppercase tracking-widest transition-colors">
+                    Back to Hub
+                </button>
+            </div>
+        </div>
+
         <!-- CALIBRATION VIEW -->
         <div id="calibration-view" class="absolute inset-0 z-40 bg-black hidden pointer-events-none">
             <!-- Recording UI -->
@@ -493,7 +514,12 @@
         // Hub Navigation
         document.getElementById('hub-play-btn').onclick = () => {
             document.getElementById('hub-overlay').classList.add('hidden');
-            overlay.classList.remove('hidden'); // Show standard start overlay
+            if (overlay) overlay.classList.remove('hidden'); 
+        };
+
+        document.getElementById('overlay-back-btn').onclick = () => {
+            if (overlay) overlay.classList.add('hidden');
+            document.getElementById('hub-overlay').classList.remove('hidden');
         };
 
         document.getElementById('hub-calib-btn').onclick = () => {
