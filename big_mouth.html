@@ -592,6 +592,8 @@
             FaceTracker.showDebugLandmarks = false;
         };
 
+        let currentSort = { key: 'acc', dir: -1 };
+
         function renderResults() {
             const container = document.getElementById('results-table-container');
             document.getElementById('results-count-text').innerText = `${calibrationRecords.length} DATA POINTS RECORDED`;
@@ -601,20 +603,27 @@
                 return;
             }
 
-            // Sort candidates by accuracy
+            // Apply sort
             const sorted = [...candidates].sort((a, b) => {
-                const accA = a.correct / calibrationRecords.length;
-                const accB = b.correct / calibrationRecords.length;
-                return accB - accA;
+                let valA, valB;
+                if (currentSort.key === 'acc') { valA = a.correct; valB = b.correct; }
+                else if (currentSort.key === 'fp') { valA = a.fp; valB = b.fp; }
+                else if (currentSort.key === 'fn') { valA = a.fn; valB = b.fn; }
+                
+                // For FP/FN, lower is better (so reverse default dir)
+                const multiplier = (currentSort.key === 'acc') ? currentSort.dir : -currentSort.dir;
+                return (valB - valA) * multiplier;
             });
+
+            const sortIcon = (key) => (currentSort.key === key) ? (currentSort.dir === -1 ? ' ↓' : ' ↑') : '';
 
             let html = `<table class="w-full text-left text-[11px]">
                 <thead class="sticky top-0 bg-slate-950 text-slate-500 uppercase tracking-widest font-black">
                     <tr>
                         <th class="py-4 pr-4">Method ID</th>
-                        <th class="py-4 pr-4 text-center">Acc %</th>
-                        <th class="py-4 pr-4 text-center text-red-500">FP</th>
-                        <th class="py-4 pr-4 text-center text-blue-500">FN</th>
+                        <th class="py-4 pr-4 text-center cursor-pointer hover:text-white" onclick="setSort('acc')">Acc %${sortIcon('acc')}</th>
+                        <th class="py-4 pr-4 text-center text-red-500 cursor-pointer hover:text-white" onclick="setSort('fp')">FP${sortIcon('fp')}</th>
+                        <th class="py-4 pr-4 text-center text-blue-500 cursor-pointer hover:text-white" onclick="setSort('fn')">FN${sortIcon('fn')}</th>
                         <th class="py-4 text-right">Action</th>
                     </tr>
                 </thead>
@@ -641,6 +650,16 @@
             html += `</tbody></table>`;
             container.innerHTML = html;
         }
+
+        window.setSort = (key) => {
+            if (currentSort.key === key) {
+                currentSort.dir *= -1;
+            } else {
+                currentSort.key = key;
+                currentSort.dir = -1;
+            }
+            renderResults();
+        };
 
         window.applyConfig = (id) => {
             const cand = candidates.find(c => c.id === id);
