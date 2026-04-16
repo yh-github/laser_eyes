@@ -241,8 +241,8 @@
         const OVERDRIVE_DURATION = 15 * 60; // 15 seconds at 60fps
         
         const ARCHETYPES = {
-            SCOUT: { type: 'ENEMY', baseScale: 0.6, speedMult: 1.8, hp: 1, cost: 0.6, color: 0xf43f5e },
-            FIGHTER: { type: 'ENEMY', baseScale: 1.0, speedMult: 1.0, hp: 2, cost: 2.2, color: 0xe11d48 },
+            SCOUT: { type: 'ENEMY', baseScale: 0.6, speedMult: 1.25, hp: 1, cost: 0.3, color: 0xf43f5e },
+            FIGHTER: { type: 'ENEMY', baseScale: 1.0, speedMult: 0.9, hp: 2, cost: 1.5, color: 0xe11d48 },
             BEHEMOTH: { type: 'ENEMY', baseScale: 2.2, speedMult: 0.3, hp: 12, cost: 12, color: 0x9f1239 },
             ASTEROID: { type: 'NEUTRAL', baseScale: 1.6, speedMult: 0.8, hp: 15, cost: 8, color: 0x64748b }
         };
@@ -411,24 +411,24 @@
         }
 
         function createTextSprite(message) {
-            const fontface = "Inter, sans-serif";
-            const fontsize = 48;
+            const fontface = "Inter, monospace";
+            const fontsize = 52;
             
             const canvas = document.createElement('canvas');
             const context = canvas.getContext('2d');
             canvas.width = 256;
-            canvas.height = 256;
+            canvas.height = 128;
             
-            context.font = "bold " + fontsize + "px " + fontface;
+            context.font = "900 " + fontsize + "px " + fontface;
             context.fillStyle = "rgba(255, 255, 255, 1.0)";
             context.textAlign = "center";
             context.textBaseline = "middle";
-            context.fillText(message, 128, 128);
+            context.fillText(message, 128, 64);
             
             const texture = new THREE.CanvasTexture(canvas);
-            const spriteMaterial = new THREE.SpriteMaterial({ map: texture, transparent: true });
+            const spriteMaterial = new THREE.SpriteMaterial({ map: texture, transparent: true, depthTest: false });
             const sprite = new THREE.Sprite(spriteMaterial);
-            sprite.scale.set(6, 6, 1);
+            sprite.scale.set(2.0, 1.0, 1);
             return { sprite, texture, context, canvas, fontsize, fontface };
         }
 
@@ -575,13 +575,7 @@
         }
 
         function updatePowerupLabel(e) {
-            // Labeling handled by torus appearance or intensity.
-            // visual scale scales more significantly so player sees growth.
-            const adjustedVal = Math.max(0, e.userData.val + 15); // ranges 0 to 24 (since it spans -15 to +9)
-            const s = e.userData.baseScale * (1 + (adjustedVal / 24));
-            e.scale.set(s, s, s);
-            
-            // At +9, it gains armor and changes material
+            // Scale and styling updates
             if(e.userData.val >= 9 && !e.userData.armored) {
                  e.userData.armored = true;
                  e.userData.armorHP = 5;
@@ -592,17 +586,21 @@
             // Update Text Label
             if(e.userData.textObj) {
                 const ctx = e.userData.textObj.context;
-                ctx.clearRect(0, 0, 256, 256);
+                ctx.clearRect(0, 0, 256, 128);
+                ctx.font = "900 " + e.userData.textObj.fontsize + "px " + e.userData.textObj.fontface;
+                ctx.textAlign = "center";
+                ctx.textBaseline = "middle";
+
                 let message = e.userData.val > 0 ? "+" + e.userData.val : e.userData.val.toString();
                 if (e.userData.armored) {
                      message = "ARMOR " + e.userData.armorHP;
                      ctx.fillStyle = "rgba(251, 191, 36, 1.0)"; // Amber color for armor
-                     e.userData.textObj.sprite.scale.set(10, 10, 1);
+                     e.userData.textObj.sprite.scale.set(2.4, 1.2, 1);
                 } else {
                      ctx.fillStyle = "rgba(255, 255, 255, 1.0)";
-                     e.userData.textObj.sprite.scale.set(6, 6, 1);
+                     e.userData.textObj.sprite.scale.set(2.0, 1.0, 1);
                 }
-                ctx.fillText(message, 128, 128);
+                ctx.fillText(message, 128, 64);
                 e.userData.textObj.texture.needsUpdate = true;
             }
         }
@@ -871,9 +869,14 @@
                     const moveMult = (e.userData.type === 'WEAPON_UPGRADE' || e.userData.type === 'UPGRADE_CORE') ? 0.4 : (e.userData.speedMult || 1.0);
                     e.position.z += metrics.speed * moveMult;
                     
-                    // Simple pulse animation - FIXED: pulse relative to baseScale
+                    // Simple pulse animation
                     const pulse = 1 + Math.sin(time + i) * 0.05;
-                    const finalS = e.userData.baseScale * pulse;
+                    let finalS = e.userData.baseScale * pulse;
+                    // Include ripening visual scale factor!
+                    if (e.userData.type === 'POWERUP' || e.userData.type === 'UPGRADE_CORE') {
+                        const adjustedVal = Math.max(0, (e.userData.val || 0) + 15);
+                        finalS = e.userData.baseScale * (1 + (adjustedVal / 24)) * pulse;
+                    }
                     e.scale.set(finalS, finalS, finalS);
                     
                     if(e.userData.type === 'ENEMY') {
