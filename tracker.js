@@ -101,6 +101,8 @@ const FaceTracker = {
         captured: false
     },
     
+    // UI behavior
+    suppressAutoUI: false,
     showDebugLandmarks: false,
     
     // Config / Callbacks
@@ -185,14 +187,23 @@ const FaceTracker = {
 
             webgazer.showVideoPreview(true).showPredictionPoints(false);
 
+            // Center cursor initially
+            this.cursorX = window.innerWidth / 2;
+            this.cursorY = window.innerHeight / 2;
+            this.lastNoseX = this.cursorX;
+            this.lastNoseY = this.cursorY;
+
             this.isStarted = true;
             
-            // Transition to main menu
+            // Transition to main menu (unless suppressed)
             setTimeout(() => {
                 const introOverlay = document.getElementById('intro-overlay');
                 const mainMenu = document.getElementById('overlay');
                 if (introOverlay) introOverlay.classList.add('hidden');
-                if (mainMenu) mainMenu.classList.remove('hidden');
+                
+                if (!this.suppressAutoUI) {
+                    if (mainMenu) mainMenu.classList.remove('hidden');
+                }
                 
                 const startBtn = document.getElementById('start-btn');
                 const bigMouthBtn = document.getElementById('big-mouth-btn');

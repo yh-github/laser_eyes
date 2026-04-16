@@ -143,6 +143,15 @@
             background: linear-gradient(90deg, #6366f1, #38bdf8);
             transition: width 0.5s ease;
         }
+
+        #pause-overlay {
+            position: absolute; inset: 0; z-index: 150;
+            background: rgba(2,6,23,0.7); backdrop-filter: blur(4px);
+            display: none; flex-direction: column;
+            align-items: center; justify-content: center;
+            text-align: center; cursor: pointer;
+        }
+        #pause-overlay.visible { display: flex; }
     </style>
 </head>
 <body>
@@ -202,6 +211,11 @@
         <div id="status-box" style="display:none">
             <p id="loading-msg"></p>
             <p id="action-msg"></p>
+        </div>
+
+        <div id="pause-overlay">
+            <div style="font-size: 3rem; font-weight: 900; font-style: italic; color: #38bdf8; margin-bottom: 0.5rem;">PAUSED</div>
+            <p style="color: #94a3b8;">Click or press Space to resume</p>
         </div>
 
         <canvas id="game-canvas"></canvas>
@@ -278,7 +292,7 @@
         let currentLevel = 1;
         let levelTime = 0;
         let weaponUpgradeSpawned = false; // Once per level
-        const overdiveTimer = 0;
+        let overdiveTimer = 0;
         let threatBudget = 0;
         const threatRecoveryRate = 0.05; 
         let laneWorkload = [0, 0]; // Tracks total HP in each lane
@@ -384,48 +398,27 @@
                 const color = archetype ? archetype.color : 0xe11d48;
                 const mat = new THREE.MeshPhongMaterial({ color: color, emissive: 0x4c0519 });
                 mesh = new THREE.Mesh(new THREE.ConeGeometry(0.6, 1.2, 4), mat);
-                mesh.rotation.x = Math.PI;
-                hp = hp || (archetype ? archetype.hp : metrics.baseEnemyHP);
-            } else if(type === 'NEUTRAL') {
-                const color = archetype ? archetype.color : 0x64748b;
-                const mat = new THREE.MeshPhongMaterial({ color: color, emissive: 0x0f172a });
-                mesh = new THREE.Mesh(new THREE.BoxGeometry(1.2, 1.2, 1.2), mat);
-                hp = hp || (archetype ? archetype.hp : metrics.baseNeutralHP);
-            } else if(type === 'WEAPON_UPGRADE') {
+                mesh.rotation.x = Math.PI / 2;
+                hp = archetype ? archetype.hp : 2;
+            } else if (type === 'NEUTRAL') {
+                mesh = new THREE.Mesh(new THREE.DodecahedronGeometry(finalSize), neutralMat);
+                hp = archetype ? archetype.hp : 15;
+            } else if (type === 'POWERUP' || type === 'UPGRADE_CORE') {
+                mesh = new THREE.Mesh(new THREE.TorusGeometry(0.4, 0.15, 12, 24), powerupMat);
+                mesh.rotation.y = Math.PI / 2;
+                hp = 1;
+            } else if (type === 'WEAPON_UPGRADE') {
                 mesh = new THREE.Group();
-                const shell = new THREE.Mesh(new THREE.IcosahedronGeometry(1.4, 0), weaponShellMat);
-                const core = new THREE.Mesh(new THREE.IcosahedronGeometry(0.6, 1), weaponCoreMat);
-                mesh.add(shell);
+                const core = new THREE.Mesh(new THREE.IcosahedronGeometry(0.5, 0), weaponCoreMat);
+                const shell = new THREE.Mesh(new THREE.SphereGeometry(0.9, 16, 16), weaponShellMat);
                 mesh.add(core);
+                mesh.add(shell);
                 mesh.userData.shell = shell;
-                mesh.userData.core = core;
-                hp = 25 + (currentLevel * 5); // Tanky shell
-            } else {
-                mesh = new THREE.Mesh(new THREE.IcosahedronGeometry(0.7, 1), powerupMat);
-            }
-
-            if(type === 'POWERUP' || type === 'UPGRADE_CORE') {
-                const canvasLabel = document.createElement('canvas');
-                const ctx = canvasLabel.getContext('2d');
-                canvasLabel.width = 128; canvasLabel.height = 64; 
-                ctx.fillStyle = 'white'; 
-                ctx.font = 'bold 44px Inter'; 
-                ctx.textAlign = 'center';
-                const text = type === 'UPGRADE_CORE' ? 'WPN' : val;
-                ctx.fillText(text, 64, 48);
-                const texture = new THREE.CanvasTexture(canvasLabel);
-                const sprite = new THREE.Sprite(new THREE.SpriteMaterial({ map: texture }));
-                sprite.position.y = 1.2;
-                sprite.scale.set(3, 1.5, 1); 
-                mesh.add(sprite);
-                mesh.userData.val = val;
-                mesh.userData.label = sprite;
-                mesh.userData.canvas = canvasLabel;
+                hp = 30; // Tough to crack
             }
 
             mesh.position.set(x, 0, z);
-            mesh.userData.type = type;
-            mesh.userData.hp = hp;
+            mesh.userData = { type, hp, val };
             mesh.userData.maxHP = hp;
             mesh.userData.speedMult = archetype ? archetype.speedMult : 1.0;
             mesh.userData.baseScale = finalSize; // FIX: Store base scale
@@ -511,17 +504,11 @@
             }
         }
 
-        function updatePowerupLabel(mesh) {
-            const canvas = mesh.userData.canvas;
-            const ctx = canvas.getContext('2d');
-            ctx.clearRect(0, 0, 128, 64);
-            const isUpgrade = mesh.userData.type === 'UPGRADE_CORE';
-            ctx.fillStyle = isUpgrade ? '#f59e0b' : (mesh.userData.val >= 0 ? '#10b981' : '#f43f5e');
-            ctx.font = 'bold 44px Inter'; ctx.textAlign = 'center';
-            const val = mesh.userData.val;
-            const text = isUpgrade ? 'OVERDRIVE' : (val > 0 ? '+' + val : val);
-            ctx.fillText(text, 64, 48);
-            mesh.userData.label.material.map.needsUpdate = true;
+        function updatePowerupLabel(e) {
+            // Labeling handled by torus appearance or intensity in future.
+            // For now, scale indicates value ripeness.
+            const s = e.userData.baseScale * (1 + (e.userData.val / 5));
+            e.scale.set(s, s, s);
         }
 
         function shoot() {
@@ -529,10 +516,9 @@
             const cd = overdiveTimer > 0 ? SHOOT_COOLDOWN / 2 : SHOOT_COOLDOWN;
             
             fleetGroup.children.forEach(ship => {
+                const proj = new THREE.Mesh(new THREE.BoxGeometry(0.1, 0.1, 0.6), overdiveTimer > 0 ? overdriveProjMat : projMat);
                 const worldPos = new THREE.Vector3();
                 ship.getWorldPosition(worldPos);
-                
-                const proj = new THREE.Mesh(new THREE.SphereGeometry(0.15, 8, 8), overdiveTimer > 0 ? overdriveProjMat : projMat);
                 proj.position.copy(worldPos);
                 proj.position.z -= 1.0;
                 proj.userData.speed = metrics.projectileSpeed;
@@ -541,6 +527,16 @@
                 projectiles.push(proj);
             });
             return cd;
+        }
+
+        function togglePause() {
+            if (gameState === 'PLAYING') {
+                gameState = 'PAUSED';
+                document.getElementById('pause-overlay').classList.add('visible');
+            } else if (gameState === 'PAUSED') {
+                gameState = 'PLAYING';
+                document.getElementById('pause-overlay').classList.remove('visible');
+            }
         }
 
         function levelComplete() {
@@ -828,7 +824,17 @@
                 FaceTracker.cursorX = 0;
             } else if (e.key === 'ArrowRight') {
                 FaceTracker.cursorX = window.innerWidth;
+            } else if (e.key === ' ') {
+                togglePause();
             }
+        });
+
+        document.getElementById('pause-overlay').onclick = togglePause;
+        window.addEventListener('blur', () => {
+            if (gameState === 'PLAYING') togglePause();
+        });
+        window.addEventListener('mousedown', (e) => {
+            if (gameState === 'PLAYING') togglePause();
         });
 
         function resetGame() {
@@ -859,8 +865,6 @@
         animate();
 
         // ---- HEAD TRACKING: LAZY LOAD ----
-        // WebGazer is NOT loaded unless the user opts in.
-        // This saves ~15MB of neural model downloads on every page load.
         function loadHeadTracking() {
             const overlay = document.getElementById('ai-load-overlay');
             const status = document.getElementById('ai-load-status');
@@ -875,7 +879,6 @@
 
             updateAI('Downloading Neural Engine (~15MB)...', 5);
 
-            // Inject webgazer script dynamically
             const script = document.createElement('script');
             script.src = 'https://cdn.jsdelivr.net/npm/webgazer@2.1.1/dist/webgazer.js';
             script.onerror = () => { window.webgazerLoadError = true; };

@@ -132,7 +132,7 @@
         </div>
 
         <!-- CALIBRATION VIEW -->
-        <div id="calibration-view" class="absolute inset-0 z-40 bg-black hidden pointer-events-none">
+        <div id="calibration-view" class="absolute inset-0 z-[115] bg-black hidden">
             <!-- Recording UI -->
             <div id="calib-tap-zone" class="absolute inset-0 pointer-events-auto flex flex-col items-center justify-end pb-20 p-6 text-center">
                 <div class="backdrop-blur-xl bg-pink-600/20 border border-pink-500/30 p-8 rounded-[2.5rem] w-full max-w-[320px] shadow-2xl animate-pulse">
@@ -500,11 +500,12 @@
 
         // Run AI initialization
         window.addEventListener('load', () => {
+            FaceTracker.suppressAutoUI = true; // prevent conflict
             FaceTracker.init().then(success => {
                 if(success) {
                     if (!loopInterval) loopInterval = setInterval(gameLoop, 30);
-                    // Open HUB initially instead of standard overlay
-                    overlay.classList.add('hidden');
+                    // Open HUB initially
+                    if (overlay) overlay.classList.add('hidden');
                     document.getElementById('hub-overlay').classList.remove('hidden');
                     candidates = generateCandidates();
                 }
