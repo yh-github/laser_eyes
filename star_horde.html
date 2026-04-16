@@ -460,16 +460,28 @@
             const ProximityTypes = ['POWERUP', 'WEAPON_UPGRADE', 'UPGRADE_CORE'];
             const nearbyPowerups = entities.some(e => e.position.z < -45 && ProximityTypes.includes(e.userData.type));
             
-            // Spawn weapon upgrade once per level
+            // Spawn weapon upgrade once per level - prioritized during RECOVERY or early STAGING
             if(!weaponUpgradeSpawned && levelTime > 15) {
-                if (nearbyPowerups) return; 
-                weaponUpgradeSpawned = true;
-                const lane = Math.random() > 0.5 ? 1 : 0;
-                addEntityToScene(LANE_X[lane], -60, 'WEAPON_UPGRADE', 30, 0, metrics);
-                return;
+                const recoveryWindow = (directorState === 'RECOVERY' || directorState === 'STAGING');
+                if (recoveryWindow && !nearbyPowerups) {
+                    weaponUpgradeSpawned = true;
+                    const lane = Math.random() > 0.5 ? 1 : 0;
+                    addEntityToScene(LANE_X[lane], -60, 'WEAPON_UPGRADE', 30, 0, metrics);
+                    return;
+                }
             }
 
-            if(threatBudget <= 0) return;
+            if(threatBudget <= 0 && directorState !== 'RECOVERY') return;
+
+            // DIRECTOR BEHAVIOR: No enemies during RECOVERY
+            if (directorState === 'RECOVERY') {
+                if(Math.random() < 0.05 && !nearbyPowerups) {
+                    const lane = Math.random() > 0.5 ? 1 : 0;
+                    const val = -Math.floor(Math.random() * 2) - 1; 
+                    addEntityToScene(LANE_X[lane], -60, 'POWERUP', 1, val, metrics);
+                }
+                return;
+            }
 
             const lane = Math.random() > 0.5 ? 1 : 0;
             const laneX = LANE_X[lane];
@@ -760,6 +772,10 @@
                                 } else {
                                     fleetCount--;
                                 }
+                                
+                                // MERCY SYSTEM: Jump to RECOVERY on damage
+                                directorState = 'RECOVERY';
+                                stateTimer = 0;
                             } else if(e.userData.type === 'UPGRADE_CORE') {
                                 overdiveTimer = OVERDRIVE_DURATION;
                                 score += 1000;
@@ -801,6 +817,10 @@
                             if(shieldCount > 0) shieldCount--;
                             else fleetCount--;
                             
+                            // MERCY SYSTEM: Jump to RECOVERY on bypass
+                            directorState = 'RECOVERY';
+                            stateTimer = 0;
+
                             document.getElementById('ship-count').innerText = fleetCount + (shieldCount > 0 ? ` (+${shieldCount}🛡️)` : '');
                             if(fleetCount <= 0) gameOver();
                             else updateFleet();
@@ -886,6 +906,10 @@
             laneWorkload = [0, 0];
             lastLaneSwitchTime = 0;
             powerupsOnScreen = 0;
+
+            directorState = 'STAGING';
+            stateTimer = 0;
+
             entities.forEach(e => scene.remove(e));
             projectiles.forEach(p => scene.remove(p));
             entities.length = 0;
