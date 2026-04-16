@@ -218,9 +218,9 @@
         const OVERDRIVE_DURATION = 10 * 60; // 600 frames at 60fps
         
         const ARCHETYPES = {
-            SCOUT: { type: 'ENEMY', baseScale: 0.6, speedMult: 1.6, hp: 1, cost: 1, color: 0xf43f5e },
-            FIGHTER: { type: 'ENEMY', baseScale: 1.0, speedMult: 1.0, hp: 2, cost: 3, color: 0xe11d48 },
-            BEHEMOTH: { type: 'ENEMY', baseScale: 2.2, speedMult: 0.45, hp: 12, cost: 12, color: 0x9f1239 },
+            SCOUT: { type: 'ENEMY', baseScale: 0.6, speedMult: 1.8, hp: 1, cost: 0.6, color: 0xf43f5e },
+            FIGHTER: { type: 'ENEMY', baseScale: 1.0, speedMult: 1.0, hp: 2, cost: 2.2, color: 0xe11d48 },
+            BEHEMOTH: { type: 'ENEMY', baseScale: 2.2, speedMult: 0.3, hp: 12, cost: 12, color: 0x9f1239 },
             ASTEROID: { type: 'NEUTRAL', baseScale: 1.6, speedMult: 0.8, hp: 15, cost: 8, color: 0x64748b }
         };
         
@@ -349,25 +349,25 @@
         function getDifficultyMetrics() {
             const now = Date.now();
             const elapsedMins = (now - gameStartTime) / 60000;
-            const heroPower = fleetCount + (shieldCount * 0.5); // Effective DPS base
+            const heroPower = fleetCount + (shieldCount * 0.5); 
             
-            // Dynamic recovery: reduce pressure if recently hit
+            // Dynamic recovery: slightly faster recovery
             const timeSinceDeath = now - lastDeathTime;
-            const recoveryFactor = Math.max(0, 1 - (timeSinceDeath / 12000));
+            const recoveryFactor = Math.max(0, 1 - (timeSinceDeath / 10000));
             
             const baseDiff = (currentLevel - 1) * 1.5 + elapsedMins * 0.8 + (heroPower * 0.2);
             const intensity = Math.max(0.1, baseDiff * (1 - recoveryFactor * 0.8));
 
-            // Breather logic: slice threat gain if powerups are drifting
-            let threatGain = (0.08 + intensity * 0.06) * (1 - recoveryFactor * 0.5);
-            if (powerupsOnScreen > 0) threatGain *= 0.4;
+            // Breather logic: Much less aggressive penalty
+            let threatGain = (0.12 + intensity * 0.1) * (1 - recoveryFactor * 0.4);
+            if (powerupsOnScreen > 0) threatGain *= 0.8;
 
             return {
                 intensity: intensity,
                 threatGain: threatGain,
-                hordeDensity: 0.03 + Math.min(0.2, intensity * 0.02),
-                supportDensity: 0.01 + Math.min(0.06, intensity * 0.01),
-                speed: Math.min(0.38, 0.05 + intensity * 0.015), 
+                hordeDensity: 0.04 + Math.min(0.25, intensity * 0.03),
+                supportDensity: 0.005 + Math.min(0.03, intensity * 0.005), // Halved support density
+                speed: Math.min(0.28, 0.04 + intensity * 0.008), // Much slower base speed
                 projectileSpeed: Math.min(1.4, 0.4 + intensity * 0.035),
                 playerDPS: fleetCount * (60 / SHOOT_COOLDOWN)
             };
@@ -445,9 +445,9 @@
         }
 
         function spawnEntity(metrics) {
-            const laneDistance = 65; // Spawn at -60, player at 5
+            const laneDistance = 65; 
             const travelTime = laneDistance / metrics.speed;
-            const laneCapacity = metrics.playerDPS * travelTime * 0.6; // 60% safety buffer
+            const laneCapacity = metrics.playerDPS * travelTime * 1.2; // 120% saturation allowed
 
             // Check for existing powerups to prevent clustering
             const nearbyPowerups = entities.some(e => e.position.z < -50 && (e.userData.type === 'POWERUP' || e.userData.type === 'WEAPON_UPGRADE'));
@@ -467,7 +467,7 @@
             const laneX = LANE_X[lane];
             const isHordeLane = lane === hordeLane;
             
-            // THROUGHPUT CHECK: Can player destroy what's currently in this lane?
+            // THROUGHPUT CHECK
             if (laneWorkload[lane] > laneCapacity) return;
 
             // Collectibles and Neutrals
@@ -483,26 +483,26 @@
                     }
                 }
             } else {
-                // Main Horde Lane: Pick an archetype based on budget AND lane capacity
+                // Main Horde Lane
                 const possible = [];
                 if (threatBudget >= ARCHETYPES.SCOUT.cost && laneWorkload[lane] + ARCHETYPES.SCOUT.hp < laneCapacity) possible.push(ARCHETYPES.SCOUT);
                 if (threatBudget >= ARCHETYPES.FIGHTER.cost && laneWorkload[lane] + ARCHETYPES.FIGHTER.hp < laneCapacity) possible.push(ARCHETYPES.FIGHTER);
-                if (threatBudget >= ARCHETYPES.BEHEMOTH.cost && laneWorkload[lane] + ARCHETYPES.BEHEMOTH.hp < laneCapacity && Math.random() < 0.15) possible.push(ARCHETYPES.BEHEMOTH);
+                if (threatBudget >= ARCHETYPES.BEHEMOTH.cost && laneWorkload[lane] + ARCHETYPES.BEHEMOTH.hp < laneCapacity && Math.random() < 0.1) possible.push(ARCHETYPES.BEHEMOTH);
 
                 if (possible.length > 0) {
                     const arch = possible[Math.floor(Math.random() * possible.length)];
                     
-                    // Switch Complexity Check
+                    // Switch Complexity Check - reduced to 1.2s to allow more action
                     const now = Date.now();
-                    const forcedSwitch = arch.type === 'ENEMY' && (now - lastLaneSwitchTime < 2000);
-                    if (forcedSwitch) return; // Wait 2s before forcing another switch
+                    const forcedSwitch = arch.type === 'ENEMY' && (now - lastLaneSwitchTime < 1200);
+                    if (forcedSwitch) return; 
 
                     threatBudget -= arch.cost;
                     lastLaneSwitchTime = now;
 
                     // Clusters for Scouts
-                    const clusterSize = arch === ARCHETYPES.SCOUT ? (Math.floor(Math.random() * 2) + 1) : 1;
-                    const spread = 1.0 * arch.baseScale;
+                    const clusterSize = arch === ARCHETYPES.SCOUT ? (Math.floor(Math.random() * 3) + 2) : 1;
+                    const spread = 0.8 * arch.baseScale;
                     for(let i=0; i<clusterSize; i++) {
                         const xOffset = (i - (clusterSize-1)/2) * spread;
                         addEntityToScene(laneX + xOffset, -60, 'ENEMY', null, 0, metrics, arch);
