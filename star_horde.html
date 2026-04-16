@@ -6,7 +6,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <link rel="stylesheet" href="shared.css">
     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js" crossorigin="anonymous"></script>
-    <script src="tracker.js" defer></script>
+
 
     <style>
         body, html {
@@ -96,38 +96,9 @@
         .lane-dot { width: 4px; height: 4px; background: cyan; border-radius: 50%; }
         .lane-dot.active { transform: scale(3); opacity: 1; box-shadow: 0 0 10px cyan; transition: all 0.2s; }
 
-        /* AI Loading Overlay */
-        #ai-load-overlay {
-            position: absolute; inset: 0; z-index: 300;
-            background: rgba(2,6,23,0.97);
-            display: none; flex-direction: column;
-            align-items: center; justify-content: center;
-            text-align: center; padding: 20px;
-        }
-        #ai-load-overlay.visible { display: flex; }
-        #ai-load-title {
-            font-size: 1.5rem; font-weight: 700; margin-bottom: 0.5rem; color: #38bdf8;
-        }
-        #ai-load-status {
-            font-size: 0.75rem; font-family: monospace;
-            color: #818cf8; margin-bottom: 1rem;
-            border: 1px solid rgba(99,102,241,0.2);
-            padding: 8px 16px; border-radius: 8px;
-            background: rgba(99,102,241,0.05);
-            animation: pulse-status 2s infinite;
-        }
 
-        /* Calibration Styles */
-        #calib-overlay {
-            position: absolute; inset: 0; z-index: 200;
-            background: rgba(2,6,23,0.98);
-            display: none; flex-direction: column;
-            align-items: center; justify-content: center;
-        }
-        .calib-crosshair {
-            width: 60px; height: 60px; border: 2px solid #38bdf8; border-radius: 50%;
-            position: absolute; top: 50%; left: 50%; transform: translate(-50%,-50%);
-        }
+
+
 
         @keyframes pulse-status {
             0%, 100% { opacity: 1; }
@@ -157,6 +128,22 @@
             position: absolute; inset: 0; z-index: 200; pointer-events: none;
             background: white; opacity: 0; transition: opacity 0.05s;
         }
+
+        /* Shop Styles */
+        .shop-container {
+            display: none; grid-template-columns: repeat(2, 1fr); gap: 16px;
+            margin-top: 24px; max-width: 500px;
+        }
+        .shop-item {
+            background: rgba(30, 41, 59, 0.5); border: 1px solid rgba(255,255,255,0.1);
+            padding: 16px; border-radius: 12px; cursor: pointer; transition: all 0.2s;
+            text-align: left;
+        }
+        .shop-item:hover { background: rgba(51, 65, 85, 0.8); border-color: #38bdf8; }
+        .shop-item .title { font-weight: 700; color: #facc15; font-size: 14px; }
+        .shop-item .desc { font-size: 11px; color: #94a3b8; margin: 4px 0; }
+        .shop-item .cost { font-size: 13px; font-weight: 800; color: #38bdf8; }
+        .shop-item.purchased { opacity: 0.5; pointer-events: none; border-color: #10b981; }
     </style>
 </head>
 <body>
@@ -169,6 +156,10 @@
             <div class="glass-panel">
                 <div class="stat-label">Sector Score</div>
                 <div id="score" class="stat-value amber">0</div>
+            </div>
+            <div class="glass-panel">
+                <div class="stat-label">Star Scraps</div>
+                <div id="scraps" class="stat-value" style="color: #facc15;">0</div>
             </div>
         </div>
 
@@ -183,40 +174,35 @@
             <p id="overlay-sub">Navigate the 2.5D expanse. Gather your fleet. Survive the invasion.</p>
 
             <button id="start-btn" class="btn-premium">INITIATE MISSION</button>
-            <button id="ai-mode-btn" class="btn-secondary">⚡ Enable Head Tracking (AI)</button>
-            <p class="ctrl-hint">Control: Mouse / Touch / Head</p>
+            
+            <div id="shop-container" class="shop-container">
+                <div class="shop-item" onclick="buyUpgrade('HULL')">
+                    <div class="title">REINFORCED HULL</div>
+                    <div class="desc">Start each level with +1 Shield.</div>
+                    <div class="cost">50 Scraps</div>
+                </div>
+                <div class="shop-item" onclick="buyUpgrade('MAGNET')">
+                    <div class="title">ION MAGNET</div>
+                    <div class="desc">Increase collection radius.</div>
+                    <div class="cost">75 Scraps</div>
+                </div>
+                <div class="shop-item" onclick="buyUpgrade('FLAK')">
+                    <div class="title">FLAK CALIBRATION</div>
+                    <div class="desc">Increase Flak projectile damage.</div>
+                    <div class="cost">100 Scraps</div>
+                </div>
+                <div class="shop-item" onclick="buyUpgrade('PULSE')">
+                    <div class="title">PULSE OVERLOAD</div>
+                    <div class="desc">Pulse bolts pierce an extra target.</div>
+                    <div class="cost">120 Scraps</div>
+                </div>
+            </div>
+
+            <p class="ctrl-hint">Control: Mouse / Touch / Keyboard</p>
             <button onclick="window.location.href='index.html'" class="abort-link">Abort to Menu</button>
         </div>
 
-        <!-- AI Loading Overlay (shown only when user opts into head tracking) -->
-        <div id="ai-load-overlay">
-            <div id="ai-load-title">Booting Neural Core</div>
-            <div id="ai-load-status">Initializing...</div>
-            <div id="progress-bar-container">
-                <div id="progress-bar-fill"></div>
-            </div>
-        </div>
 
-        <!-- Calibration Overlay -->
-        <div id="calib-overlay">
-            <h2 style="font-size:1.5rem;font-weight:700;margin-bottom:0.5rem">Aligning Sensors</h2>
-            <p id="calib-status" style="color:#38bdf8;margin-bottom:0.5rem">Move your head to the center</p>
-            <p id="calib-hint" style="font-size:0.75rem;color:#64748b;margin-bottom:2rem">Look at the crosshair and hold still</p>
-            <div style="width:200px;height:4px;background:#1e293b;border-radius:2px;overflow:hidden">
-                <div id="nose-calib-progress" style="height:100%;background:#6366f1;transition:width 0.3s;width:0%"></div>
-            </div>
-            <div class="calib-crosshair"></div>
-        </div>
-
-        <div id="calib-nose-dot" style="position:absolute;width:10px;height:10px;background:cyan;border-radius:50%;pointer-events:none;z-index:250;display:none"></div>
-
-        <!-- Tracker.js Placeholders -->
-        <div id="intro-overlay" style="display:none"></div>
-        <div id="intro-error-box" style="display:none"></div>
-        <div id="status-box" style="display:none">
-            <p id="loading-msg"></p>
-            <p id="action-msg"></p>
-        </div>
 
         <div id="pause-overlay">
             <div style="font-size: 3rem; font-weight: 900; font-style: italic; color: #38bdf8; margin-bottom: 0.5rem;">PAUSED</div>
@@ -251,6 +237,18 @@
             FIGHTER: { type: 'ENEMY', baseScale: 1.0, speedMult: 0.9, hp: 2, cost: 1.5, color: 0xe11d48 },
             BEHEMOTH: { type: 'ENEMY', baseScale: 2.2, speedMult: 0.3, hp: 12, cost: 12, color: 0x9f1239 },
             ASTEROID: { type: 'NEUTRAL', baseScale: 1.6, speedMult: 0.8, hp: 15, cost: 8, color: 0x64748b }
+        };
+
+        const MISSION_TYPES = {
+            STANDARD: { name: 'STANDARD SWEEP', laneFocus: ['MIXED', 'MIXED'], threatMult: 1.0 },
+            BALANCE: { name: 'THE BALANCE', laneFocus: ['POWERUPS', 'HORDE'], threatMult: 1.2 },
+            SIEGE: { name: 'THE SIEGE', laneFocus: ['MIXED', 'ELITE'], threatMult: 1.5 },
+            GAUNTLET: { name: 'THE GAUNTLET', laneFocus: ['FAST', 'FAST'], threatMult: 1.4 }
+        };
+
+        const WEAPONS = {
+            BOLT: { name: 'PULSE BOLT', color: 0x22d3ee, spread: 0, count: 1, damage: 2, pierce: 1 },
+            FLAK: { name: 'FLAK SWEEP', color: 0xfacc15, spread: 0.2, count: 3, damage: 1, pierce: 0 }
         };
         
         // --- THREE.JS SETUP ---
@@ -308,11 +306,25 @@
         // --- GAME OBJECTS & STATE ---
         let gameState = 'MENU'; 
         let score = 0;
+        let starScraps = 0;
         let fleetCount = 1;
         let shieldCount = 0;
         let currentLane = 0; 
+        let currentWeapon = 'BOLT';
+        let currentMission = 'STANDARD';
         let lerpX = 0;
         let shootTimer = 0;
+
+        // Persistent Upgrades
+        let UPGRADES = {
+            HULL: 0,
+            MAGNET: 0,
+            FLAK_DMG: 0,
+            PULSE_PIERCE: 0
+        };
+        let magnetismRange = 4.0;
+        let draftingMultiplier = 1.0;
+        let lastDraftingCheck = 0;
         
         let gameStartTime = 0;
         let lastDeathTime = 0;
@@ -396,6 +408,7 @@
                 shield.position.set(0, 0, 1.5);
                 fleetGroup.add(shield);
             }
+        }
 
         function updateHUD() {
             updateFleet();
@@ -406,6 +419,10 @@
             const scoreEl = document.getElementById('score');
             if (scoreEl) {
                 scoreEl.innerText = score;
+            }
+            const scrapsEl = document.getElementById('scraps');
+            if (scrapsEl) {
+                scrapsEl.innerText = starScraps;
             }
         }
 
@@ -597,6 +614,8 @@
 
             if(threatBudget <= 0 && directorState !== 'RECOVERY') return;
 
+            const mission = MISSION_TYPES[currentMission];
+            
             // DIRECTOR BEHAVIOR: No enemies during RECOVERY
             if (directorState === 'RECOVERY') {
                 if(Math.random() < 0.1 && !nearbyPowerups) {
@@ -608,11 +627,30 @@
             }
 
             const lane = Math.random() > 0.5 ? 1 : 0;
+            const laneFocus = mission.laneFocus[lane];
             const laneX = LANE_X[lane];
             const isHordeLane = lane === hordeLane;
             
             // THROUGHPUT CHECK
             if (laneWorkload[lane] > laneCapacity) return;
+
+            // MISSION WEIGHTING
+            if (laneFocus === 'POWERUPS' && Math.random() < 0.2) {
+                if (!nearbyPowerups) addEntityToScene(laneX, -60, 'POWERUP', 1, -15, metrics);
+                return;
+            }
+            if (laneFocus === 'HORDE' && isHordeLane) {
+                // Main Horde Lane - Higher density
+                metrics.hordeDensity *= 1.5;
+            }
+            if (laneFocus === 'ELITE') {
+                 if (Math.random() < 0.08) addEntityToScene(laneX, -60, 'ENEMY', null, 0, metrics, ARCHETYPES.BEHEMOTH);
+                 // Don't spawn basic scouts here as much
+                 if (Math.random() < 0.7) return; 
+            }
+            if (laneFocus === 'FAST') {
+                 metrics.speed *= 1.8;
+            }
 
             // Collectibles and Neutrals
             if(!isHordeLane) {
@@ -691,18 +729,31 @@
 
         function shoot() {
             const metrics = getDifficultyMetrics();
+            const weapon = WEAPONS[currentWeapon];
             const cd = overdiveTimer > 0 ? SHOOT_COOLDOWN / 2 : SHOOT_COOLDOWN;
             
             fleetGroup.children.forEach(ship => {
-                const proj = new THREE.Mesh(new THREE.BoxGeometry(0.1, 0.1, 0.6), overdiveTimer > 0 ? overdriveProjMat : projMat);
-                const worldPos = new THREE.Vector3();
-                ship.getWorldPosition(worldPos);
-                proj.position.copy(worldPos);
-                proj.position.z -= 1.0;
-                proj.userData.speed = metrics.projectileSpeed;
-                proj.userData.hitList = []; // Track entities hit to avoid multi-ripening
-                scene.add(proj);
-                projectiles.push(proj);
+                for (let i = 0; i < weapon.count; i++) {
+                    const proj = new THREE.Mesh(
+                        new THREE.BoxGeometry(0.1, 0.1, 0.6), 
+                        overdiveTimer > 0 ? overdriveProjMat : new THREE.MeshBasicMaterial({ color: weapon.color })
+                    );
+                    const worldPos = new THREE.Vector3();
+                    ship.getWorldPosition(worldPos);
+                    proj.position.copy(worldPos);
+                    proj.position.z -= 1.0;
+                    
+                    // Spread handle
+                    const spread = (i - (weapon.count - 1) / 2) * weapon.spread;
+                    proj.userData.vx = spread; // Store horizontal velocity for spread
+                    
+                    proj.userData.speed = metrics.projectileSpeed;
+                    proj.userData.damage = weapon.damage;
+                    proj.userData.pierce = weapon.pierce;
+                    proj.userData.hitList = []; // Track entities hit to avoid multi-ripening
+                    scene.add(proj);
+                    projectiles.push(proj);
+                }
             });
             return cd;
         }
@@ -717,15 +768,62 @@
             }
         }
 
+        function switchWeapon() {
+            currentWeapon = currentWeapon === 'BOLT' ? 'FLAK' : 'BOLT';
+            // Visual feedback
+            const dash = document.getElementById('flash-overlay');
+            if (dash) {
+                dash.style.background = currentWeapon === 'BOLT' ? '#22d3ee' : '#facc15';
+                dash.style.opacity = '0.15';
+                setTimeout(() => dash.style.opacity = '0', 100);
+            }
+        }
+
+        window.addEventListener('keydown', (e) => {
+            if (e.key === 's' || e.key === 'S') switchWeapon();
+            if (e.key === ' ') togglePause();
+        });
+
+        function buyUpgrade(type) {
+            const costs = { HULL: 50, MAGNET: 75, FLAK: 100, PULSE: 120 };
+            const cost = costs[type];
+            
+            if (starScraps >= cost) {
+                starScraps -= cost;
+                if (type === 'HULL') {
+                    UPGRADES.HULL++;
+                    shieldCount++; 
+                }
+                if (type === 'MAGNET') {
+                    UPGRADES.MAGNET++;
+                }
+                if (type === 'FLAK') {
+                    WEAPONS.FLAK.damage += 0.5;
+                    UPGRADES.FLAK_DMG++;
+                }
+                if (type === 'PULSE') {
+                    WEAPONS.BOLT.pierce++;
+                    UPGRADES.PULSE_PIERCE++;
+                }
+                updateHUD();
+                
+                // Visual feedback on the shop item (optional, for now just refresh)
+                const items = document.querySelectorAll('.shop-item');
+                // Could highlight the bought one
+            }
+        }
+
         function levelComplete() {
             gameState = 'LEVEL_COMPLETE';
             const govl = document.getElementById('game-overlay');
+            const shop = document.getElementById('shop-container');
             govl.style.display = 'flex';
+            if (shop) shop.style.display = 'grid';
             
             document.getElementById('overlay-title').innerText = currentLevel >= 10 ? "MISSION SUCCESS" : "LEVEL " + currentLevel + " CLEAR";
             document.getElementById('overlay-sub').innerText = currentLevel >= 10 ? 
                 "You have survived the Horde. Final Score: " + score : 
-                "Prepare for Sector " + (currentLevel + 1);
+                "Prepare for Sector " + (currentLevel + 1) + ". VISIT THE DOCKING BAY.";
             
             document.getElementById('start-btn').innerText = currentLevel >= 10 ? "PLAY AGAIN" : "PROCEED TO LEVEL " + (currentLevel + 1);
         }
@@ -768,22 +866,28 @@
                 // Background scroll
                 const positions = stars.geometry.attributes.position.array;
                 for(let i=0; i<starCount; i++) {
-                    positions[i*3+2] += starSpeeds[i];
+                    positions[i*3+2] += starSpeeds[i] * draftingMultiplier;
                     if(positions[i*3+2] > 20) positions[i*3+2] = -180;
                 }
                 stars.geometry.attributes.position.needsUpdate = true;
 
-                // Face Tracking logic
-                if(FaceTracker.cursorX !== -100) {
-                    // Simple logic: screen center is lane divider
-                    currentLane = FaceTracker.cursorX > window.innerWidth / 2 ? 1 : 0;
-                    document.getElementById('lane-0').className = currentLane === 0 ? 'lane-dot active' : 'lane-dot';
-                    document.getElementById('lane-1').className = currentLane === 1 ? 'lane-dot active' : 'lane-dot';
-                }
+                // HUD indicator update
+                document.getElementById('lane-0').className = currentLane === 0 ? 'lane-dot active' : 'lane-dot';
+                document.getElementById('lane-1').className = currentLane === 1 ? 'lane-dot active' : 'lane-dot';
 
                 // Smooth lane lerp
                 lerpX += (LANE_X[currentLane] - lerpX) * LANE_LERP_FACTOR;
                 fleetGroup.position.x = lerpX;
+
+                // DRAFTING BONUS: Stay in the lane to gain speed (and score)
+                if (Date.now() - lastDraftingCheck > 1000) {
+                    if (Math.abs(lerpX - LANE_X[currentLane]) < 0.1) {
+                         draftingMultiplier = Math.min(2.0, draftingMultiplier + 0.1);
+                    } else {
+                         draftingMultiplier = 1.0;
+                    }
+                    lastDraftingCheck = Date.now();
+                }
                 
                 // Tilting effect
                 fleetGroup.rotation.z = (lerpX - LANE_X[currentLane]) * 0.2;
@@ -825,6 +929,7 @@
                 for(let i=projectiles.length-1; i>=0; i--) {
                     const p = projectiles[i];
                     p.position.z -= p.userData.speed;
+                    p.position.x += (p.userData.vx || 0);
                     
                     if(p.position.z < -70) {
                         scene.remove(p);
@@ -952,10 +1057,39 @@
                                         scene.remove(e);
                                         entities.splice(j, 1);
                                     } else {
+                                        // BEHEMOTH CHAIN REACTION
+                                        if (e.userData.cost >= 10) { // Behemoths have cost 12
+                                            const expRadius = 15.0;
+                                            entities.forEach(target => {
+                                                if (target !== e && (target.userData.type === 'ENEMY' || target.userData.type === 'NEUTRAL')) {
+                                                    if (e.position.distanceTo(target.position) < expRadius) {
+                                                        target.userData.hp -= 10;
+                                                    }
+                                                }
+                                            });
+                                            // Visual shockwave
+                                            const wave = new THREE.Mesh(new THREE.TorusGeometry(1, 0.1, 16, 100), new THREE.MeshBasicMaterial({ color: 0xe11d48, transparent: true }));
+                                            wave.position.copy(e.position);
+                                            wave.rotation.x = Math.PI / 2;
+                                            scene.add(wave);
+                                            let s = 1;
+                                            const waveInt = setInterval(() => {
+                                                s += 1.5;
+                                                wave.scale.set(s, s, s);
+                                                wave.material.opacity -= 0.05;
+                                                if (wave.material.opacity <= 0) {
+                                                    clearInterval(waveInt);
+                                                    scene.remove(wave);
+                                                }
+                                            }, 16);
+                                        }
+
                                         scene.remove(e);
                                         entities.splice(j, 1);
-                                        score += e.userData.type === 'ENEMY' ? 100 : 250;
-                                        document.getElementById('score').innerText = score;
+                                        const reward = Math.floor((e.userData.type === 'ENEMY' ? 100 : 250) * draftingMultiplier);
+                                        score += reward;
+                                        starScraps += Math.floor(reward / 10);
+                                        updateHUD();
                                     }
                                 } else {
                                     // Visual flash on hit
@@ -985,6 +1119,16 @@
                     // Special powerups move 60% slower
                     const moveMult = (e.userData.type === 'WEAPON_UPGRADE' || e.userData.type === 'UPGRADE_CORE') ? 0.4 : (e.userData.speedMult || 1.0);
                     e.position.z += metrics.speed * moveMult;
+                    
+                    // MAGNETISM logic
+                    if (e.userData.type === 'POWERUP' || e.userData.type === 'UPGRADE_CORE') {
+                        const magRange = magnetismRange + (UPGRADES.MAGNET * 5);
+                        const distToFleet = e.position.distanceTo(new THREE.Vector3(lerpX, 0, 8));
+                        if (distToFleet < magRange) {
+                            e.position.x += (lerpX - e.position.x) * 0.1;
+                            e.position.z += (8 - e.position.z) * 0.1;
+                        }
+                    }
                     
                     // Simple pulse animation
                     const pulse = 1 + Math.sin(time + i) * 0.05;
@@ -1108,7 +1252,9 @@
 
         document.getElementById('start-btn').onclick = () => {
             const govl = document.getElementById('game-overlay');
+            const shop = document.getElementById('shop-container');
             govl.style.display = 'none';
+            if (shop) shop.style.display = 'none';
             
             if (gameState === 'GAMEOVER' || (gameState === 'LEVEL_COMPLETE' && currentLevel >= 10)) {
                 resetGame();
@@ -1116,6 +1262,13 @@
                 currentLevel++;
                 levelTime = 0;
                 weaponUpgradeSpawned = false;
+
+                // Mission Selection
+                const missionKeys = Object.keys(MISSION_TYPES);
+                currentMission = missionKeys[Math.floor(Math.random() * missionKeys.length)];
+                const mission = MISSION_TYPES[currentMission];
+                
+                document.getElementById('overlay-sub').innerText = "Current Mission: " + mission.name;
                 // Keep fleet and score
                 entities.forEach(e => scene.remove(e));
                 projectiles.forEach(p => scene.remove(p));
@@ -1129,18 +1282,17 @@
 
         // Controls: Mouse / Touch / Keyboard
         window.addEventListener('pointermove', (e) => {
-            FaceTracker.cursorX = e.clientX;
-            FaceTracker.cursorY = e.clientY;
+            currentLane = e.clientX > window.innerWidth / 2 ? 1 : 0;
         });
 
         window.addEventListener('keydown', (e) => {
             if (e.key === 'ArrowLeft') {
-                FaceTracker.cursorX = 0;
+                currentLane = 0;
             } else if (e.key === 'ArrowRight') {
-                FaceTracker.cursorX = window.innerWidth;
-            } else if (e.key === ' ') {
-                togglePause();
+                currentLane = 1;
             }
+            if (e.key === 's' || e.key === 'S') switchWeapon();
+            if (e.key === ' ') togglePause();
         });
 
         document.getElementById('pause-overlay').onclick = togglePause;
@@ -1185,47 +1337,8 @@
         updateFleet();
         animate();
 
-        // ---- HEAD TRACKING: LAZY LOAD ----
-        function loadHeadTracking() {
-            const overlay = document.getElementById('ai-load-overlay');
-            const status = document.getElementById('ai-load-status');
-            const fill = document.getElementById('progress-bar-fill');
 
-            overlay.classList.add('visible');
 
-            const updateAI = (msg, pct) => {
-                status.innerText = msg;
-                fill.style.width = pct + '%';
-            };
-
-            updateAI('Downloading Neural Engine (~15MB)...', 5);
-
-            const script = document.createElement('script');
-            script.src = 'https://cdn.jsdelivr.net/npm/webgazer@2.1.1/dist/webgazer.js';
-            script.crossOrigin = "anonymous";
-            script.onerror = () => { window.webgazerLoadError = true; };
-            script.onload = () => {
-                updateAI('Requesting camera access...', 40);
-                FaceTracker.init().then(success => {
-                    if (success) {
-                        updateAI('Head Tracking Online!', 100);
-                        setTimeout(() => overlay.classList.remove('visible'), 1000);
-                    } else {
-                        updateAI('AI Failed — using Mouse/Touch.', 100);
-                        setTimeout(() => overlay.classList.remove('visible'), 1500);
-                    }
-                }).catch(err => {
-                    updateAI('Error: ' + err.message, 100);
-                    setTimeout(() => overlay.classList.remove('visible'), 2000);
-                });
-            };
-            document.head.appendChild(script);
-        }
-
-        document.getElementById('ai-mode-btn').addEventListener('click', () => {
-            document.getElementById('ai-mode-btn').style.display = 'none';
-            loadHeadTracking();
-        });
     </script>
 </body>
 </html>
