@@ -304,8 +304,9 @@
                 </div>
                 <div class="flex gap-2">
                     <button id="hf-sync-btn" class="p-2 bg-slate-800 rounded-xl" title="Sync to HF">☁️</button>
+                    <button id="hf-browse-btn" class="p-2 bg-slate-800 rounded-xl" title="Browse HF Cloud">🌐</button>
                     <button id="download-raw-btn" class="p-2 bg-slate-800 rounded-xl" title="Download JSON">💾</button>
-                    <button id="upload-data-btn" class="p-2 bg-slate-800 rounded-xl" title="Upload Dataset">📂</button>
+                    <button id="upload-data-btn" class="p-2 bg-slate-800 rounded-xl" title="Load Local JSON">📂</button>
                     <button id="sweep-data-btn" class="p-2 bg-slate-800 rounded-xl" title="Parameter Sweep">🧬</button>
                     <button id="close-results-btn" class="p-2 bg-slate-800 rounded-xl" title="Close">✕</button>
                 </div>
@@ -669,13 +670,16 @@
             const repo = "Y3/mouth_status";
             const url = `https://huggingface.co/api/datasets/${repo}/upload/main/${path}`;
             
+            // UTF-8 safe base64
+            const utf8SafeBase64 = btoa(unescape(encodeURIComponent(content)));
+            
             const res = await fetch(url, {
                 method: "POST",
                 headers: {
                     "Authorization": `Bearer ${token}`,
                     "Content-Type": "application/json"
                 },
-                body: JSON.stringify({ content: btoa(content), encoding: "base64" })
+                body: JSON.stringify({ content: utf8SafeBase64, encoding: "base64" })
             });
             
             if (!res.ok) {
@@ -684,6 +688,69 @@
             }
             return await res.json();
         }
+
+        document.getElementById('hf-browse-btn').onclick = async () => {
+            const token = localStorage.getItem('hf_token_mouth');
+            if (!token) { alert("Set your HF Token in settings first!"); return; }
+
+            const btn = document.getElementById('hf-browse-btn');
+            const originalIcon = btn.innerText;
+            btn.innerText = '⌛';
+            
+            try {
+                const repo = "Y3/mouth_status";
+                // List files in data/raw
+                const treeUrl = `https://huggingface.co/api/datasets/${repo}/tree/main/data/raw`;
+                const res = await fetch(treeUrl, {
+                    headers: { "Authorization": `Bearer ${token}` }
+                });
+                
+                if (!res.ok) throw new Error("Failed to fetch cloud file list");
+                const files = await res.json();
+                
+                // Sort by name descending (assuming timestamp based names)
+                const jsonFiles = files.filter(f => f.path.endsWith('.json')).reverse();
+                
+                if (!jsonFiles.length) {
+                    alert("No cloud datasets found in Y3/mouth_status/data/raw");
+                    btn.innerText = originalIcon;
+                    return;
+                }
+
+                const filename = prompt(
+                    "Select a dataset to load (latest first):\n\n" + 
+                    jsonFiles.slice(0, 10).map((f, i) => `${i+1}. ${f.path.split('/').pop()}`).join('\n') + 
+                    "\n\nEnter number (1-10):", "1"
+                );
+
+                if (!filename) { btn.innerText = originalIcon; return; }
+                const idx = parseInt(filename) - 1;
+                if (isNaN(idx) || !jsonFiles[idx]) { btn.innerText = originalIcon; return; }
+
+                const selectedFile = jsonFiles[idx];
+                btn.innerText = '📥';
+
+                // Fetch raw content
+                const rawUrl = `https://huggingface.co/datasets/${repo}/raw/main/${selectedFile.path}`;
+                const rawRes = await fetch(rawUrl, {
+                    headers: { "Authorization": `Bearer ${token}` }
+                });
+
+                if (!rawRes.ok) throw new Error("Failed to download file content");
+                const data = await rawRes.json();
+                
+                if (confirm(`Load cloud dataset "${selectedFile.path.split('/').pop()}" (${data.records?.length || 0} frames)?`)) {
+                    runOfflineOptimization(data.records);
+                }
+                
+                btn.innerText = originalIcon;
+            } catch (err) {
+                console.error(err);
+                alert("Cloud Error: " + err.message);
+                btn.innerText = '❌';
+                setTimeout(() => btn.innerText = originalIcon, 3000);
+            }
+        };
 
         document.getElementById('hf-sync-btn').onclick = async () => {
             if (!calibrationRecords.length) {
