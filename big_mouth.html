@@ -278,8 +278,11 @@
                 </div>
                 <div class="flex gap-2">
                     <button id="download-raw-btn" class="p-2 bg-slate-800 rounded-xl" title="Download JSON">💾</button>
+                    <button id="upload-data-btn" class="p-2 bg-slate-800 rounded-xl" title="Upload Dataset">📂</button>
+                    <button id="sweep-data-btn" class="p-2 bg-slate-800 rounded-xl" title="Parameter Sweep">🧬</button>
                     <button id="close-results-btn" class="p-2 bg-slate-800 rounded-xl" title="Close">✕</button>
                 </div>
+                <input type="file" id="dataset-input" class="hidden" accept=".json">
             </div>
 
             <div id="results-table-container" class="flex-1 overflow-y-auto pr-2 custom-scrollbar">
@@ -815,6 +818,98 @@
             FaceTracker.showDebugLandmarks = false;
         };
 
+        // --- Dataset Upload & Offline Logic ---
+        const datasetInput = document.getElementById('dataset-input');
+        document.getElementById('upload-data-btn').onclick = () => datasetInput.click();
+
+        datasetInput.onchange = (e) => {
+            const file = e.target.files[0];
+            if (!file) return;
+            const reader = new FileReader();
+            reader.onload = (event) => {
+                try {
+                    const data = JSON.parse(event.target.result);
+                    if (!data.records || !data.records.length) throw new Error("Invalid dataset: No records found.");
+                    
+                    if (confirm(`Load dataset with ${data.records.length} frames and re-calibrate?`)) {
+                        runOfflineOptimization(data.records);
+                    }
+                } catch (err) {
+                    alert("Error loading dataset: " + err.message);
+                }
+            };
+            reader.readAsText(file);
+        };
+
+        function runOfflineOptimization(records) {
+            // Reset candidates stats
+            candidates = generateCandidates();
+            
+            // Replay every frame through every detector
+            records.forEach(frame => {
+                if (!frame.metrics) return;
+                const truth = frame.truth;
+                
+                candidates.forEach(c => {
+                    FaceTracker.evaluateDetector(c.detector, frame.metrics);
+                    const isCorrect = c.detector.isMouthOpen === truth;
+                    
+                    if (truth) c.posSamples++; else c.negSamples++;
+                    if (isCorrect) c.correct++;
+                    else {
+                        if (c.detector.isMouthOpen) c.fp++; else c.fn++;
+                    }
+                });
+            });
+
+            // Update UI
+            renderResults();
+            document.getElementById('results-count-text').innerText = `${records.length} FRAMES (OFFLINE OPTIMIZED)`;
+            document.getElementById('results-count-text').style.color = '#fbbf24';
+        }
+
+        document.getElementById('sweep-data-btn').onclick = () => {
+            if (!calibrationRecords.length) {
+                alert("No data to sweep! Please run calibration or upload a dataset first.");
+                return;
+            }
+            if (confirm("Perform exhaustive parameter sweep? This will test 50+ threshold combinations.")) {
+                runParameterSweep(calibrationRecords);
+            }
+        };
+
+        function runParameterSweep(records) {
+            const sweepPool = [];
+            
+            // Generate Hybrid sweep: Confidence 0.1 to 0.7
+            for (let c = 0.1; c <= 0.71; c += 0.02) {
+                sweepPool.push({
+                    id: `sweep-h${c.toFixed(2)}`,
+                    config: { ...FaceTracker.mouthDetection, approach: 'hybrid', hybridConfidence: c }
+                });
+            }
+
+            // Generate MAR-Heavy sweep
+            for (let c = 0.15; c <= 0.45; c += 0.05) {
+                sweepPool.push({
+                    id: `mar-heavy-c${c.toFixed(2)}`,
+                    config: { ...FaceTracker.mouthDetection, approach: 'hybrid', hybridConfidence: c, marWeight: 0.8, areaWeight: 0.1, chinWeight: 0.1 }
+                });
+            }
+
+            // Initialize candidates for sweep
+            candidates = sweepPool.map(c => ({
+                ...c,
+                detector: FaceTracker.createDetector(c.config),
+                correct: 0, fp: 0, fn: 0, posSamples: 0, negSamples: 0
+            }));
+
+            runOfflineOptimization(records);
+            
+            document.getElementById('results-count-text').innerText = `SWEEP COMPLETE: ${records.length} FRAMES`;
+            document.getElementById('results-count-text').style.color = '#8b5cf6'; // Violet for sweep
+        }
+
         let currentSort = { key: 'f1', dir: -1 };
 
         function renderResults() {
@@ -1167,6 +1262,14 @@
 
                     if (calibWindowActive) {
                         const truth = calibInstructionState === 'OPEN';
+                        
+                        // NEW: Record full raw metrics for the dataset
+                        calibrationRecords.push({
+                            timestamp: Date.now(),
+                            metrics: JSON.parse(JSON.stringify(FaceTracker._lastMetrics)),
+                            truth: truth
+                        });
+
                         const isCorrect = c.detector.isMouthOpen === truth;
                         
                         if (truth) c.posSamples++; else c.negSamples++;
