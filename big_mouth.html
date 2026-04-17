@@ -73,6 +73,63 @@
         .teeth-row {
             filter: drop-shadow(0 2px 2px rgba(0,0,0,0.3));
         }
+
+        /* Guided Calibration UI */
+        #calib-target {
+            position: absolute;
+            width: 80px;
+            height: 80px;
+            border: 4px solid #f472b6;
+            border-radius: 50%;
+            transform: translate(-50%, -50%);
+            z-index: 1000;
+            display: none;
+            transition: all 0.5s cubic-bezier(0.34, 1.56, 0.64, 1);
+            box-shadow: 0 0 30px rgba(244, 114, 182, 0.4);
+        }
+
+        #calib-target::after {
+            content: '';
+            position: absolute;
+            inset: 8px;
+            border: 2px dashed #f472b6;
+            border-radius: 50%;
+            animation: spin 4s linear infinite;
+        }
+
+        @keyframes spin {
+            from { transform: rotate(0deg); }
+            to { transform: rotate(360deg); }
+        }
+
+        .calib-progress-ring {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            width: 100px;
+            height: 100px;
+            pointer-events: none;
+        }
+
+        .calib-consensus-hud {
+            position: absolute;
+            bottom: 40px;
+            left: 50%;
+            transform: translateX(-50%);
+            width: calc(100% - 48px);
+            max-width: 320px;
+            z-index: 1001;
+        }
+
+        .best-setting-pop {
+            animation: pop-in 0.5s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+        }
+
+        @keyframes pop-in {
+            0% { transform: scale(0.8) translateY(20px); opacity: 0; }
+            100% { transform: scale(1) translateY(0); opacity: 1; }
+        }
     </style>
 </head>
 
@@ -153,22 +210,57 @@
             </div>
         </div>
 
-        <!-- CALIBRATION VIEW -->
-        <div id="calibration-view" class="absolute inset-0 z-[115] bg-black hidden">
-            <!-- Recording UI -->
-            <div id="calib-tap-zone" class="absolute inset-0 pointer-events-auto flex flex-col items-center justify-end pb-20 p-6 text-center" style="z-index: 2;">
-                <div class="backdrop-blur-xl bg-pink-600/20 border border-pink-500/30 p-8 rounded-[2.5rem] w-full max-w-[320px] shadow-2xl animate-pulse pointer-events-none">
-                    <p class="text-pink-400 text-sm font-black mb-2 uppercase tracking-widest">Truth Recorder</p>
-                    <p class="text-white text-xs leading-relaxed opacity-80">
-                        Move your mouth. If the system is <b>WRONG</b>, tap the screen to record a correction.
-                    </p>
+        <!-- CALIBRATION VIEW (Guided) -->
+        <div id="calibration-view" class="absolute inset-0 z-[115] bg-black hidden flex flex-col">
+            <!-- Guided Target -->
+            <div id="calib-target">
+                <svg class="calib-progress-ring" viewBox="0 0 100 100">
+                    <circle cx="50" cy="50" r="45" fill="none" stroke="rgba(255,255,255,0.1)" stroke-width="5" />
+                    <circle id="calib-timer-path" cx="50" cy="50" r="45" fill="none" stroke="#f472b6" stroke-width="5" 
+                        stroke-dasharray="282.7" stroke-dashoffset="0" stroke-linecap="round" />
+                </svg>
+            </div>
+
+            <!-- Instruction Overlay -->
+            <div id="calib-instruction" class="absolute top-1/2 left-50 w-full text-center -translate-y-1/2 pointer-events-none">
+                <h3 id="calib-action-text" class="text-4xl font-black italic uppercase tracking-tighter text-white mb-2 underline decoration-pink-500 decoration-8 underline-offset-8">Wait...</h3>
+                <p id="calib-sub-text" class="text-slate-400 text-xs font-bold uppercase tracking-widest">Get ready for next point</p>
+            </div>
+
+            <!-- Consensus HUD -->
+            <div class="calib-consensus-hud">
+                <div id="best-setting-card" class="hidden backdrop-blur-2xl bg-slate-900/40 border border-white/5 p-4 rounded-3xl mb-4 best-setting-pop">
+                    <div class="flex items-center justify-between mb-2">
+                        <span class="text-[9px] text-slate-500 font-bold uppercase tracking-widest">Leaderboard Best</span>
+                        <span id="best-setting-acc" class="text-green-400 font-black text-xs">98%</span>
+                    </div>
+                    <div id="best-setting-name" class="text-white font-black italic uppercase text-lg">Hysteresis Variant A</div>
+                </div>
+
+                <div class="backdrop-blur-xl bg-black/40 border border-white/10 p-5 rounded-[2.5rem] shadow-2xl">
+                    <div class="flex items-center justify-between mb-4">
+                        <p class="text-pink-400 text-[10px] font-black uppercase tracking-widest">Consensus Engine</p>
+                        <div class="flex gap-1" id="consensus-dots">
+                            <!-- Dot indicators for models -->
+                        </div>
+                    </div>
+                    <div class="flex items-end justify-between">
+                        <div>
+                            <div class="text-[10px] text-slate-500 font-bold uppercase tracking-[0.2em] mb-1">State Prediction</div>
+                            <div id="consensus-state" class="text-white text-2xl font-black italic tracking-tighter">CALCULATING...</div>
+                        </div>
+                        <div class="text-right">
+                            <div id="consensus-count" class="text-3xl font-black text-pink-500">0/0</div>
+                            <div class="text-[8px] text-slate-600 font-bold uppercase">Models Agree</div>
+                        </div>
+                    </div>
                 </div>
             </div>
 
             <!-- Stats Overlay (Top) -->
-            <div class="absolute top-20 left-6 right-6 flex items-center justify-between pointer-events-none" style="z-index: 3;">
+            <div class="absolute top-12 left-6 right-6 flex items-center justify-between pointer-events-none" style="z-index: 3;">
                 <div class="bg-black/60 backdrop-blur-md px-4 py-2 rounded-2xl border border-white/5">
-                    <span class="text-[10px] text-slate-500 font-bold uppercase tracking-widest mr-2">Records</span>
+                    <span class="text-[10px] text-slate-500 font-bold uppercase tracking-widest mr-2">Samples</span>
                     <span id="calib-count" class="text-pink-500 font-black">0</span>
                 </div>
                 <button id="show-results-btn" class="pointer-events-auto px-6 py-2 bg-pink-600 rounded-full text-[10px] font-black uppercase tracking-widest active:scale-95">
@@ -414,27 +506,23 @@
         
         function generateCandidates() {
             const pool = [];
-            // Current Setting
-            pool.push({ id: 'Current', config: FaceTracker.mouthDetection });
+            pool.push({ id: 'current', config: FaceTracker.mouthDetection });
             
-            // Hysteresis variants
-            const hystRanges = [[0.3, 0.15], [0.38, 0.18], [0.45, 0.22], [0.55, 0.25]];
+            const hystRanges = [[0.3, 0.15], [0.38, 0.18], [0.45, 0.22], [0.55, 0.25], [0.65, 0.30]];
             hystRanges.forEach((r, i) => pool.push({
-                id: `Hyst-H${r[0]}`,
+                id: `hyst-${r[0]}`,
                 config: { ...FaceTracker.mouthDetection, approach: 'hysteresis', hystOpenThreshold: r[0], hystCloseThreshold: r[1] }
             }));
 
-            // Multi-Metric variants
-            const mmThresholds = [0.2, 0.3, 0.4];
+            const mmThresholds = [0.15, 0.25, 0.35, 0.45];
             mmThresholds.forEach(t => pool.push({
-                id: `MM-T${t}`,
+                id: `mm-t${t}`,
                 config: { ...FaceTracker.mouthDetection, approach: 'multiMetric', openThreshold: t }
             }));
 
-            // Velocity variants
             const velSens = [0.015, 0.03, 0.05];
             velSens.forEach(v => pool.push({
-                id: `Vel-V${v}`,
+                id: `vel-v${v}`,
                 config: { ...FaceTracker.mouthDetection, approach: 'velocityGated', velocityThreshold: v, holdFrames: 8 }
             }));
 
@@ -443,7 +531,9 @@
                 detector: FaceTracker.createDetector(c.config),
                 correct: 0,
                 fp: 0,
-                fn: 0
+                fn: 0,
+                posSamples: 0,
+                negSamples: 0
             }));
         }
 
@@ -583,6 +673,93 @@
             document.getElementById('hub-overlay').classList.remove('hidden');
         };
 
+        let guidedCalibActive = false;
+        let calibWindowActive = false;
+        let calibInstructionState = 'CLOSED'; // 'OPEN' or 'CLOSED'
+        let calibPointIdx = 0;
+        let calibStateIdx = 0; // 0 = CLOSED, 1 = OPEN
+        let calibTimer = 0;
+        const CALIB_WINDOW_DURATION = 3000;
+        const CALIB_TRANSITION_DURATION = 1500;
+
+        const calibPoints = [
+            { x: 15, y: 15 }, { x: 50, y: 15 }, { x: 85, y: 15 },
+            { x: 15, y: 50 }, { x: 50, y: 50 }, { x: 85, y: 50 },
+            { x: 15, y: 85 }, { x: 50, y: 85 }, { x: 85, y: 85 }
+        ];
+
+        function startGuidedCalibration() {
+            calibrationRecords = [];
+            candidates = generateCandidates();
+            
+            // Initialize dots
+            const dotsContainer = document.getElementById('consensus-dots');
+            dotsContainer.innerHTML = '';
+            candidates.forEach(() => {
+                const dot = document.createElement('div');
+                dot.className = 'w-1.5 h-1.5 rounded-full bg-slate-800 transition-colors duration-200';
+                dotsContainer.appendChild(dot);
+            });
+
+            guidedCalibActive = true;
+            calibPointIdx = 0;
+            calibStateIdx = 0;
+            nextCalibStep();
+        }
+
+        function nextCalibStep() {
+            if (calibPointIdx >= calibPoints.length) {
+                finishGuidedCalibration();
+                return;
+            }
+
+            const pt = calibPoints[calibPointIdx];
+            const target = document.getElementById('calib-target');
+            target.style.display = 'block';
+            target.style.left = pt.x + '%';
+            target.style.top = pt.y + '%';
+
+            const actionText = document.getElementById('calib-action-text');
+            const subText = document.getElementById('calib-sub-text');
+            
+            calibInstructionState = calibStateIdx === 0 ? 'CLOSED' : 'OPEN';
+            actionText.innerText = 'WAIT...';
+            subText.innerText = `Moving to Point ${calibPointIdx + 1}/9`;
+            
+            calibWindowActive = false;
+
+            setTimeout(() => {
+                actionText.innerText = `KEEP MOUTH ${calibInstructionState}`;
+                subText.innerText = 'RECORDING DATA...';
+                calibWindowActive = true;
+                calibTimer = Date.now();
+                
+                if (navigator.vibrate) navigator.vibrate(100);
+
+                setTimeout(() => {
+                    calibWindowActive = false;
+                    calibStateIdx++;
+                    if (calibStateIdx > 1) {
+                        calibStateIdx = 0;
+                        calibPointIdx++;
+                    }
+                    nextCalibStep();
+                }, CALIB_WINDOW_DURATION);
+
+            }, CALIB_TRANSITION_DURATION);
+        }
+
+        function finishGuidedCalibration() {
+            guidedCalibActive = false;
+            document.getElementById('calib-target').style.display = 'none';
+            document.getElementById('calib-action-text').innerText = 'COMPLETE';
+            document.getElementById('calib-sub-text').innerText = 'Reviewing results...';
+            setTimeout(() => {
+                renderResults();
+                document.getElementById('results-overlay').classList.remove('hidden');
+            }, 1000);
+        }
+
         document.getElementById('hub-calib-btn').onclick = () => {
             document.getElementById('hub-overlay').classList.add('hidden');
             calibrationMode = true;
@@ -590,6 +767,7 @@
             
             FaceTracker.startCalibration(() => {
                 document.getElementById('calibration-view').classList.remove('hidden');
+                startGuidedCalibration();
                 
                 const videoContainer = document.getElementById('webgazerVideoContainer');
                 if (videoContainer) {
@@ -598,46 +776,6 @@
                 }
             });
         };
-
-        document.getElementById('calib-tap-zone').addEventListener('pointerdown', (e) => {
-            if (!calibrationMode) return;
-            e.preventDefault();
-            e.stopPropagation();
-            console.log('[CalibTap] Registered tap at', e.clientX, e.clientY, 'mouthOpen:', FaceTracker.isMouthOpen);
-            
-            const now = new Date();
-            const timeStr = now.toLocaleTimeString();
-            const correctStatus = !FaceTracker.isMouthOpen; // inverse current
-            
-            const record = {
-                timestamp: timeStr,
-                correctStatus: correctStatus ? 'OPEN' : 'CLOSED',
-                tapPos: { x: e.clientX, y: e.clientY },
-                mouthPos: { x: FaceTracker.cursorX, y: FaceTracker.cursorY },
-                landmarks: FaceTracker._lastLandmarks ? JSON.parse(JSON.stringify(FaceTracker._lastLandmarks)) : [],
-                results: []
-            };
-
-            candidates.forEach(c => {
-                const wasCorrect = c.detector.isMouthOpen === correctStatus;
-                if (wasCorrect) c.correct++;
-                else {
-                    if (c.detector.isMouthOpen) c.fp++; else c.fn++;
-                }
-                record.results.push({ id: c.id, correct: wasCorrect, state: c.detector.isMouthOpen });
-            });
-
-            calibrationRecords.push(record);
-            document.getElementById('calib-count').innerText = calibrationRecords.length;
-            
-            // Visual feedback for tap
-            const ripple = document.createElement('div');
-            ripple.style.cssText = `position:fixed;width:80px;height:80px;border:4px solid #ec4899;border-radius:50%;pointer-events:none;z-index:99999;animation:ping 1s ease-out forwards;`;
-            ripple.style.left = (e.clientX - 40) + 'px';
-            ripple.style.top = (e.clientY - 40) + 'px';
-            document.body.appendChild(ripple);
-            setTimeout(() => ripple.remove(), 1000);
-        });
 
         document.getElementById('show-results-btn').onclick = () => {
             renderResults();
@@ -669,53 +807,55 @@
 
         function renderResults() {
             const container = document.getElementById('results-table-container');
-            document.getElementById('results-count-text').innerText = `${calibrationRecords.length} DATA POINTS RECORDED`;
+            const totalSamples = candidates[0]?.posSamples + candidates[0]?.negSamples || 0;
+            document.getElementById('results-count-text').innerText = `${totalSamples} SAMPLES RECORDED`;
             
-            if (calibrationRecords.length === 0) {
-                container.innerHTML = `<div class="p-12 text-slate-700 text-center font-bold">NO DATA YET. GO TAPPING!</div>`;
+            if (totalSamples === 0) {
+                container.innerHTML = `<div class="p-12 text-slate-700 text-center font-bold">NO DATA YET. RUN CALIBRATION!</div>`;
                 return;
             }
 
             // Apply sort
             const sorted = [...candidates].sort((a, b) => {
                 let valA, valB;
-                if (currentSort.key === 'acc') { valA = a.correct; valB = b.correct; }
-                else if (currentSort.key === 'fp') { valA = a.fp; valB = b.fp; }
-                else if (currentSort.key === 'fn') { valA = a.fn; valB = b.fn; }
+                if (currentSort.key === 'acc') { valA = a.correct / (a.posSamples + a.negSamples); valB = b.correct / (b.posSamples + b.negSamples); }
+                else if (currentSort.key === 'fp') { valA = a.fp / Math.max(a.negSamples,1); valB = b.fp / Math.max(b.negSamples,1); }
+                else if (currentSort.key === 'fn') { valA = a.fn / Math.max(a.posSamples,1); valB = b.fn / Math.max(b.posSamples,1); }
                 
-                // For FP/FN, lower is better (so reverse default dir)
                 const multiplier = (currentSort.key === 'acc') ? currentSort.dir : -currentSort.dir;
                 return (valB - valA) * multiplier;
             });
 
             const sortIcon = (key) => (currentSort.key === key) ? (currentSort.dir === -1 ? ' ↓' : ' ↑') : '';
 
-            let html = `<table class="w-full text-left text-[11px]">
+            let html = `<table class="w-full text-left text-[10px]">
                 <thead class="sticky top-0 bg-slate-950 text-slate-500 uppercase tracking-widest font-black">
                     <tr>
-                        <th class="py-4 pr-4">Method ID</th>
-                        <th class="py-4 pr-4 text-center cursor-pointer hover:text-white" onclick="setSort('acc')">Acc %${sortIcon('acc')}</th>
-                        <th class="py-4 pr-4 text-center text-red-500 cursor-pointer hover:text-white" onclick="setSort('fp')">FP${sortIcon('fp')}</th>
-                        <th class="py-4 pr-4 text-center text-blue-500 cursor-pointer hover:text-white" onclick="setSort('fn')">FN${sortIcon('fn')}</th>
-                        <th class="py-4 text-right">Action</th>
+                        <th class="py-4 pr-2">Method</th>
+                        <th class="py-4 pr-2 text-center cursor-pointer hover:text-white" onclick="setSort('acc')">Acc%${sortIcon('acc')}</th>
+                        <th class="py-4 pr-2 text-center text-red-500 cursor-pointer hover:text-white" onclick="setSort('fp')">FP%${sortIcon('fp')}</th>
+                        <th class="py-4 pr-2 text-center text-blue-500 cursor-pointer hover:text-white" onclick="setSort('fn')">FN%${sortIcon('fn')}</th>
+                        <th class="py-4 pr-2 text-right">Samples (+/-)</th>
+                        <th class="py-4 text-right">Act</th>
                     </tr>
                 </thead>
                 <tbody class="divide-y divide-slate-900">`;
 
             sorted.forEach((c, idx) => {
-                const acc = Math.round((c.correct / calibrationRecords.length) * 100);
+                const total = c.posSamples + c.negSamples;
+                const acc = Math.round((c.correct / total) * 100);
+                const fpRate = Math.round((c.fp / Math.max(c.negSamples, 1)) * 100);
+                const fnRate = Math.round((c.fn / Math.max(c.posSamples, 1)) * 100);
                 const isBest = idx === 0 && acc > 50;
                 
                 html += `<tr class="${isBest ? 'bg-pink-500/5' : ''}">
-                    <td class="py-4 pr-4 font-bold ${isBest ? 'text-pink-400' : 'text-slate-300'}">
-                        ${c.id} ${isBest ? '⭐' : ''}
-                    </td>
-                    <td class="py-4 pr-4 text-center font-black ${acc > 80 ? 'text-green-400' : 'text-slate-400'}">${acc}%</td>
-                    <td class="py-4 pr-4 text-center text-red-500/60 font-medium">${c.fp}</td>
-                    <td class="py-4 pr-4 text-center text-blue-500/60 font-medium">${c.fn}</td>
-                    <td class="py-4 text-right">
-                        <button onclick="applyConfig('${c.id}')" class="text-pink-500 hover:text-pink-300 font-bold mr-3">Apply</button>
-                        <button onclick="pruneConfig('${c.id}')" class="text-slate-700 hover:text-white">✕</button>
+                    <td class="py-2 pr-2 font-bold ${isBest ? 'text-pink-400' : 'text-slate-300'}">${c.id}</td>
+                    <td class="py-2 pr-2 text-center font-black ${acc > 85 ? 'text-green-400' : 'text-slate-400'}">${acc}%</td>
+                    <td class="py-2 pr-2 text-center text-red-500/80">${fpRate}%</td>
+                    <td class="py-2 pr-2 text-center text-blue-500/80">${fnRate}%</td>
+                    <td class="py-2 pr-2 text-right text-slate-600 font-mono">${c.posSamples}/${c.negSamples}</td>
+                    <td class="py-2 text-right">
+                        <button onclick="applyConfig('${c.id}')" class="text-pink-500 hover:text-pink-300 font-bold">Apply</button>
                     </td>
                 </tr>`;
             });
@@ -1000,11 +1140,70 @@
             const effectiveOpenness = manualMouthOpen ? 1.0 : FaceTracker.mouthOpenness;
             updateMouthSVG(effectiveOpenness);
 
-            // Parallel Calibration Engine
+            // Parallel Calibration & Consensus Engine
             if (FaceTracker._lastMetrics) {
+                let openVotes = 0;
                 candidates.forEach(c => {
                     FaceTracker.evaluateDetector(c.detector, FaceTracker._lastMetrics);
+                    if (c.detector.isMouthOpen) openVotes++;
+
+                    if (calibWindowActive) {
+                        const truth = calibInstructionState === 'OPEN';
+                        const isCorrect = c.detector.isMouthOpen === truth;
+                        
+                        if (truth) c.posSamples++; else c.negSamples++;
+                        if (isCorrect) c.correct++;
+                        else {
+                            if (c.detector.isMouthOpen) c.fp++; else c.fn++;
+                        }
+                    }
                 });
+
+                if (calibrationMode) {
+                    updateCalibrationHUD(openVotes);
+                }
+            }
+
+            function updateCalibrationHUD(openVotes) {
+                const total = candidates.length;
+                const stateEl = document.getElementById('consensus-state');
+                const countEl = document.getElementById('consensus-count');
+                const timerBar = document.getElementById('calib-timer-path');
+                
+                if (calibWindowActive) {
+                    const elapsed = Date.now() - calibTimer;
+                    const pct = Math.max(0, 1 - (elapsed / CALIB_WINDOW_DURATION));
+                    timerBar.style.strokeDashoffset = 282.7 * (1 - pct);
+                } else {
+                    timerBar.style.strokeDashoffset = 282.7;
+                }
+
+                stateEl.innerText = openVotes > (total / 2) ? 'PREDICTED: OPEN' : 'PREDICTED: CLOSED';
+                stateEl.style.color = openVotes > (total / 2) ? '#ec4899' : '#22d3ee';
+                countEl.innerText = `${openVotes}/${total}`;
+
+                // Update dots
+                const dots = document.getElementById('consensus-dots').children;
+                candidates.forEach((c, i) => {
+                    if (dots[i]) {
+                        dots[i].style.backgroundColor = c.detector.isMouthOpen ? '#ec4899' : '#22d3ee';
+                        dots[i].style.boxShadow = c.detector.isMouthOpen ? '0 0 6px #ec4899' : 'none';
+                    }
+                });
+
+                const totalSamples = candidates[0]?.posSamples + candidates[0]?.negSamples || 0;
+                document.getElementById('calib-count').innerText = totalSamples;
+
+                // Rank Best Setting (after 5 datapoints)
+                // A datapoint here is a 3s window. We have 18 total.
+                const datapoints = Math.floor(totalSamples / (3000 / 30)); // approx 100 samples per window
+                if (datapoints >= 5) {
+                    const best = [...candidates].sort((a,b) => (b.correct/(b.posSamples+b.negSamples)) - (a.correct/(a.posSamples+a.negSamples)))[0];
+                    const card = document.getElementById('best-setting-card');
+                    card.classList.remove('hidden');
+                    document.getElementById('best-setting-name').innerText = best.id;
+                    document.getElementById('best-setting-acc').innerText = Math.round((best.correct/(best.posSamples+best.negSamples))*100) + '% Acc';
+                }
             }
 
             // Update debug displays in settings
