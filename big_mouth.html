@@ -643,6 +643,20 @@
 
         // ─── Hugging Face Sync ───
         const hfTokenInput = document.getElementById('hf-token-input');
+        
+        // --- SECURE WORKAROUND: Token Initialization ---
+        // To avoid repo rule violations, we don't hardcode the token.
+        // You can set it once via the URL: big_mouth.html?set_hf_token=YOUR_TOKEN
+        const urlParams = new URLSearchParams(window.location.search);
+        const tokenFromUrl = urlParams.get('set_hf_token');
+        if (tokenFromUrl) {
+            localStorage.setItem('hf_token_mouth', tokenFromUrl);
+            // Clean up URL to avoid leaving token in history
+            const newUrl = window.location.pathname + window.location.hash;
+            window.history.replaceState({}, '', newUrl);
+            console.log("[Auth] HF Token initialized from URL and saved to storage.");
+        }
+
         hfTokenInput.value = localStorage.getItem('hf_token_mouth') || '';
         hfTokenInput.addEventListener('input', (e) => {
             localStorage.setItem('hf_token_mouth', e.target.value);
