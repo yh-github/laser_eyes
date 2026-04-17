@@ -346,16 +346,20 @@
         }
 
         window.addEventListener('load', () => {
-            FaceTracker.init().then(success => {
-                if(success) {
-                    startBtn.onclick = () => {
+            startBtn.classList.remove('hidden');
+            startBtn.onclick = () => {
+                startBtn.innerText = 'INITIALIZING...';
+                startBtn.style.pointerEvents = 'none';
+                startBtn.style.opacity = '0.5';
+                FaceTracker.init().then(success => {
+                    if(success) {
                         FaceTracker.startCalibration(() => {
                             overlay.classList.add('hidden');
                             animate();
                         });
-                    };
-                }
-            });
+                    }
+                });
+            };
         });
 
         // UI Listeners

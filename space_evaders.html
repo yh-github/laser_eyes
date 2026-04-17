@@ -802,16 +802,21 @@
 
         // Init
         window.addEventListener('load', () => {
-            FaceTracker.init().then(success => {
-                if(success) {
-                    startBtn.classList.remove('hidden');
-                    startBtn.onclick = () => {
+            const loadingText = document.getElementById('loading-text');
+            if (loadingText) loadingText.innerText = "Ready to connect Neural Link";
+            startBtn.classList.remove('hidden');
+            startBtn.onclick = () => {
+                startBtn.innerText = "INITIALIZING...";
+                startBtn.style.opacity = '0.5';
+                startBtn.style.pointerEvents = 'none';
+                FaceTracker.init().then(success => {
+                    if(success) {
                         FaceTracker.startCalibration(() => {
                             resetGame();
                         });
-                    };
-                }
-            });
+                    }
+                });
+            };
         });
 
         restartBtn.onclick = () => {

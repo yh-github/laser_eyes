@@ -543,18 +543,33 @@
             window.location.href = 'index.html';
         });
 
-        // Run AI initialization
+        // Setup initial UI with a start button to satisfy mobile browser user-interaction rules
         window.addEventListener('load', () => {
-            FaceTracker.suppressAutoUI = true; // prevent conflict
-            FaceTracker.init().then(success => {
-                if(success) {
-                    if (!loopInterval) loopInterval = setInterval(gameLoop, 30);
-                    // Open HUB initially
-                    if (overlay) overlay.classList.add('hidden');
-                    document.getElementById('hub-overlay').classList.remove('hidden');
-                    candidates = generateCandidates();
-                }
-            });
+            const statusBox = document.getElementById('intro-status-box');
+            if (statusBox) {
+                statusBox.innerHTML = `
+                    <button id="intro-start-btn" class="w-full py-4 bg-cyan-600 hover:bg-cyan-500 text-white rounded-xl text-xl font-bold transition-all active:scale-95 mb-4 shadow-lg shadow-cyan-900/50">
+                        START NEURAL LINK
+                    </button>
+                    <p class="text-gray-500 text-[10px]">Please allow camera access when prompted.</p>
+                `;
+                document.getElementById('intro-start-btn').addEventListener('click', function() {
+                    this.innerText = 'INITIALIZING...';
+                    this.disabled = true;
+                    this.classList.add('opacity-50');
+                    
+                    FaceTracker.suppressAutoUI = true; // prevent conflict
+                    FaceTracker.init().then(success => {
+                        if(success) {
+                            if (!loopInterval) loopInterval = setInterval(gameLoop, 30);
+                            // Open HUB initially
+                            if (overlay) overlay.classList.add('hidden');
+                            document.getElementById('hub-overlay').classList.remove('hidden');
+                            candidates = generateCandidates();
+                        }
+                    });
+                });
+            }
         });
 
         // Hub Navigation
