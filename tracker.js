@@ -173,29 +173,49 @@ const FaceTracker = {
         if(startBtn) startBtn.classList.remove('hidden');
     },
 
+    // Helper to update the start button text during init (since it replaces the status box)
+    _setInitStatus(msg) {
+        const introLoadingMsg = document.getElementById('intro-loading-msg');
+        const introStartBtn = document.getElementById('intro-start-btn');
+        if (introLoadingMsg) introLoadingMsg.innerText = msg;
+        else if (introStartBtn) introStartBtn.innerText = msg;
+        console.log('[FaceTracker]', msg);
+    },
+
     async init() {
         const introLoadingMsg = document.getElementById('intro-loading-msg');
         const introActionMsg = document.getElementById('intro-action-msg');
         
-        if (introLoadingMsg) introLoadingMsg.innerText = "Initializing AI...";
+        this._setInitStatus('Initializing AI...');
         if (introActionMsg) introActionMsg.innerText = "Preparing neural engine.";
 
         try {
             if (window.webgazerLoadError || typeof webgazer === 'undefined') {
-                throw new Error("Face tracking library failed to load. Please check your connection.");
+                throw new Error("Face tracking library (webgazer) failed to load. Check your network connection.");
             }
 
             webgazer.params.showVideo = true;
             webgazer.params.showPredictionPoints = false;
             webgazer.setGazeListener(() => { });
 
-            if (introLoadingMsg) introLoadingMsg.innerText = "Awaiting Camera...";
+            this._setInitStatus('Awaiting camera...');
             if (introActionMsg) introActionMsg.innerText = "Please accept camera permissions if prompted.";
 
-            await webgazer.begin();
+            // Wrap webgazer.begin() with a hard timeout — it hangs forever on mobile if blocked
+            await Promise.race([
+                webgazer.begin(),
+                new Promise((_, reject) =>
+                    setTimeout(() => reject(new Error(
+                        "Camera timed out after 20s. Please check that camera permissions are granted and reload."
+                    )), 20000)
+                )
+            ]);
 
-            if (introLoadingMsg) introLoadingMsg.innerText = "Downloading Models...";
-            if (introActionMsg) introActionMsg.innerText = "Initializing neural weights (15MB).";
+            this._setInitStatus('Loading neural weights...');
+            if (introActionMsg) introActionMsg.innerText = "Downloading model (15MB). Stay on this page.";
+
+            // Wait a moment for the tracker to warm up after begin()
+            await new Promise(r => setTimeout(r, 1500));
 
             const appContainer = document.getElementById(this.appContainerId) || document.body;
             const videoContainer = document.getElementById('webgazerVideoContainer');
@@ -218,7 +238,6 @@ const FaceTracker = {
             webgazer.showVideoPreview(true).showPredictionPoints(false);
 
             // Center cursor initially
-            const appContainer = document.getElementById(this.appContainerId) || document.body;
             const screenW = appContainer.clientWidth;
             const screenH = appContainer.clientHeight;
             
@@ -228,6 +247,7 @@ const FaceTracker = {
             this.lastNoseY = this.cursorY;
 
             this.isStarted = true;
+            this._setInitStatus('Neural link established ✓');
             
             // Transition to main menu (unless suppressed)
             setTimeout(() => {
@@ -255,9 +275,12 @@ const FaceTracker = {
 
             return true;
         } catch (err) {
-            console.error(err);
-            if (typeof webgazer !== 'undefined') webgazer.end();
+            console.error('[FaceTracker] init failed:', err);
+            if (typeof webgazer !== 'undefined') { try { webgazer.end(); } catch(e2) {} }
             this.showError("Initialization Failed", err.message);
+            // Re-enable the start button so the user can retry
+            const btn = document.getElementById('intro-start-btn');
+            if (btn) { btn.innerText = 'RETRY'; btn.disabled = false; btn.classList.remove('opacity-50'); }
             return false;
         }
     },
