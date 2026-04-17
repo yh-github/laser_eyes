@@ -644,7 +644,7 @@
         // ─── Hugging Face Sync ───
         const hfTokenInput = document.getElementById('hf-token-input');
         hfTokenInput.value = localStorage.getItem('hf_token_mouth') || '';
-        hfTokenInput.addEventListener('change', (e) => {
+        hfTokenInput.addEventListener('input', (e) => {
             localStorage.setItem('hf_token_mouth', e.target.value);
         });
 
@@ -1340,6 +1340,10 @@
 
         function gameLoop() {
             FaceTracker.update();
+
+            // Toggle UI visibility based on game state
+            document.getElementById('bigmouth-score').style.display = calibrationMode ? 'none' : 'flex';
+            document.getElementById('menu-btn').style.display = calibrationMode ? 'none' : 'block';
             if (!FaceTracker.isStarted) {
                 mouthCursor.style.display = 'none';
                 return;
