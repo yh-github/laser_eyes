@@ -534,21 +534,17 @@ const FaceTracker = {
         const chin = positions[7];
         const currentNoseToChin = this.getDistance(noseTip, chin) / Math.max(faceHeight, 1);
 
-        // ─── Compute normalized openness for each metric ───
+        // ─── Post-Calibration Neutral Baselines ───
         const baseMAR = this.neutralBaselines.captured ? this.neutralBaselines.baseMAR : 0.15;
         const baseNoseToChin = this.neutralBaselines.captured ? this.neutralBaselines.noseToChin : 0.45;
-        
+        const baseFaceWidth = this.neutralBaselines.faceWidth || faceWidth;
+
         // Neutral area baseline (captured or estimated)
         if (!this.neutralBaselines._baseAreaRatio && this.neutralBaselines.captured) {
             // Compute on first frame after calibration
             this.neutralBaselines._baseAreaRatio = areaRatio;
         }
         const baseAreaRatio = this.neutralBaselines._baseAreaRatio || 0.005;
-        
-        // ─── Post-Calibration Neutral Baselines ───
-        const baseMAR = this.neutralBaselines.captured ? this.neutralBaselines.baseMAR : 0.15;
-        const baseNoseToChin = this.neutralBaselines.captured ? this.neutralBaselines.noseToChin : 0.45;
-        const baseFaceWidth = this.neutralBaselines.faceWidth || faceWidth;
 
         // ─── Head Pose Estimation (Neural Link 2.0) ───
         // 1) Pitch: Ratio of nose bridge to nose-to-chin
