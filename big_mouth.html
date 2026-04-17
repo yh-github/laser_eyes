@@ -126,9 +126,35 @@
             animation: pop-in 0.5s cubic-bezier(0.175, 0.885, 0.32, 1.275);
         }
 
-        @keyframes pop-in {
-            0% { transform: scale(0.8) translateY(20px); opacity: 0; }
-            100% { transform: scale(1) translateY(0); opacity: 1; }
+        #calib-nose-dot {
+            z-index: 2000;
+        }
+
+        /* Ensure WebGazer is always in a safe spot (Lower Left) */
+        #webgazerVideoContainer, #webgazerVideoFeed, #webgazerCanvas {
+            top: auto !important;
+            bottom: 20px !important;
+            left: 20px !important;
+            right: auto !important;
+            width: 120px !important;
+            height: 90px !important;
+            border: 2px solid #ec4899 !important;
+            border-radius: 12px !important;
+            z-index: 50 !important;
+        }
+        
+        #side-menu {
+            position: absolute;
+            inset: 0;
+            z-index: 2000;
+            background: rgba(15, 23, 42, 0.98);
+            backdrop-filter: blur(20px);
+            padding: 2rem;
+            display: none; /* Controlled by .active class */
+        }
+        
+        #side-menu.active {
+            display: block;
         }
     </style>
 </head>
@@ -317,8 +343,8 @@
             </div>
         </div>
 
-        <div class="absolute top-6 right-6 z-40 flex flex-col items-end gap-3">
-            <button id="menu-btn" class="chargeable" title="Settings Menu">⚙️</button>
+        <div class="absolute top-6 right-6 z-[250] flex flex-col items-end gap-3">
+            <button id="menu-btn" class="chargeable bg-black/40 p-2 rounded-xl border border-white/10 backdrop-blur-md" title="Settings Menu">⚙️</button>
             <div id="bigmouth-score"
                 class="flex gap-3 text-sm font-bold bg-black/50 px-4 py-1 rounded-full pointer-events-none border border-white/10">
                 <div class="text-green-400">Good: <span id="good-points">0</span></div>
@@ -341,7 +367,7 @@
             </button>
         </div>
 
-        <div id="side-menu" class="hidden">
+        <div id="side-menu">
             <div id="main-menu-view">
                 <div class="menu-section">
                     <div class="menu-header">Sensors</div>
