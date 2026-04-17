@@ -277,6 +277,7 @@
                     <p id="results-count-text" class="text-[10px] text-slate-500 font-bold uppercase tracking-[0.2em]"></p>
                 </div>
                 <div class="flex gap-2">
+                    <button id="hf-sync-btn" class="p-2 bg-slate-800 rounded-xl" title="Sync to HF">☁️</button>
                     <button id="download-raw-btn" class="p-2 bg-slate-800 rounded-xl" title="Download JSON">💾</button>
                     <button id="upload-data-btn" class="p-2 bg-slate-800 rounded-xl" title="Upload Dataset">📂</button>
                     <button id="sweep-data-btn" class="p-2 bg-slate-800 rounded-xl" title="Parameter Sweep">🧬</button>
@@ -421,6 +422,12 @@
                     <div><span class="label">State:</span> <span class="value" id="debug-mouth-state" style="color:#22d3ee">CLOSED</span></div>
                     <div><span class="label">Velocity:</span> <span class="value" id="debug-mouth-velocity">+0.0000</span></div>
                 </div>
+
+                <div class="menu-divider"></div>
+                <div class="menu-header" style="color: #fbbf24; margin-top: 1rem;">Hugging Face Cloud</div>
+                <label class="menu-label">HF Write Token</label>
+                <input type="password" id="hf-token-input" class="approach-select mb-2" placeholder="hf_...">
+                <p class="text-[9px] text-slate-500 mb-4 italic">Required to sync your data to Y3/mouth_status</p>
             </div>
         </div>
 
@@ -475,6 +482,7 @@
     </div>
 
     <script>
+        const APP_VERSION = "55c748e853b0e397a1b684e92a0e7a1d1f9ec3fc";
         const appContainer = document.getElementById('app-container');
         const overlay = document.getElementById('overlay');
         const calibOverlay = document.getElementById('calib-overlay');
@@ -606,6 +614,95 @@
             FaceTracker.mouthDetection.approach = e.target.value;
             showApproachParams(e.target.value);
         });
+
+        // ─── Hugging Face Sync ───
+        const hfTokenInput = document.getElementById('hf-token-input');
+        hfTokenInput.value = localStorage.getItem('hf_token_mouth') || '';
+        hfTokenInput.addEventListener('change', (e) => {
+            localStorage.setItem('hf_token_mouth', e.target.value);
+        });
+
+        async function uploadToHF(path, content) {
+            const token = localStorage.getItem('hf_token_mouth');
+            if (!token) throw new Error("Sync failed: No Hugging Face token found. Set it in Settings > Mouth Detection.");
+            
+            const repo = "Y3/mouth_status";
+            const url = `https://huggingface.co/api/datasets/${repo}/upload/main/${path}`;
+            
+            const res = await fetch(url, {
+                method: "POST",
+                headers: {
+                    "Authorization": `Bearer ${token}`,
+                    "Content-Type": "application/json"
+                },
+                body: JSON.stringify({ content: btoa(content), encoding: "base64" })
+            });
+            
+            if (!res.ok) {
+                const err = await res.json();
+                throw new Error(err.error || `Upload failed with status ${res.status}`);
+            }
+            return await res.json();
+        }
+
+        document.getElementById('hf-sync-btn').onclick = async () => {
+            if (!calibrationRecords.length) {
+                alert("No data to sync! Run calibration first.");
+                return;
+            }
+
+            const btn = document.getElementById('hf-sync-btn');
+            const originalIcon = btn.innerText;
+            btn.innerText = '⌛';
+            btn.disabled = true;
+
+            try {
+                const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
+                const randomId = Math.random().toString(36).substring(7);
+                const isoTime = new Date().toISOString();
+
+                // 1. Upload Raw Dataset
+                const rawPath = `data/raw/${timestamp}_${randomId}.json`;
+                const rawContent = JSON.stringify({
+                    metadata: {
+                        timestamp: isoTime,
+                        device: navigator.userAgent,
+                        version: APP_VERSION
+                    },
+                    records: calibrationRecords
+                });
+                await uploadToHF(rawPath, rawContent);
+
+                // 2. Upload Aggregated Results
+                const aggPath = `data/agg/${timestamp}.json`;
+                const aggContent = JSON.stringify({
+                    metadata: {
+                        timestamp: isoTime,
+                        version: APP_VERSION
+                    },
+                    results: candidates.map(c => ({
+                        id: c.id,
+                        acc: c.acc,
+                        precision: c.precision,
+                        recall: c.recall,
+                        f1: c.f1,
+                        config: c.config
+                    }))
+                });
+                await uploadToHF(aggPath, aggContent);
+
+                btn.innerText = '✅';
+                setTimeout(() => btn.innerText = originalIcon, 3000);
+                alert("Successfully synced to Hugging Face!");
+            } catch (err) {
+                console.error(err);
+                btn.innerText = '❌';
+                setTimeout(() => btn.innerText = originalIcon, 3000);
+                alert(err.message);
+            } finally {
+                btn.disabled = false;
+            }
+        };
 
         mouthSmoothingSlider.addEventListener('input', (e) => {
             FaceTracker.mouthDetection.smoothing = parseInt(e.target.value) / 100;
