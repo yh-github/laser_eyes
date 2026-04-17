@@ -41,6 +41,9 @@ const FaceTracker = {
         // FP suppression
         headVelocityGate: 0,      // 0 = disabled, >0 = suppress open when head moves faster than this
         debounceFrames: 0,        // 0 = disabled, >0 = require N consecutive open frames
+        // Hybrid Thresholds
+        hybridMinMAR: 0.15,       // Minimum MAR to even consider OPEN
+        hybridConfidence: 0.6,    // Weighted confidence threshold for OPEN
     },
 
     // --- NEW: Multi-Detector Support ---
@@ -87,6 +90,24 @@ const FaceTracker = {
                 if (detector.mouthOpenness < md.hystCloseThreshold) detector.isMouthOpen = false;
             } else {
                 if (detector.mouthOpenness > md.hystOpenThreshold) detector.isMouthOpen = true;
+            }
+        } else if (md.approach === 'hybrid') {
+            // New Neural Link 2.0 Approach
+            // Weighted combination of MAR, Area, and Jaw Drop
+            // With pitch-compensation factored into the scores themselves (done in metrics)
+            const marVal = metrics.marScore || 0;
+            const areaVal = metrics.areaScore || 0;
+            const chinVal = metrics.chinScore || 0;
+            
+            // Higher weight on MAR but require Area/Chin for confirmation
+            const confidence = (marVal * 0.5) + (areaVal * 0.3) + (chinVal * 0.2);
+            
+            if (detector.isMouthOpen) {
+                // Hysteresis for release
+                if (confidence < (md.hybridConfidence * 0.6) || marVal < md.hybridMinMAR) detector.isMouthOpen = false;
+            } else {
+                // Strict entry
+                if (confidence > md.hybridConfidence && marVal > md.hybridMinMAR) detector.isMouthOpen = true;
             }
         }
 
@@ -524,9 +545,33 @@ const FaceTracker = {
         }
         const baseAreaRatio = this.neutralBaselines._baseAreaRatio || 0.005;
         
-        const marScore = Math.min(Math.max(currentMAR - baseMAR, 0) / 0.35, 1);
-        const areaScore = Math.min(Math.max(areaRatio - baseAreaRatio, 0) / 0.03, 1);
-        const chinScore = Math.min(Math.max((currentNoseToChin / baseNoseToChin) - 1, 0) / 0.25, 1);
+        // ─── Post-Calibration Neutral Baselines ───
+        const baseMAR = this.neutralBaselines.captured ? this.neutralBaselines.baseMAR : 0.15;
+        const baseNoseToChin = this.neutralBaselines.captured ? this.neutralBaselines.noseToChin : 0.45;
+        const baseFaceWidth = this.neutralBaselines.faceWidth || faceWidth;
+
+        // ─── Head Pose Estimation (Neural Link 2.0) ───
+        // 1) Pitch: Ratio of nose bridge to nose-to-chin
+        const noseBridge = this.getDistance(positions[33], positions[62]) || 1; // bridge to tip
+        const currentPitchRatio = noseBridge / Math.max(this.getDistance(noseTip, chin), 1);
+        const basePitchRatio = this.neutralBaselines._basePitchRatio || 0.45;
+        if (!this.neutralBaselines._basePitchRatio && this.neutralBaselines.captured) this.neutralBaselines._basePitchRatio = currentPitchRatio;
+        
+        // Positive = looking up, Negative = looking down
+        const pitchDelta = (currentPitchRatio - basePitchRatio) / basePitchRatio;
+        
+        // 2) Yaw: Horizontal nose displacement
+        const noseSideL = this.getDistance(positions[1], positions[62]);
+        const noseSideR = this.getDistance(positions[13], positions[62]);
+        const yawFactor = (noseSideL - noseSideR) / Math.max(faceWidth, 1);
+
+        // ─── Normalize Openness with Pose Compensation ───
+        // When looking up (pitchDelta > 0), vertical distances are foreshortened
+        const pitchComp = 1.0 + (pitchDelta > 0 ? pitchDelta * 0.8 : pitchDelta * 0.4);
+        
+        const marScore = Math.min(Math.max((currentMAR * pitchComp) - baseMAR, 0) / 0.35, 1);
+        const areaScore = Math.min(Math.max((areaRatio * pitchComp) - baseAreaRatio, 0) / 0.03, 1);
+        const chinScore = Math.min(Math.max(((currentNoseToChin * pitchComp) / baseNoseToChin) - 1, 0) / 0.25, 1);
 
         // ─── Head velocity (for FP suppression) ───
         if (this._prevNoseForVelocity) {
@@ -538,7 +583,7 @@ const FaceTracker = {
         this._prevNoseForVelocity = [noseTip[0], noseTip[1]];
 
         // ─── Determine isMouthOpen based on detector logic ───
-        const metrics = { marScore, areaScore, chinScore, headVelocity: this._headVelocitySmoothed };
+        const metrics = { marScore, areaScore, chinScore, headVelocity: this._headVelocitySmoothed, pitchDelta, yawFactor };
         this.evaluateDetector(this, metrics);
         
         // Expose metrics for multi-calibration
