@@ -201,14 +201,29 @@ const FaceTracker = {
             this._setInitStatus('Awaiting camera...');
             if (introActionMsg) introActionMsg.innerText = "Please accept camera permissions if prompted.";
 
-            // Wrap webgazer.begin() with a hard timeout — it hangs forever on mobile if blocked
+            // Wrap webgazer.begin() with a robust timeout and a "liveness check"
+            // On some mobile browsers, begin() hangs but the tracker actually starts working.
             await Promise.race([
                 webgazer.begin(),
+                // Safety 1: Hard timeout
                 new Promise((_, reject) =>
                     setTimeout(() => reject(new Error(
-                        "Camera timed out after 20s. Please check that camera permissions are granted and reload."
-                    )), 20000)
-                )
+                        "Neural engine initialization timed out (60s). Please check your connection and reload."
+                    )), 60000)
+                ),
+                // Safety 2: Liveness check - if we see landmarks, we're good to go!
+                new Promise((resolve) => {
+                    const checkInterval = setInterval(() => {
+                        try {
+                            const pos = webgazer.getTracker().getPositions();
+                            if (pos && pos.length > 0) {
+                                console.log("[FaceTracker] Data detected! Forcing initialization completion.");
+                                clearInterval(checkInterval);
+                                resolve();
+                            }
+                        } catch(e) {}
+                    }, 1000);
+                })
             ]);
 
             this._setInitStatus('Loading neural weights...');
