@@ -284,12 +284,12 @@
             </div>
 
             <!-- Stats Overlay (Top) -->
-            <div class="absolute top-12 left-6 right-6 flex items-center justify-between pointer-events-none" style="z-index: 3;">
-                <div class="bg-black/60 backdrop-blur-md px-4 py-2 rounded-2xl border border-white/5">
+            <div class="absolute top-8 left-1/2 -translate-x-1/2 flex flex-col items-center gap-2 pointer-events-none" style="z-index: 150;">
+                <div class="bg-black/60 backdrop-blur-md px-4 py-2 rounded-2xl border border-white/5 shadow-2xl">
                     <span class="text-[10px] text-slate-500 font-bold uppercase tracking-widest mr-2">Samples</span>
                     <span id="calib-count" class="text-pink-500 font-black">0</span>
                 </div>
-                <button id="show-results-btn" class="pointer-events-auto px-6 py-2 bg-pink-600 rounded-full text-[10px] font-black uppercase tracking-widest active:scale-95">
+                <button id="show-results-btn" class="pointer-events-auto px-6 py-2 bg-pink-600 hover:bg-pink-500 rounded-full text-[10px] font-black uppercase tracking-widest active:scale-95 shadow-lg">
                     VIEW RESULTS
                 </button>
             </div>
