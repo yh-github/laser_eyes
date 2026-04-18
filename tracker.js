@@ -224,6 +224,7 @@ const FaceTracker = {
 
             // Wrap webgazer.begin() with a robust timeout and a "liveness check"
             // On some mobile browsers, begin() hangs but the tracker actually starts working.
+            console.log("[FaceTracker] [Trace 1] Starting initialization race...");
             let checkInterval;
             await Promise.race([
                 webgazer.begin(),
@@ -239,7 +240,7 @@ const FaceTracker = {
                         try {
                             const pos = webgazer.getTracker()?.getPositions();
                             if (pos && pos.length > 0) {
-                                console.log("[FaceTracker] Data detected! Forcing initialization completion.");
+                                console.log("[FaceTracker] [Trace 2] Liveness check success: Landmarks detected.");
                                 clearInterval(checkInterval);
                                 resolve();
                             }
@@ -248,13 +249,16 @@ const FaceTracker = {
                 })
             ]);
             if (checkInterval) clearInterval(checkInterval);
+            console.log("[FaceTracker] [Trace 3] Initialization race complete.");
 
             this._setInitStatus('Loading neural weights...');
             if (introActionMsg) introActionMsg.innerText = "Downloading model (15MB). Stay on this page.";
 
             // Wait a moment for the tracker to warm up after begin()
+            console.log("[FaceTracker] [Trace 4] Warming up...");
             await new Promise(r => setTimeout(r, 1000));
 
+            console.log("[FaceTracker] [Trace 5] Finalizing setup...");
             const appContainer = document.getElementById(this.appContainerId) || document.body;
             const videoContainer = document.getElementById('webgazerVideoContainer');
             
@@ -286,19 +290,25 @@ const FaceTracker = {
 
             this.isStarted = true;
             this._setInitStatus('Neural link established ✓');
+            console.log("[FaceTracker] [Trace 6] Initialization fully complete.");
             
             // Immediate transition for intro-overlay to prevent "stuck" states
             const introOverlay = document.getElementById('intro-overlay');
             if (introOverlay) {
+                console.log("[FaceTracker] [Trace 7] Hiding intro overlay.");
                 introOverlay.classList.add('hidden');
                 introOverlay.style.display = 'none'; // Force hide
             }
 
             // Transition to main menu (unless suppressed)
             setTimeout(() => {
+                console.log("[FaceTracker] [Trace 8] Main menu transition starting.");
                 const mainMenu = document.getElementById('overlay');
                 if (!this.suppressAutoUI) {
-                    if (mainMenu) mainMenu.classList.remove('hidden');
+                    if (mainMenu) {
+                        mainMenu.classList.remove('hidden');
+                        mainMenu.style.display = 'flex'; // Ensure it's shown
+                    }
                 }
                 
                 const startBtn = document.getElementById('start-btn');
