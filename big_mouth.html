@@ -156,6 +156,34 @@
         #side-menu.active {
             display: block;
         }
+
+        /* Mobile specific hiding */
+        body.mobile-research #hf-browse-btn,
+        body.mobile-research #upload-data-btn,
+        body.mobile-research #sweep-data-btn {
+            display: none !important;
+        }
+
+        #sync-status-toast {
+            position: absolute;
+            bottom: 30px;
+            left: 50%;
+            transform: translateX(-50%);
+            padding: 12px 24px;
+            background: rgba(0,0,0,0.8);
+            backdrop-filter: blur(10px);
+            border-radius: 100px;
+            font-size: 11px;
+            font-weight: 800;
+            text-transform: uppercase;
+            letter-spacing: 0.1em;
+            display: none;
+            z-index: 2000;
+            border: 1px solid rgba(255,255,255,0.1);
+            align-items: center;
+            gap: 10px;
+        }
+        #sync-status-toast.visible { display: flex; }
     </style>
 </head>
 
@@ -506,10 +534,15 @@
         </div>
 
         <div id="calib-nose-dot"></div>
+        <div id="sync-status-toast"></div>
     </div>
 
     <script>
         const APP_VERSION = "55c748e853b0e397a1b684e92a0e7a1d1f9ec3fc";
+        const urlParams = new URLSearchParams(window.location.search);
+        const isMobileMode = urlParams.get('mode') === 'mobile' || /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
+        if (isMobileMode) document.body.classList.add('mobile-research');
+        
         const appContainer = document.getElementById('app-container');
         const overlay = document.getElementById('overlay');
         const calibOverlay = document.getElementById('calib-overlay');
@@ -663,6 +696,13 @@
             localStorage.setItem('hf_token_mouth', e.target.value);
         });
 
+        function showSyncStatus(msg, type = 'info', duration = 4000) {
+            const toast = document.getElementById('sync-status-toast');
+            toast.className = 'visible ' + (type === 'error' ? 'text-rose-400 border-rose-500/30' : 'text-cyan-400 border-cyan-500/30');
+            toast.innerHTML = (type === 'error' ? '❌ ' : '☁️ ') + msg;
+            if (duration) setTimeout(() => toast.classList.remove('visible'), duration);
+        }
+
         async function uploadToHF(path, content) {
             const token = localStorage.getItem('hf_token_mouth');
             if (!token) throw new Error("Sync failed: No Hugging Face token found. Set it in Settings > Mouth Detection.");
@@ -799,13 +839,13 @@
                 await uploadToHF(aggPath, aggContent);
 
                 btn.innerText = '✅';
+                showSyncStatus("Data synced to Cloud", "success");
                 setTimeout(() => btn.innerText = originalIcon, 3000);
-                alert("Successfully synced to Hugging Face!");
             } catch (err) {
                 console.error(err);
                 btn.innerText = '❌';
+                showSyncStatus(err.message, "error", 8000);
                 setTimeout(() => btn.innerText = originalIcon, 3000);
-                alert(err.message);
             } finally {
                 btn.disabled = false;
             }
@@ -976,6 +1016,15 @@
             setTimeout(() => {
                 renderResults();
                 document.getElementById('results-overlay').classList.remove('hidden');
+                
+                // AUTO SYNC
+                const syncBtn = document.getElementById('hf-sync-btn');
+                if (syncBtn && localStorage.getItem('hf_token_mouth')) {
+                    showSyncStatus("Auto-syncing to Cloud...", "info");
+                    syncBtn.click();
+                } else if (!localStorage.getItem('hf_token_mouth')) {
+                    showSyncStatus("Sync skipped: No token", "error");
+                }
             }, 1000);
         }
 
