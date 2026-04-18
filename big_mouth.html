@@ -911,6 +911,14 @@
                     FaceTracker.init().then(success => {
                         if(success) {
                             if (!loopInterval) loopInterval = setInterval(gameLoop, 30);
+                            
+                            // Aggressive safety: ensure intro-overlay is hidden
+                            const introOverlay = document.getElementById('intro-overlay');
+                            if (introOverlay) {
+                                introOverlay.classList.add('hidden');
+                                introOverlay.style.display = 'none';
+                            }
+
                             // Open HUB initially
                             if (overlay) overlay.classList.add('hidden');
                             document.getElementById('hub-overlay').classList.remove('hidden');
@@ -1472,14 +1480,25 @@
             FaceTracker.update();
 
             // Toggle UI visibility based on game state
-            document.getElementById('bigmouth-score').style.display = calibrationMode ? 'none' : 'flex';
-            document.getElementById('menu-btn').style.display = calibrationMode ? 'none' : 'block';
+            // Hub is visible when overlay + hub-overlay are NOT hidden
+            const isHubActive = !document.getElementById('hub-overlay').classList.contains('hidden');
+            const isGameActive = gameActive && !gamePaused;
+            const isCalibration = calibrationMode;
+
+            document.getElementById('bigmouth-score').style.display = isGameActive ? 'flex' : 'none';
+            document.getElementById('menu-btn').style.display = (isHubActive || isGameActive) && !isCalibration ? 'block' : 'none';
+
             if (!FaceTracker.isStarted) {
                 mouthCursor.style.display = 'none';
                 return;
             }
 
-            mouthCursor.style.display = 'block';
+            // Only show mouth if we are NOT on the intro screen or the main overlay
+            const isIntroVisible = !document.getElementById('intro-overlay').classList.contains('hidden');
+            const isOverlayVisible = !document.getElementById('overlay').classList.contains('hidden');
+            mouthCursor.style.display = (isIntroVisible || isOverlayVisible) ? 'none' : 'block';
+
+            if (mouthCursor.style.display === 'none') return;
             
             let displayX = FaceTracker.cursorX;
             let displayY = FaceTracker.cursorY;

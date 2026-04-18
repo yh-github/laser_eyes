@@ -224,6 +224,7 @@ const FaceTracker = {
 
             // Wrap webgazer.begin() with a robust timeout and a "liveness check"
             // On some mobile browsers, begin() hangs but the tracker actually starts working.
+            let checkInterval;
             await Promise.race([
                 webgazer.begin(),
                 // Safety 1: Hard timeout
@@ -234,9 +235,9 @@ const FaceTracker = {
                 ),
                 // Safety 2: Liveness check - if we see landmarks, we're good to go!
                 new Promise((resolve) => {
-                    const checkInterval = setInterval(() => {
+                    checkInterval = setInterval(() => {
                         try {
-                            const pos = webgazer.getTracker().getPositions();
+                            const pos = webgazer.getTracker()?.getPositions();
                             if (pos && pos.length > 0) {
                                 console.log("[FaceTracker] Data detected! Forcing initialization completion.");
                                 clearInterval(checkInterval);
@@ -246,12 +247,13 @@ const FaceTracker = {
                     }, 1000);
                 })
             ]);
+            if (checkInterval) clearInterval(checkInterval);
 
             this._setInitStatus('Loading neural weights...');
             if (introActionMsg) introActionMsg.innerText = "Downloading model (15MB). Stay on this page.";
 
             // Wait a moment for the tracker to warm up after begin()
-            await new Promise(r => setTimeout(r, 1500));
+            await new Promise(r => setTimeout(r, 1000));
 
             const appContainer = document.getElementById(this.appContainerId) || document.body;
             const videoContainer = document.getElementById('webgazerVideoContainer');
@@ -285,12 +287,16 @@ const FaceTracker = {
             this.isStarted = true;
             this._setInitStatus('Neural link established ✓');
             
+            // Immediate transition for intro-overlay to prevent "stuck" states
+            const introOverlay = document.getElementById('intro-overlay');
+            if (introOverlay) {
+                introOverlay.classList.add('hidden');
+                introOverlay.style.display = 'none'; // Force hide
+            }
+
             // Transition to main menu (unless suppressed)
             setTimeout(() => {
-                const introOverlay = document.getElementById('intro-overlay');
                 const mainMenu = document.getElementById('overlay');
-                if (introOverlay) introOverlay.classList.add('hidden');
-                
                 if (!this.suppressAutoUI) {
                     if (mainMenu) mainMenu.classList.remove('hidden');
                 }
@@ -307,7 +313,7 @@ const FaceTracker = {
                 if(glassBtn) glassBtn.classList.remove('hidden');
                 if(spaceEvadersBtn) spaceEvadersBtn.classList.remove('hidden');
                 if(starHordeBtn) starHordeBtn.classList.remove('hidden');
-            }, 800);
+            }, 600);
 
             return true;
         } catch (err) {
