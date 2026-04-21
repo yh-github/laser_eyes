@@ -681,7 +681,6 @@
         // --- SECURE WORKAROUND: Token Initialization ---
         // To avoid repo rule violations, we don't hardcode the token.
         // You can set it once via the URL: big_mouth.html?set_hf_token=YOUR_TOKEN
-        const urlParams = new URLSearchParams(window.location.search);
         const tokenFromUrl = urlParams.get('set_hf_token');
         if (tokenFromUrl) {
             localStorage.setItem('hf_token_mouth', tokenFromUrl);
