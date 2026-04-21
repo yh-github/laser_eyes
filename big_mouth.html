@@ -745,7 +745,7 @@
             if (!token) throw new Error("Sync failed: No Hugging Face token found. Please unlock or set it in Settings.");
             
             const repo = "Y3/mouth_status";
-            const url = `https://huggingface.co/api/datasets/${repo}/upload/main/${path}`;
+            const url = `https://huggingface.co/api/datasets/${repo}/commit/main`;
             
             // UTF-8 safe base64
             const utf8SafeBase64 = btoa(unescape(encodeURIComponent(content)));
@@ -756,7 +756,17 @@
                     "Authorization": `Bearer ${token}`,
                     "Content-Type": "application/json"
                 },
-                body: JSON.stringify({ content: utf8SafeBase64, encoding: "base64" })
+                body: JSON.stringify({
+                    actions: [
+                        {
+                            action: "add",
+                            path: path,
+                            content: utf8SafeBase64,
+                            encoding: "base64"
+                        }
+                    ],
+                    commit_message: `Upload ${path} via Big Mouth UI`
+                })
             });
             
             if (!res.ok) {
