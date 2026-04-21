@@ -675,8 +675,46 @@
             showApproachParams(e.target.value);
         });
 
-        // ─── Hugging Face Sync ───
+        // ─── Hugging Face Sync & Encryption ───
         const hfTokenInput = document.getElementById('hf-token-input');
+        
+        // Placeholder for encrypted token (user will populate this)
+        const ENCRYPTED_HF_TOKEN = {
+          "salt": "iMxvS+Ss92yieVXTYzewsA==",
+          "iv": "0bR/XvFS3nfQULyE",
+          "ciphertext": "GhNsR7iXVuoMSq4d4ZDUnPzsiTO3CaV71bV6klqQRCm7VobCuXV0d30f6wCXdAMFfUct5BM="
+        }; 
+
+        async function decryptToken(password) {
+            if (!ENCRYPTED_HF_TOKEN) return null;
+            try {
+                const encoder = new TextEncoder();
+                const decoder = new TextDecoder();
+                
+                const salt = Uint8Array.from(atob(ENCRYPTED_HF_TOKEN.salt), c => c.charCodeAt(0));
+                const iv = Uint8Array.from(atob(ENCRYPTED_HF_TOKEN.iv), c => c.charCodeAt(0));
+                const ciphertext = Uint8Array.from(atob(ENCRYPTED_HF_TOKEN.ciphertext), c => c.charCodeAt(0));
+
+                const keyMaterial = await window.crypto.subtle.importKey(
+                    "raw", encoder.encode(password), { name: "PBKDF2" }, false, ["deriveKey"]
+                );
+                const key = await window.crypto.subtle.deriveKey(
+                    { name: "PBKDF2", salt: salt, iterations: 100000, hash: "SHA-256" },
+                    keyMaterial, { name: "AES-GCM", length: 256 }, false, ["decrypt"]
+                );
+
+                const decrypted = await window.crypto.subtle.decrypt(
+                    { name: "AES-GCM", iv: iv }, key, ciphertext
+                );
+                return decoder.decode(decrypted);
+            } catch (e) {
+                console.error("Decryption failed:", e);
+                return null;
+            }
+        }
+
+        let sessionToken = null; // Store decrypted token in memory for session
+
         
         // --- SECURE WORKAROUND: Token Initialization ---
         // To avoid repo rule violations, we don't hardcode the token.
@@ -703,8 +741,8 @@
         }
 
         async function uploadToHF(path, content) {
-            const token = localStorage.getItem('hf_token_mouth');
-            if (!token) throw new Error("Sync failed: No Hugging Face token found. Set it in Settings > Mouth Detection.");
+            const token = sessionToken || localStorage.getItem('hf_token_mouth');
+            if (!token) throw new Error("Sync failed: No Hugging Face token found. Please unlock or set it in Settings.");
             
             const repo = "Y3/mouth_status";
             const url = `https://huggingface.co/api/datasets/${repo}/upload/main/${path}`;
@@ -729,11 +767,22 @@
         }
 
         document.getElementById('hf-browse-btn').onclick = async () => {
-            const token = localStorage.getItem('hf_token_mouth');
-            if (!token) { alert("Set your HF Token in settings first!"); return; }
-
             const btn = document.getElementById('hf-browse-btn');
             const originalIcon = btn.innerText;
+
+            if (ENCRYPTED_HF_TOKEN && !sessionToken && !localStorage.getItem('hf_token_mouth')) {
+                const pass = prompt("Enter decryption key to unlock Cloud Sync:");
+                if (!pass) return;
+                sessionToken = await decryptToken(pass);
+                if (!sessionToken) {
+                    alert("Invalid key. Decryption failed.");
+                    return;
+                }
+            }
+
+            const token = sessionToken || localStorage.getItem('hf_token_mouth');
+            if (!token) { alert("Set your HF Token in settings first!"); return; }
+
             btn.innerText = '⌛';
             
             try {
@@ -803,6 +852,18 @@
             btn.disabled = true;
 
             try {
+                if (ENCRYPTED_HF_TOKEN && !sessionToken && !localStorage.getItem('hf_token_mouth')) {
+                    const pass = prompt("Enter decryption key to unlock Cloud Sync:");
+                    if (!pass) { btn.innerText = originalIcon; btn.disabled = false; return; }
+                    sessionToken = await decryptToken(pass);
+                    if (!sessionToken) {
+                        alert("Invalid key. Decryption failed.");
+                        btn.innerText = originalIcon;
+                        btn.disabled = false;
+                        return;
+                    }
+                }
+
                 const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
                 const randomId = Math.random().toString(36).substring(7);
                 const isoTime = new Date().toISOString();
@@ -1026,10 +1087,11 @@
                 
                 // AUTO SYNC
                 const syncBtn = document.getElementById('hf-sync-btn');
-                if (syncBtn && localStorage.getItem('hf_token_mouth')) {
+                const hasToken = sessionToken || localStorage.getItem('hf_token_mouth') || ENCRYPTED_HF_TOKEN;
+                if (syncBtn && hasToken) {
                     showSyncStatus("Auto-syncing to Cloud...", "info");
                     syncBtn.click();
-                } else if (!localStorage.getItem('hf_token_mouth')) {
+                } else {
                     showSyncStatus("Sync skipped: No token", "error");
                 }
             }, 1000);
