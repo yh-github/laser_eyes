@@ -19,9 +19,10 @@
             filter: drop-shadow(0 0 15px rgba(236, 72, 153, 0.7));
             z-index: 200;
             cursor: pointer;
-            pointer-events: auto; /* Enable tapping the mouth */
+            pointer-events: auto;
+            /* Enable tapping the mouth */
         }
-        
+
         .target.food-item {
             width: 60px;
             height: 60px;
@@ -46,18 +47,28 @@
         #pause-indicator {
             position: absolute;
             inset: 0;
-            background: rgba(0,0,0,0.3);
+            background: rgba(0, 0, 0, 0.3);
             display: none;
             align-items: center;
             justify-content: center;
             z-index: 40;
             pointer-events: none;
         }
-        #pause-indicator.visible { display: flex; }
+
+        #pause-indicator.visible {
+            display: flex;
+        }
 
         @keyframes ping {
-            0% { transform: scale(0.5); opacity: 1; }
-            100% { transform: scale(2.5); opacity: 0; }
+            0% {
+                transform: scale(0.5);
+                opacity: 1;
+            }
+
+            100% {
+                transform: scale(2.5);
+                opacity: 0;
+            }
         }
 
         #mouth-cursor.eating {
@@ -65,13 +76,21 @@
         }
 
         @keyframes gulp {
-            0% { transform: translate(-50%, -50%) scale(1); }
-            40% { transform: translate(-50%, -50%) scale(1.15); }
-            100% { transform: translate(-50%, -50%) scale(1); }
+            0% {
+                transform: translate(-50%, -50%) scale(1);
+            }
+
+            40% {
+                transform: translate(-50%, -50%) scale(1.15);
+            }
+
+            100% {
+                transform: translate(-50%, -50%) scale(1);
+            }
         }
 
         .teeth-row {
-            filter: drop-shadow(0 2px 2px rgba(0,0,0,0.3));
+            filter: drop-shadow(0 2px 2px rgba(0, 0, 0, 0.3));
         }
 
         /* Guided Calibration UI */
@@ -98,8 +117,13 @@
         }
 
         @keyframes spin {
-            from { transform: rotate(0deg); }
-            to { transform: rotate(360deg); }
+            from {
+                transform: rotate(0deg);
+            }
+
+            to {
+                transform: rotate(360deg);
+            }
         }
 
         .calib-progress-ring {
@@ -131,7 +155,9 @@
         }
 
         /* Ensure WebGazer is always in a safe spot (Lower Left) */
-        #webgazerVideoContainer, #webgazerVideoFeed, #webgazerCanvas {
+        #webgazerVideoContainer,
+        #webgazerVideoFeed,
+        #webgazerCanvas {
             top: auto !important;
             bottom: 20px !important;
             left: 20px !important;
@@ -142,7 +168,7 @@
             border-radius: 12px !important;
             z-index: 50 !important;
         }
-        
+
         #side-menu {
             position: absolute;
             inset: 0;
@@ -150,9 +176,10 @@
             background: rgba(15, 23, 42, 0.98);
             backdrop-filter: blur(20px);
             padding: 2rem;
-            display: none; /* Controlled by .active class */
+            display: none;
+            /* Controlled by .active class */
         }
-        
+
         #side-menu.active {
             display: block;
         }
@@ -170,7 +197,7 @@
             left: 50%;
             transform: translateX(-50%);
             padding: 12px 24px;
-            background: rgba(0,0,0,0.8);
+            background: rgba(0, 0, 0, 0.8);
             backdrop-filter: blur(10px);
             border-radius: 100px;
             font-size: 11px;
@@ -179,11 +206,14 @@
             letter-spacing: 0.1em;
             display: none;
             z-index: 2000;
-            border: 1px solid rgba(255,255,255,0.1);
+            border: 1px solid rgba(255, 255, 255, 0.1);
             align-items: center;
             gap: 10px;
         }
-        #sync-status-toast.visible { display: flex; }
+
+        #sync-status-toast.visible {
+            display: flex;
+        }
     </style>
 </head>
 
@@ -193,20 +223,24 @@
         class="relative w-full h-full h-[100dvh] sm:h-[800px] sm:w-[400px] bg-gray-900 sm:rounded-[2.5rem] sm:border-8 sm:border-gray-800 overflow-hidden shadow-[0_0_50px_rgba(0,0,0,0.8)]">
 
         <!-- Intro / Permission Screen -->
-        <div id="intro-overlay" class="absolute inset-0 z-[100] flex flex-col items-center justify-center bg-black p-6 text-center">
+        <div id="intro-overlay"
+            class="absolute inset-0 z-[100] flex flex-col items-center justify-center bg-black p-6 text-center">
             <div class="intro-card">
                 <div class="intro-icon-container">
                     <span class="text-4xl">👁️</span>
                 </div>
                 <h2 class="text-2xl font-bold text-white mb-4">Face Tracking Required</h2>
                 <p class="text-gray-400 text-sm leading-relaxed mb-6">
-                    This game uses advanced AI face tracking to control your laser eyes. 
-                    It requires your <span class="text-cyan-400 font-bold">selfie camera</span> to "see you" and track your nose movements.
+                    This game uses face tracking to control.
+                    It requires your <span class="text-cyan-400 font-bold">selfie camera</span> to "see you" and track
+                    your face movements.
                 </p>
-                
+
                 <div id="intro-status-box" class="w-full">
-                    <p id="intro-loading-msg" class="text-cyan-400 text-xs font-bold uppercase tracking-widest mb-2">Initializing AI...</p>
-                    <p id="intro-action-msg" class="text-gray-500 text-[10px]">Please allow camera access when prompted.</p>
+                    <p id="intro-loading-msg" class="text-cyan-400 text-xs font-bold uppercase tracking-widest mb-2">
+                        Initializing AI...</p>
+                    <p id="intro-action-msg" class="text-gray-500 text-[10px]">Please allow camera access when prompted.
+                    </p>
                     <div class="loading-bar-container">
                         <div id="intro-loading-bar" class="loading-bar-fill"></div>
                     </div>
@@ -214,7 +248,8 @@
 
                 <div id="intro-error-box" class="hidden mt-6">
                     <p id="intro-error-msg" class="text-rose-500 text-xs mb-4"></p>
-                    <button onclick="location.reload()" class="px-6 py-2 bg-rose-600 hover:bg-rose-500 text-white text-xs font-bold rounded-full transition-all active:scale-95">
+                    <button onclick="location.reload()"
+                        class="px-6 py-2 bg-rose-600 hover:bg-rose-500 text-white text-xs font-bold rounded-full transition-all active:scale-95">
                         RETRY
                     </button>
                 </div>
@@ -270,25 +305,32 @@
             <div id="calib-target">
                 <svg class="calib-progress-ring" viewBox="0 0 100 100">
                     <circle cx="50" cy="50" r="45" fill="none" stroke="rgba(255,255,255,0.1)" stroke-width="5" />
-                    <circle id="calib-timer-path" cx="50" cy="50" r="45" fill="none" stroke="#f472b6" stroke-width="5" 
+                    <circle id="calib-timer-path" cx="50" cy="50" r="45" fill="none" stroke="#f472b6" stroke-width="5"
                         stroke-dasharray="282.7" stroke-dashoffset="0" stroke-linecap="round" />
                 </svg>
             </div>
 
             <!-- Instruction Overlay -->
-            <div id="calib-instruction" class="absolute top-1/2 left-50 w-full text-center -translate-y-1/2 pointer-events-none">
-                <h3 id="calib-action-text" class="text-4xl font-black italic uppercase tracking-tighter text-white mb-2 underline decoration-pink-500 decoration-8 underline-offset-8">Wait...</h3>
-                <p id="calib-sub-text" class="text-slate-400 text-xs font-bold uppercase tracking-widest">Get ready for next point</p>
+            <div id="calib-instruction"
+                class="absolute top-1/2 left-50 w-full text-center -translate-y-1/2 pointer-events-none">
+                <h3 id="calib-action-text"
+                    class="text-4xl font-black italic uppercase tracking-tighter text-white mb-2 underline decoration-pink-500 decoration-8 underline-offset-8">
+                    Wait...</h3>
+                <p id="calib-sub-text" class="text-slate-400 text-xs font-bold uppercase tracking-widest">Get ready for
+                    next point</p>
             </div>
 
             <!-- Consensus HUD -->
             <div class="calib-consensus-hud">
-                <div id="best-setting-card" class="hidden backdrop-blur-2xl bg-slate-900/40 border border-white/5 p-4 rounded-3xl mb-4 best-setting-pop">
+                <div id="best-setting-card"
+                    class="hidden backdrop-blur-2xl bg-slate-900/40 border border-white/5 p-4 rounded-3xl mb-4 best-setting-pop">
                     <div class="flex items-center justify-between mb-2">
-                        <span class="text-[9px] text-slate-500 font-bold uppercase tracking-widest">Leaderboard Best</span>
+                        <span class="text-[9px] text-slate-500 font-bold uppercase tracking-widest">Leaderboard
+                            Best</span>
                         <span id="best-setting-acc" class="text-green-400 font-black text-xs">98%</span>
                     </div>
-                    <div id="best-setting-name" class="text-white font-black italic uppercase text-lg">Hysteresis Variant A</div>
+                    <div id="best-setting-name" class="text-white font-black italic uppercase text-lg">Hysteresis
+                        Variant A</div>
                 </div>
 
                 <div class="backdrop-blur-xl bg-black/40 border border-white/10 p-5 rounded-[2.5rem] shadow-2xl">
@@ -300,8 +342,10 @@
                     </div>
                     <div class="flex items-end justify-between">
                         <div>
-                            <div class="text-[10px] text-slate-500 font-bold uppercase tracking-[0.2em] mb-1">State Prediction</div>
-                            <div id="consensus-state" class="text-white text-2xl font-black italic tracking-tighter">CALCULATING...</div>
+                            <div class="text-[10px] text-slate-500 font-bold uppercase tracking-[0.2em] mb-1">State
+                                Prediction</div>
+                            <div id="consensus-state" class="text-white text-2xl font-black italic tracking-tighter">
+                                CALCULATING...</div>
                         </div>
                         <div class="text-right">
                             <div id="consensus-count" class="text-3xl font-black text-pink-500">0/0</div>
@@ -312,12 +356,14 @@
             </div>
 
             <!-- Stats Overlay (Top) -->
-            <div class="absolute top-8 left-1/2 -translate-x-1/2 flex flex-col items-center gap-2 pointer-events-none" style="z-index: 150;">
+            <div class="absolute top-8 left-1/2 -translate-x-1/2 flex flex-col items-center gap-2 pointer-events-none"
+                style="z-index: 150;">
                 <div class="bg-black/60 backdrop-blur-md px-4 py-2 rounded-2xl border border-white/5 shadow-2xl">
                     <span class="text-[10px] text-slate-500 font-bold uppercase tracking-widest mr-2">Samples</span>
                     <span id="calib-count" class="text-pink-500 font-black">0</span>
                 </div>
-                <button id="show-results-btn" class="pointer-events-auto px-6 py-2 bg-pink-600 hover:bg-pink-500 rounded-full text-[10px] font-black uppercase tracking-widest active:scale-95 shadow-lg">
+                <button id="show-results-btn"
+                    class="pointer-events-auto px-6 py-2 bg-pink-600 hover:bg-pink-500 rounded-full text-[10px] font-black uppercase tracking-widest active:scale-95 shadow-lg">
                     VIEW RESULTS
                 </button>
             </div>
@@ -328,7 +374,8 @@
             <div class="flex items-center justify-between mb-8">
                 <div>
                     <h2 class="text-3xl font-black text-white italic uppercase tracking-tighter">Ranking</h2>
-                    <p id="results-count-text" class="text-[10px] text-slate-500 font-bold uppercase tracking-[0.2em]"></p>
+                    <p id="results-count-text" class="text-[10px] text-slate-500 font-bold uppercase tracking-[0.2em]">
+                    </p>
                 </div>
                 <div class="flex gap-2">
                     <button id="hf-sync-btn" class="p-2 bg-slate-800 rounded-xl" title="Sync to HF">☁️</button>
@@ -346,8 +393,12 @@
             </div>
 
             <div class="mt-8 pt-8 border-t border-slate-900 flex flex-col gap-3">
-                <button id="reset-calib-btn" class="w-full py-4 bg-slate-900 hover:bg-slate-800 text-xs font-bold uppercase tracking-widest rounded-2xl transition-all">Reset All Data</button>
-                <button id="exit-calib-btn" class="w-full py-4 bg-pink-600 text-xs font-bold uppercase tracking-widest rounded-2xl transition-all">Back to Hub</button>
+                <button id="reset-calib-btn"
+                    class="w-full py-4 bg-slate-900 hover:bg-slate-800 text-xs font-bold uppercase tracking-widest rounded-2xl transition-all">Reset
+                    All Data</button>
+                <button id="exit-calib-btn"
+                    class="w-full py-4 bg-pink-600 text-xs font-bold uppercase tracking-widest rounded-2xl transition-all">Back
+                    to Hub</button>
             </div>
         </div>
 
@@ -363,7 +414,8 @@
                 </div>
                 <div class="h-40"></div>
                 <div class="text-center w-full px-10 pointer-events-auto mt-20">
-                    <p id="calib-hint" class="text-gray-400 mb-8 text-[11px] italic">Look at the crosshair and hold still</p>
+                    <p id="calib-hint" class="text-gray-400 mb-8 text-[11px] italic">Look at the crosshair and hold
+                        still</p>
                     <button id="skip-calib-btn"
                         class="py-2.5 px-10 bg-pink-900/20 hover:bg-pink-900/40 text-pink-400 rounded-full text-[11px] font-bold border border-pink-500/30 transition-all active:scale-95 uppercase tracking-widest chargeable">
                         Skip
@@ -373,7 +425,9 @@
         </div>
 
         <div class="absolute top-6 right-6 z-[250] flex flex-col items-end gap-3">
-            <button id="menu-btn" class="chargeable bg-black/40 p-2 rounded-xl border border-white/10 backdrop-blur-md hidden" title="Settings Menu">⚙️</button>
+            <button id="menu-btn"
+                class="chargeable bg-black/40 p-2 rounded-xl border border-white/10 backdrop-blur-md hidden"
+                title="Settings Menu">⚙️</button>
             <div id="bigmouth-score"
                 class="hidden gap-3 text-sm font-bold bg-black/50 px-4 py-1 rounded-full pointer-events-none border border-white/10">
                 <div class="text-green-400">Good: <span id="good-points">0</span></div>
@@ -391,7 +445,8 @@
                 class="py-4 px-12 bg-pink-600 hover:bg-pink-500 rounded-xl text-xl font-bold shadow-2xl transition-all hidden chargeable">
                 PLAY AGAIN
             </button>
-            <button onclick="window.location.href='index.html'" class="mt-4 text-xs text-gray-500 hover:text-white uppercase tracking-widest">
+            <button onclick="window.location.href='index.html'"
+                class="mt-4 text-xs text-gray-500 hover:text-white uppercase tracking-widest">
                 Exit to Menu
             </button>
         </div>
@@ -412,7 +467,8 @@
                 <div class="menu-divider"></div>
 
                 <div class="menu-section">
-                    <button id="open-mouth-btn" class="w-full text-left text-xs font-bold text-gray-300 py-2 flex justify-between items-center hover:text-pink-400 chargeable transition-colors">
+                    <button id="open-mouth-btn"
+                        class="w-full text-left text-xs font-bold text-gray-300 py-2 flex justify-between items-center hover:text-pink-400 chargeable transition-colors">
                         MOUTH DETECTION <span class="opacity-50">&gt;</span>
                     </button>
                 </div>
@@ -420,7 +476,8 @@
                 <div class="menu-divider"></div>
 
                 <div class="menu-section mb-0 flex flex-col gap-2">
-                    <button id="resume-game-btn" class="return-btn chargeable" style="background: rgba(236, 72, 153, 0.1); border-color: rgba(236, 72, 153, 0.3); color: #ec4899;">
+                    <button id="resume-game-btn" class="return-btn chargeable"
+                        style="background: rgba(236, 72, 153, 0.1); border-color: rgba(236, 72, 153, 0.3); color: #ec4899;">
                         Resume Game
                     </button>
                     <button id="return-main-btn" class="return-btn chargeable">
@@ -431,7 +488,9 @@
 
             <div id="mouth-menu-view" class="hidden">
                 <div class="flex items-center mb-6">
-                    <button id="close-mouth-btn" class="text-xs font-bold text-gray-400 hover:text-white mr-3 chargeable py-1 transition-colors uppercase tracking-wider">&lt; Back</button>
+                    <button id="close-mouth-btn"
+                        class="text-xs font-bold text-gray-400 hover:text-white mr-3 chargeable py-1 transition-colors uppercase tracking-wider">&lt;
+                        Back</button>
                     <div class="menu-header mb-0" style="color: #ec4899;">Mouth Detection</div>
                 </div>
 
@@ -473,9 +532,12 @@
                 </div>
 
                 <div class="debug-readout">
-                    <div><span class="label">Openness:</span> <span class="value" id="debug-mouth-openness">0.000</span></div>
-                    <div><span class="label">State:</span> <span class="value" id="debug-mouth-state" style="color:#22d3ee">CLOSED</span></div>
-                    <div><span class="label">Velocity:</span> <span class="value" id="debug-mouth-velocity">+0.0000</span></div>
+                    <div><span class="label">Openness:</span> <span class="value" id="debug-mouth-openness">0.000</span>
+                    </div>
+                    <div><span class="label">State:</span> <span class="value" id="debug-mouth-state"
+                            style="color:#22d3ee">CLOSED</span></div>
+                    <div><span class="label">Velocity:</span> <span class="value"
+                            id="debug-mouth-velocity">+0.0000</span></div>
                 </div>
 
                 <div class="menu-divider"></div>
@@ -510,23 +572,28 @@
             </defs>
             <path id="mouth-inner" d="M 25,40 Q 60,40 95,40 Q 60,40 25,40 Z" fill="url(#inner-gradient)" />
             <ellipse id="mouth-tongue" cx="60" cy="45" rx="18" ry="0" fill="url(#tongue-gradient)" opacity="0" />
-            
+
             <!-- Zone for swallowed food (between layers) -->
             <g id="swallow-zone"></g>
 
             <!-- Teeth behind lips, clipped to mouth opening -->
             <g id="teeth-top" class="teeth-row" clip-path="url(#mouth-clip)">
                 <path d="M 35,40 L 85,40 L 85,40 L 35,40 Z" fill="white" />
-                <path d="M 45,40 L 45,45 M 55,40 L 55,45 M 65,40 L 65,45 M 75,40 L 75,45" stroke="rgba(0,0,0,0.1)" stroke-width="0.5" />
+                <path d="M 45,40 L 45,45 M 55,40 L 55,45 M 65,40 L 65,45 M 75,40 L 75,45" stroke="rgba(0,0,0,0.1)"
+                    stroke-width="0.5" />
             </g>
             <g id="teeth-bottom" class="teeth-row" clip-path="url(#mouth-clip)">
                 <path d="M 35,40 L 85,40 L 85,40 L 35,40 Z" fill="#f0f0f0" />
-                <path d="M 45,35 L 45,40 M 55,35 L 55,40 M 65,35 L 65,40 M 75,35 L 75,40" stroke="rgba(0,0,0,0.1)" stroke-width="0.5" />
+                <path d="M 45,35 L 45,40 M 55,35 L 55,40 M 65,35 L 65,40 M 75,35 L 75,40" stroke="rgba(0,0,0,0.1)"
+                    stroke-width="0.5" />
             </g>
 
-            <path id="lip-upper" class="lip-outer" d="M 15,40 Q 35,38 60,36 Q 85,38 105,40 Q 85,38 60,38 Q 35,38 15,40 Z" fill="url(#lip-gradient)" />
-            <path id="lip-lower" class="lip-outer" d="M 15,40 Q 35,42 60,44 Q 85,42 105,40 Q 85,42 60,42 Q 35,42 15,40 Z" fill="url(#lip-gradient)" />
-            <path class="lip-shine" id="lip-shine" d="M 30,37 Q 45,34 60,35 Q 75,34 90,37" fill="none" stroke="rgba(255,255,255,0.3)" stroke-width="1.5" stroke-linecap="round" />
+            <path id="lip-upper" class="lip-outer"
+                d="M 15,40 Q 35,38 60,36 Q 85,38 105,40 Q 85,38 60,38 Q 35,38 15,40 Z" fill="url(#lip-gradient)" />
+            <path id="lip-lower" class="lip-outer"
+                d="M 15,40 Q 35,42 60,44 Q 85,42 105,40 Q 85,42 60,42 Q 35,42 15,40 Z" fill="url(#lip-gradient)" />
+            <path class="lip-shine" id="lip-shine" d="M 30,37 Q 45,34 60,35 Q 75,34 90,37" fill="none"
+                stroke="rgba(255,255,255,0.3)" stroke-width="1.5" stroke-linecap="round" />
         </svg>
 
         <div id="pause-indicator" class="flex flex-col">
@@ -542,7 +609,7 @@
         const urlParams = new URLSearchParams(window.location.search);
         const isMobileMode = urlParams.get('mode') === 'mobile' || /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
         if (isMobileMode) document.body.classList.add('mobile-research');
-        
+
         const appContainer = document.getElementById('app-container');
         const overlay = document.getElementById('overlay');
         const calibOverlay = document.getElementById('calib-overlay');
@@ -574,11 +641,11 @@
             manualMouthOpen = !manualMouthOpen;
             console.log('[Interaction] Mouth Toggled:', manualMouthOpen);
         });
-        
+
         function generateCandidates() {
             const pool = [];
             pool.push({ id: 'current', config: FaceTracker.mouthDetection });
-            
+
             const hystRanges = [[0.3, 0.15], [0.38, 0.18], [0.45, 0.22], [0.55, 0.25], [0.65, 0.30]];
             hystRanges.forEach((r, i) => pool.push({
                 id: `hyst-${r[0]}`,
@@ -602,7 +669,7 @@
                 id: `hybrid-c${c}`,
                 config: { ...FaceTracker.mouthDetection, approach: 'hybrid', hybridConfidence: c }
             }));
-            
+
             // Extreme Robustness
             pool.push({
                 id: `hybrid-strict`,
@@ -643,7 +710,7 @@
             sideMenu.classList.toggle('active');
             mainMenuBtn.classList.remove('hidden');
             mouthMenuView.classList.add('hidden');
-            
+
             gamePaused = sideMenu.classList.contains('active');
             document.getElementById('pause-indicator').classList.toggle('visible', gamePaused);
         });
@@ -677,20 +744,20 @@
 
         // ─── Hugging Face Sync & Encryption ───
         const hfTokenInput = document.getElementById('hf-token-input');
-        
+
         // Placeholder for encrypted token (user will populate this)
         const ENCRYPTED_HF_TOKEN = {
-          "salt": "iMxvS+Ss92yieVXTYzewsA==",
-          "iv": "0bR/XvFS3nfQULyE",
-          "ciphertext": "GhNsR7iXVuoMSq4d4ZDUnPzsiTO3CaV71bV6klqQRCm7VobCuXV0d30f6wCXdAMFfUct5BM="
-        }; 
+            "salt": "iMxvS+Ss92yieVXTYzewsA==",
+            "iv": "0bR/XvFS3nfQULyE",
+            "ciphertext": "GhNsR7iXVuoMSq4d4ZDUnPzsiTO3CaV71bV6klqQRCm7VobCuXV0d30f6wCXdAMFfUct5BM="
+        };
 
         async function decryptToken(password) {
             if (!ENCRYPTED_HF_TOKEN) return null;
             try {
                 const encoder = new TextEncoder();
                 const decoder = new TextDecoder();
-                
+
                 const salt = Uint8Array.from(atob(ENCRYPTED_HF_TOKEN.salt), c => c.charCodeAt(0));
                 const iv = Uint8Array.from(atob(ENCRYPTED_HF_TOKEN.iv), c => c.charCodeAt(0));
                 const ciphertext = Uint8Array.from(atob(ENCRYPTED_HF_TOKEN.ciphertext), c => c.charCodeAt(0));
@@ -715,7 +782,7 @@
 
         let sessionToken = null; // Store decrypted token in memory for session
 
-        
+
         // --- SECURE WORKAROUND: Token Initialization ---
         // To avoid repo rule violations, we don't hardcode the token.
         // You can set it once via the URL: big_mouth.html?set_hf_token=YOUR_TOKEN
@@ -743,13 +810,13 @@
         async function uploadToHF(path, content) {
             const token = sessionToken || localStorage.getItem('hf_token_mouth');
             if (!token) throw new Error("Sync failed: No Hugging Face token found. Please unlock or set it in Settings.");
-            
+
             const repo = "Y3/mouth_status";
             const url = `https://huggingface.co/api/datasets/${repo}/commit/main`;
-            
+
             // UTF-8 safe base64
             const utf8SafeBase64 = btoa(unescape(encodeURIComponent(content)));
-            
+
             const res = await fetch(url, {
                 method: "POST",
                 headers: {
@@ -768,7 +835,7 @@
                     commit_message: `Upload ${path} via Big Mouth UI`
                 })
             });
-            
+
             if (!res.ok) {
                 const err = await res.json();
                 throw new Error(err.error || `Upload failed with status ${res.status}`);
@@ -794,7 +861,7 @@
             if (!token) { alert("Set your HF Token in settings first!"); return; }
 
             btn.innerText = '⌛';
-            
+
             try {
                 const repo = "Y3/mouth_status";
                 // List files in data/raw
@@ -802,13 +869,13 @@
                 const res = await fetch(treeUrl, {
                     headers: { "Authorization": `Bearer ${token}` }
                 });
-                
+
                 if (!res.ok) throw new Error("Failed to fetch cloud file list");
                 const files = await res.json();
-                
+
                 // Sort by name descending (assuming timestamp based names)
                 const jsonFiles = files.filter(f => f.path.endsWith('.json')).reverse();
-                
+
                 if (!jsonFiles.length) {
                     alert("No cloud datasets found in Y3/mouth_status/data/raw");
                     btn.innerText = originalIcon;
@@ -816,8 +883,8 @@
                 }
 
                 const filename = prompt(
-                    "Select a dataset to load (latest first):\n\n" + 
-                    jsonFiles.slice(0, 10).map((f, i) => `${i+1}. ${f.path.split('/').pop()}`).join('\n') + 
+                    "Select a dataset to load (latest first):\n\n" +
+                    jsonFiles.slice(0, 10).map((f, i) => `${i + 1}. ${f.path.split('/').pop()}`).join('\n') +
                     "\n\nEnter number (1-10):", "1"
                 );
 
@@ -836,11 +903,11 @@
 
                 if (!rawRes.ok) throw new Error("Failed to download file content");
                 const data = await rawRes.json();
-                
+
                 if (confirm(`Load cloud dataset "${selectedFile.path.split('/').pop()}" (${data.records?.length || 0} frames)?`)) {
                     runOfflineOptimization(data.records);
                 }
-                
+
                 btn.innerText = originalIcon;
             } catch (err) {
                 console.error(err);
@@ -972,16 +1039,16 @@
                     </button>
                     <p class="text-gray-500 text-[10px]">Please allow camera access when prompted.</p>
                 `;
-                document.getElementById('intro-start-btn').addEventListener('click', function() {
+                document.getElementById('intro-start-btn').addEventListener('click', function () {
                     this.innerText = 'INITIALIZING...';
                     this.disabled = true;
                     this.classList.add('opacity-50');
-                    
+
                     FaceTracker.suppressAutoUI = true; // prevent conflict
                     FaceTracker.init().then(success => {
-                        if(success) {
+                        if (success) {
                             if (!loopInterval) loopInterval = setInterval(gameLoop, 30);
-                            
+
                             // Aggressive safety: ensure intro-overlay is hidden
                             const introOverlay = document.getElementById('intro-overlay');
                             if (introOverlay) {
@@ -1002,7 +1069,7 @@
         // Hub Navigation
         document.getElementById('hub-play-btn').onclick = () => {
             document.getElementById('hub-overlay').classList.add('hidden');
-            if (overlay) overlay.classList.remove('hidden'); 
+            if (overlay) overlay.classList.remove('hidden');
         };
 
         document.getElementById('overlay-back-btn').onclick = () => {
@@ -1028,7 +1095,7 @@
         function startGuidedCalibration() {
             calibrationRecords = [];
             candidates = generateCandidates();
-            
+
             // Initialize dots
             const dotsContainer = document.getElementById('consensus-dots');
             dotsContainer.innerHTML = '';
@@ -1058,11 +1125,11 @@
 
             const actionText = document.getElementById('calib-action-text');
             const subText = document.getElementById('calib-sub-text');
-            
+
             calibInstructionState = calibStateIdx === 0 ? 'CLOSED' : 'OPEN';
             actionText.innerText = 'WAIT...';
             subText.innerText = `Moving to Point ${calibPointIdx + 1}/9`;
-            
+
             calibWindowActive = false;
 
             setTimeout(() => {
@@ -1070,7 +1137,7 @@
                 subText.innerText = 'RECORDING DATA...';
                 calibWindowActive = true;
                 calibTimer = Date.now();
-                
+
                 if (navigator.vibrate) navigator.vibrate(100);
 
                 setTimeout(() => {
@@ -1094,7 +1161,7 @@
             setTimeout(() => {
                 renderResults();
                 document.getElementById('results-overlay').classList.remove('hidden');
-                
+
                 // AUTO SYNC
                 const syncBtn = document.getElementById('hf-sync-btn');
                 const hasToken = sessionToken || localStorage.getItem('hf_token_mouth') || ENCRYPTED_HF_TOKEN;
@@ -1111,11 +1178,11 @@
             document.getElementById('hub-overlay').classList.add('hidden');
             calibrationMode = true;
             FaceTracker.showDebugLandmarks = true;
-            
+
             FaceTracker.startCalibration(() => {
                 document.getElementById('calibration-view').classList.remove('hidden');
                 startGuidedCalibration();
-                
+
                 const videoContainer = document.getElementById('webgazerVideoContainer');
                 if (videoContainer) {
                     videoContainer.style.setProperty('display', 'block', 'important');
@@ -1162,7 +1229,7 @@
                 try {
                     const data = JSON.parse(event.target.result);
                     if (!data.records || !data.records.length) throw new Error("Invalid dataset: No records found.");
-                    
+
                     if (confirm(`Load dataset with ${data.records.length} frames and re-calibrate?`)) {
                         runOfflineOptimization(data.records);
                     }
@@ -1176,16 +1243,16 @@
         function runOfflineOptimization(records) {
             // Reset candidates stats
             candidates = generateCandidates();
-            
+
             // Replay every frame through every detector
             records.forEach(frame => {
                 if (!frame.metrics) return;
                 const truth = frame.truth;
-                
+
                 candidates.forEach(c => {
                     FaceTracker.evaluateDetector(c.detector, frame.metrics);
                     const isCorrect = c.detector.isMouthOpen === truth;
-                    
+
                     if (truth) c.posSamples++; else c.negSamples++;
                     if (isCorrect) c.correct++;
                     else {
@@ -1212,7 +1279,7 @@
 
         function runParameterSweep(records) {
             const sweepPool = [];
-            
+
             // Generate Hybrid sweep: Confidence 0.1 to 0.7
             for (let c = 0.1; c <= 0.71; c += 0.02) {
                 sweepPool.push({
@@ -1237,7 +1304,7 @@
             }));
 
             runOfflineOptimization(records);
-            
+
             document.getElementById('results-count-text').innerText = `SWEEP COMPLETE: ${records.length} FRAMES`;
             document.getElementById('results-count-text').style.color = '#8b5cf6'; // Violet for sweep
         }
@@ -1248,7 +1315,7 @@
             const container = document.getElementById('results-table-container');
             const totalSamples = candidates[0]?.posSamples + candidates[0]?.negSamples || 0;
             document.getElementById('results-count-text').innerText = `${totalSamples} SAMPLES RECORDED`;
-            
+
             if (totalSamples === 0) {
                 container.innerHTML = `<div class="p-12 text-slate-700 text-center font-bold">NO DATA YET. RUN CALIBRATION!</div>`;
                 return;
@@ -1292,7 +1359,7 @@
                 const rec = Math.round(c.recall * 100);
                 const acc = Math.round(c.acc * 100);
                 const isBest = idx === 0 && f1 > 10;
-                
+
                 html += `<tr class="${isBest ? 'bg-pink-500/5' : ''}">
                     <td class="py-2 pr-2 font-bold ${isBest ? 'text-pink-400' : 'text-slate-300'}">${c.id}</td>
                     <td class="py-2 pr-2 text-center font-black ${f1 > 70 ? 'text-green-400' : 'text-slate-400'}">${f1}</td>
@@ -1346,7 +1413,7 @@
                 candidates: candidates.map(c => ({ id: c.id, config: c.config, stats: { correct: c.correct, fp: c.fp, fn: c.fn } }))
             }, null, 2));
             const downloadAnchorNode = document.createElement('a');
-            downloadAnchorNode.setAttribute("href",     dataStr);
+            downloadAnchorNode.setAttribute("href", dataStr);
             downloadAnchorNode.setAttribute("download", "mouth_calibration_data.json");
             document.body.appendChild(downloadAnchorNode);
             downloadAnchorNode.click();
@@ -1364,7 +1431,7 @@
             badPoints = 0;
             updateBigMouthScore();
             spawnFood();
-            
+
             const videoContainer = document.getElementById('webgazerVideoContainer');
             if (videoContainer) {
                 videoContainer.style.setProperty('display', 'none', 'important');
@@ -1393,7 +1460,7 @@
             const rect = gameContainer.getBoundingClientRect();
             const spawnMinY = rect.height * 0.15;
             const spawnMaxY = rect.height * 0.85 - 70;
-            
+
             let x, y, dist;
             let attempts = 0;
             do {
@@ -1422,27 +1489,27 @@
                 if (food.dataset.type === 'healthy') goodPoints++;
                 else badPoints++;
                 updateBigMouthScore();
-                
+
                 // Get absolute positions
                 const foodRect = food.getBoundingClientRect();
                 const mouthRect = mouthCursor.getBoundingClientRect();
-                
+
                 // Sucking animation: Move toward mouth center and scale down
                 const mouthX = parseFloat(mouthCursor.style.left);
                 const mouthY = parseFloat(mouthCursor.style.top);
-                
+
                 // Visual sucking starts in screen space
                 food.style.transition = 'all 0.2s cubic-bezier(0.5, 0, 0.5, 1)';
                 food.style.left = (mouthX - 30) + 'px';
                 food.style.top = (mouthY - 30) + 'px';
                 food.style.transform = 'scale(0.5)';
                 food.style.opacity = '0.8';
-                
+
                 // After initial move, "swallow" it by moving into SVG layer
                 setTimeout(() => {
                     const swallowZone = document.getElementById('swallow-zone');
                     const foodEmoji = food.innerText;
-                    
+
                     // Create SVG equivalent
                     const svgFood = document.createElementNS("http://www.w3.org/2000/svg", "text");
                     svgFood.setAttribute("x", "60");
@@ -1453,17 +1520,17 @@
                     svgFood.textContent = foodEmoji;
                     svgFood.style.transition = 'all 0.3s ease-in';
                     svgFood.setAttribute("transform", "scale(1.5)");
-                    
+
                     swallowZone.appendChild(svgFood);
                     food.remove();
-                    
+
                     // Animate inside SVG
                     requestAnimationFrame(() => {
                         svgFood.setAttribute("transform", "scale(0.1) rotate(180)");
                         svgFood.setAttribute("opacity", "0");
                         svgFood.setAttribute("y", "50"); // Move "deeper" into throat
                     });
-                    
+
                     setTimeout(() => {
                         triggerChompAnimation();
                         svgFood.remove();
@@ -1481,18 +1548,18 @@
         function updateMouthSVG(openness) {
             const o = Math.max(0, Math.min(1, openness));
             // Much wider spread for dramatic open mouth
-            const lipSpread = o * 40; 
+            const lipSpread = o * 40;
             const upperY = 40 - lipSpread;
             const lowerY = 40 + lipSpread;
             const horizontalStretch = o * 12;
-            
-            const lipInset = 15 - horizontalStretch; 
+
+            const lipInset = 15 - horizontalStretch;
             const lipWidth = 120 - lipInset;
-            
+
             // Anatomical Thickness
             const baseThick = 6;
             const centerThick = baseThick + (1 - o) * 6; // Thicker when closed
-            
+
             // --- UPPER LIP (Cupid's Bow) ---
             // Outer edge with 2 peaks and a dip at center (X=60)
             const peakY = upperY;
@@ -1500,45 +1567,45 @@
             const upperOuter = `M ${lipInset},40 Q 35,${peakY} 54,${peakY} Q 60,${dipY} 66,${peakY} Q 85,${peakY} ${lipWidth},40`;
             const upperInner = `Q 85,${upperY + centerThick} 60,${upperY + centerThick} Q 35,${upperY + centerThick} ${lipInset},40`;
             document.getElementById('lip-upper').setAttribute('d', `${upperOuter} ${upperInner} Z`);
-            
+
             // --- LOWER LIP ---
             const lowerOuter = `M ${lipInset},40 Q 60,${lowerY + 2} ${lipWidth},40`;
             const lowerInner = `Q 85,${lowerY - centerThick} 60,${lowerY - centerThick} Q 35,${lowerY - centerThick} ${lipInset},40`;
             document.getElementById('lip-lower').setAttribute('d', `${lowerOuter} ${lowerInner} Z`);
-            
+
             // Inner mouth opening — follows the lips
-            const innerSpread = o * 35; 
+            const innerSpread = o * 35;
             const innerInset = 25 - o * 15;
-            const innerPath = `M ${innerInset},40 Q 40,${40-innerSpread} 60,${40-innerSpread} Q 80,${40-innerSpread} ${120-innerInset},40 Q 80,${40+innerSpread} 60,${40+innerSpread} Q 40,${40+innerSpread} ${innerInset},40 Z`;
+            const innerPath = `M ${innerInset},40 Q 40,${40 - innerSpread} 60,${40 - innerSpread} Q 80,${40 - innerSpread} ${120 - innerInset},40 Q 80,${40 + innerSpread} 60,${40 + innerSpread} Q 40,${40 + innerSpread} ${innerInset},40 Z`;
             document.getElementById('mouth-inner').setAttribute('d', innerPath);
             document.getElementById('mouth-clip-path').setAttribute('d', innerPath);
-            
-            // Shine follows upper lip shape
-            document.getElementById('lip-shine').setAttribute('d', `M ${lipInset+15},${peakY+4} Q 54,${peakY+2} 60,${dipY+2} Q 66,${peakY+2} ${lipWidth-15},${peakY+4}`);
 
-            const teethVis = Math.max(0, (o-0.1)/0.9);
+            // Shine follows upper lip shape
+            document.getElementById('lip-shine').setAttribute('d', `M ${lipInset + 15},${peakY + 4} Q 54,${peakY + 2} 60,${dipY + 2} Q 66,${peakY + 2} ${lipWidth - 15},${peakY + 4}`);
+
+            const teethVis = Math.max(0, (o - 0.1) / 0.9);
             const teethH = teethVis * 10;
             const teethGap = upperY + centerThick;
-            
+
             // Update teeth paths inside groups
             const teethTopPath = document.getElementById('teeth-top').querySelector('path');
-            teethTopPath.setAttribute('d', `M 35,${teethGap} L 85,${teethGap} L 85,${teethGap+teethH} Q 60,${teethGap+2+teethH} 35,${teethGap+teethH} Z`);
-            
+            teethTopPath.setAttribute('d', `M 35,${teethGap} L 85,${teethGap} L 85,${teethGap + teethH} Q 60,${teethGap + 2 + teethH} 35,${teethGap + teethH} Z`);
+
             const teethBottomPath = document.getElementById('teeth-bottom').querySelector('path');
             const bottomTeethGap = lowerY - centerThick;
-            teethBottomPath.setAttribute('d', `M 35,${bottomTeethGap} L 85,${bottomTeethGap} L 85,${bottomTeethGap-teethH*0.8} Q 60,${bottomTeethGap-2-teethH*0.8} 35,${bottomTeethGap-teethH*0.8} Z`);
-            
+            teethBottomPath.setAttribute('d', `M 35,${bottomTeethGap} L 85,${bottomTeethGap} L 85,${bottomTeethGap - teethH * 0.8} Q 60,${bottomTeethGap - 2 - teethH * 0.8} 35,${bottomTeethGap - teethH * 0.8} Z`);
+
             // Hide dividers if closed
             document.querySelectorAll('.teeth-row path:last-child').forEach(p => p.setAttribute('opacity', teethVis));
-            
+
             const tongue = document.getElementById('mouth-tongue');
-            const tongueVis = Math.max(0, (o-0.25)/0.75);
+            const tongueVis = Math.max(0, (o - 0.25) / 0.75);
             tongue.setAttribute('ry', tongueVis * 18);
             tongue.setAttribute('rx', 14 + tongueVis * 12);
             tongue.setAttribute('cy', 40 + lipSpread * 0.45);
             tongue.setAttribute('opacity', tongueVis * 0.9);
 
-            mouthCursor.style.filter = `drop-shadow(0 0 ${8+o*25}px rgba(236,72,153,${0.4+o*0.5}))`;
+            mouthCursor.style.filter = `drop-shadow(0 0 ${8 + o * 25}px rgba(236,72,153,${0.4 + o * 0.5}))`;
         }
 
         function triggerChompAnimation() {
@@ -1570,7 +1637,7 @@
             mouthCursor.style.display = (isIntroVisible || isOverlayVisible) ? 'none' : 'block';
 
             if (mouthCursor.style.display === 'none') return;
-            
+
             let displayX = FaceTracker.cursorX;
             let displayY = FaceTracker.cursorY;
 
@@ -1581,22 +1648,22 @@
                 targets.forEach(t => {
                     if (t.dataset.type === 'healthy') {
                         const rect = t.getBoundingClientRect();
-                        const tx = rect.left + rect.width/2;
-                        const ty = rect.top + rect.height/2;
+                        const tx = rect.left + rect.width / 2;
+                        const ty = rect.top + rect.height / 2;
                         const d = Math.sqrt(Math.pow(displayX - tx, 2) + Math.pow(displayY - ty, 2));
-                        if (d < minDist) { minDist = d; nearest = {x:tx, y:ty}; }
+                        if (d < minDist) { minDist = d; nearest = { x: tx, y: ty }; }
                     }
                 });
                 if (nearest) {
-                    const weight = snapStrength * Math.pow(1 - (minDist/snapRange), 1.5);
-                    displayX = displayX * (1-weight) + nearest.x * weight;
-                    displayY = displayY * (1-weight) + nearest.y * weight;
+                    const weight = snapStrength * Math.pow(1 - (minDist / snapRange), 1.5);
+                    displayX = displayX * (1 - weight) + nearest.x * weight;
+                    displayY = displayY * (1 - weight) + nearest.y * weight;
                 }
             }
 
             mouthCursor.style.left = displayX + 'px';
             mouthCursor.style.top = displayY + 'px';
-            
+
             const effectiveOpenness = manualMouthOpen ? 1.0 : FaceTracker.mouthOpenness;
             updateMouthSVG(effectiveOpenness);
 
@@ -1609,7 +1676,7 @@
 
                     if (calibWindowActive) {
                         const truth = calibInstructionState === 'OPEN';
-                        
+
                         // NEW: Record full raw metrics for the dataset
                         calibrationRecords.push({
                             timestamp: Date.now(),
@@ -1618,7 +1685,7 @@
                         });
 
                         const isCorrect = c.detector.isMouthOpen === truth;
-                        
+
                         if (truth) c.posSamples++; else c.negSamples++;
                         if (isCorrect) c.correct++;
                         else {
@@ -1637,7 +1704,7 @@
                 const stateEl = document.getElementById('consensus-state');
                 const countEl = document.getElementById('consensus-count');
                 const timerBar = document.getElementById('calib-timer-path');
-                
+
                 if (calibWindowActive) {
                     const elapsed = Date.now() - calibTimer;
                     const pct = Math.max(0, 1 - (elapsed / CALIB_WINDOW_DURATION));
@@ -1666,11 +1733,11 @@
                 // A datapoint here is a 3s window. We have 18 total.
                 const datapoints = Math.floor(totalSamples / (3000 / 30)); // approx 100 samples per window
                 if (datapoints >= 5) {
-                    const best = [...candidates].sort((a,b) => (b.correct/(b.posSamples+b.negSamples)) - (a.correct/(a.posSamples+a.negSamples)))[0];
+                    const best = [...candidates].sort((a, b) => (b.correct / (b.posSamples + b.negSamples)) - (a.correct / (a.posSamples + a.negSamples)))[0];
                     const card = document.getElementById('best-setting-card');
                     card.classList.remove('hidden');
                     document.getElementById('best-setting-name').innerText = best.id;
-                    document.getElementById('best-setting-acc').innerText = Math.round((best.correct/(best.posSamples+best.negSamples))*100) + '% Acc';
+                    document.getElementById('best-setting-acc').innerText = Math.round((best.correct / (best.posSamples + best.negSamples)) * 100) + '% Acc';
                 }
             }
 
@@ -1701,7 +1768,7 @@
 
                 const dx = displayX - (x + 30);
                 const dy = displayY - (y + 30);
-                const dist = Math.sqrt(dx*dx + dy*dy);
+                const dist = Math.sqrt(dx * dx + dy * dy);
 
                 if (dist < 65 && (FaceTracker.isMouthOpen || manualMouthOpen)) {
                     destroyFood(food, true);
@@ -1710,4 +1777,5 @@
         }
     </script>
 </body>
+
 </html>
