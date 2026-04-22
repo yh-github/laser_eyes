@@ -832,7 +832,7 @@
                             encoding: "base64"
                         }
                     ],
-                    commit_message: `Upload ${path} via Big Mouth UI`
+                    summary: `Upload ${path} via Big Mouth UI`
                 })
             });
 
@@ -1140,12 +1140,61 @@
 
                 if (navigator.vibrate) navigator.vibrate(100);
 
-                setTimeout(() => {
+                setTimeout(async () => {
                     calibWindowActive = false;
                     calibStateIdx++;
                     if (calibStateIdx > 1) {
                         calibStateIdx = 0;
                         calibPointIdx++;
+
+                        // After the first point (closed + open), do a smoke-test upload
+                        if (calibPointIdx === 1) {
+                            const hasToken = sessionToken || localStorage.getItem('hf_token_mouth') || ENCRYPTED_HF_TOKEN;
+                            if (hasToken) {
+                                try {
+                                    // Prompt for decryption if needed
+                                    if (ENCRYPTED_HF_TOKEN && !sessionToken && !localStorage.getItem('hf_token_mouth')) {
+                                        const pass = prompt("Enter decryption key to unlock Cloud Sync:");
+                                        if (pass) {
+                                            sessionToken = await decryptToken(pass);
+                                            if (!sessionToken) {
+                                                throw new Error("Invalid decryption key.");
+                                            }
+                                        } else {
+                                            throw new Error("No key provided.");
+                                        }
+                                    }
+
+                                    const actionText = document.getElementById('calib-action-text');
+                                    const subText = document.getElementById('calib-sub-text');
+                                    actionText.innerText = 'VERIFYING SYNC...';
+                                    subText.innerText = 'Testing cloud upload before continuing';
+                                    showSyncStatus("Testing cloud sync...", "info", 0);
+
+                                    const testContent = JSON.stringify({
+                                        test: true,
+                                        timestamp: new Date().toISOString(),
+                                        version: APP_VERSION,
+                                        samples: calibrationRecords.length
+                                    });
+                                    await uploadToHF(`data/test/smoke_${Date.now()}.json`, testContent);
+
+                                    showSyncStatus("Cloud sync verified ✓", "success", 3000);
+                                    console.log('[Sync] Smoke test upload passed.');
+                                } catch (err) {
+                                    console.error('[Sync] Smoke test FAILED:', err);
+                                    showSyncStatus("SYNC FAILED: " + err.message, "error", 0);
+                                    const actionText = document.getElementById('calib-action-text');
+                                    const subText = document.getElementById('calib-sub-text');
+                                    actionText.innerText = 'SYNC FAILED';
+                                    subText.innerText = err.message;
+                                    // Stop calibration — don't waste tester's time
+                                    guidedCalibActive = false;
+                                    alert("Cloud sync failed! Fix the issue before continuing.\n\n" + err.message);
+                                    return;
+                                }
+                            }
+                        }
                     }
                     nextCalibStep();
                 }, CALIB_WINDOW_DURATION);
