@@ -94,20 +94,59 @@ const FaceTracker = {
         } else if (md.approach === 'hybrid') {
             // New Neural Link 2.0 Approach
             // Weighted combination of MAR, Area, and Jaw Drop
-            // With pitch-compensation factored into the scores themselves (done in metrics)
             const marVal = metrics.marScore || 0;
             const areaVal = metrics.areaScore || 0;
             const chinVal = metrics.chinScore || 0;
             
-            // Higher weight on MAR but require Area/Chin for confirmation
             const confidence = (marVal * 0.5) + (areaVal * 0.3) + (chinVal * 0.2);
             
             if (detector.isMouthOpen) {
-                // Hysteresis for release
                 if (confidence < (md.hybridConfidence * 0.6) || marVal < md.hybridMinMAR) detector.isMouthOpen = false;
             } else {
-                // Strict entry
                 if (confidence > md.hybridConfidence && marVal > md.hybridMinMAR) detector.isMouthOpen = true;
+            }
+        } else if (md.approach === 'adaptive') {
+            // Adaptive Hysteresis: Thresholds shift based on pitchDelta (head tilt)
+            const pitch = metrics.pitchDelta || 0;
+            const shift = pitch > 0 ? pitch * 0.2 : pitch * 0.1; // lower thresholds when looking up
+            const openThresh = Math.max(0.1, md.hystOpenThreshold + shift);
+            const closeThresh = Math.max(0.05, md.hystCloseThreshold + shift);
+            
+            if (detector.isMouthOpen) {
+                if (detector.mouthOpenness < closeThresh) detector.isMouthOpen = false;
+            } else {
+                if (detector.mouthOpenness > openThresh) detector.isMouthOpen = true;
+            }
+        } else if (md.approach === 'impulse') {
+            // Impulse: Triggers on rapid opening (velocity)
+            const velocityTrigger = md.impulseThreshold || 0.05;
+            if (detector.mouthVelocity > velocityTrigger && detector.mouthOpenness > 0.3) {
+                detector.isMouthOpen = true;
+                detector._impulseHold = md.impulseHold || 15;
+            } else if (detector._impulseHold > 0) {
+                detector._impulseHold--;
+                if (detector.mouthOpenness < 0.2) {
+                    detector._impulseHold = 0;
+                    detector.isMouthOpen = false;
+                } else {
+                    detector.isMouthOpen = true;
+                }
+            } else {
+                detector.isMouthOpen = false;
+            }
+        } else if (md.approach === 'dual') {
+            // Dual Consensus: Requires BOTH MAR and Chin-Drop confirmation
+            const marThresh = md.dualMarThreshold || 0.4;
+            const chinThresh = md.dualChinThreshold || 0.35;
+            const isMarOpen = metrics.marScore > marThresh;
+            const isChinDown = metrics.chinScore > chinThresh;
+            
+            if (detector.isMouthOpen) {
+                // Hysteresis release: either can hold it open, both must close to shut
+                if (!isMarOpen && !isChinDown) detector.isMouthOpen = false;
+            } else {
+                // Entry: BOTH must agree
+                if (isMarOpen && isChinDown) detector.isMouthOpen = true;
             }
         }
 

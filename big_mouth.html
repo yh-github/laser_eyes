@@ -646,34 +646,38 @@
             const pool = [];
             pool.push({ id: 'current', config: FaceTracker.mouthDetection });
 
-            const hystRanges = [[0.3, 0.15], [0.38, 0.18], [0.45, 0.22], [0.55, 0.25], [0.65, 0.30]];
-            hystRanges.forEach((r, i) => pool.push({
-                id: `hyst-${r[0]}`,
-                config: { ...FaceTracker.mouthDetection, approach: 'hysteresis', hystOpenThreshold: r[0], hystCloseThreshold: r[1] }
+            // Elite: Adaptive Hysteresis (compensates for head tilt)
+            const adaptiveThresholds = [0.3, 0.38, 0.45];
+            adaptiveThresholds.forEach(t => pool.push({
+                id: `adaptive-t${t}`,
+                config: { ...FaceTracker.mouthDetection, approach: 'adaptive', hystOpenThreshold: t, hystCloseThreshold: t * 0.5, smoothing: 0.35 }
             }));
 
-            const mmThresholds = [0.15, 0.25, 0.35, 0.45];
-            mmThresholds.forEach(t => pool.push({
-                id: `mm-t${t}`,
-                config: { ...FaceTracker.mouthDetection, approach: 'multiMetric', openThreshold: t }
+            // Elite: Impulse (triggers on opening velocity)
+            const impulseThresh = [0.03, 0.05, 0.08];
+            impulseThresh.forEach(v => pool.push({
+                id: `impulse-v${v}`,
+                config: { ...FaceTracker.mouthDetection, approach: 'impulse', impulseThreshold: v, impulseHold: 12, smoothing: 0.6 }
             }));
 
-            const velSens = [0.015, 0.03, 0.05];
-            velSens.forEach(v => pool.push({
-                id: `vel-v${v}`,
-                config: { ...FaceTracker.mouthDetection, approach: 'velocityGated', velocityThreshold: v, holdFrames: 8 }
+            // Elite: Dual Consensus (Mouth + Chin must agree)
+            const dualConfigs = [[0.35, 0.3], [0.4, 0.35], [0.5, 0.45]];
+            dualConfigs.forEach(d => pool.push({
+                id: `dual-m${d[0]}-c${d[1]}`,
+                config: { ...FaceTracker.mouthDetection, approach: 'dual', dualMarThreshold: d[0], dualChinThreshold: d[1] }
             }));
 
-            const hybridConfs = [0.4, 0.5, 0.6, 0.7];
+            // Reliable: Hybrid (baseline)
+            const hybridConfs = [0.45, 0.6, 0.7];
             hybridConfs.forEach(c => pool.push({
                 id: `hybrid-c${c}`,
                 config: { ...FaceTracker.mouthDetection, approach: 'hybrid', hybridConfidence: c }
             }));
 
-            // Extreme Robustness
+            // High Precision
             pool.push({
-                id: `hybrid-strict`,
-                config: { ...FaceTracker.mouthDetection, approach: 'hybrid', hybridConfidence: 0.7, headVelocityGate: 1.5, debounceFrames: 2 }
+                id: `elite-strict`,
+                config: { ...FaceTracker.mouthDetection, approach: 'dual', dualMarThreshold: 0.55, dualChinThreshold: 0.5, debounceFrames: 2, headVelocityGate: 1.2 }
             });
 
             return pool.map(c => ({
