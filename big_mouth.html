@@ -310,6 +310,14 @@
                 </svg>
             </div>
 
+            </div>
+
+            <!-- Pause Overlay -->
+            <div id="calib-pause-overlay" class="absolute inset-0 bg-black/60 backdrop-blur-sm z-[120] hidden flex flex-col items-center justify-center">
+                <div class="text-white text-4xl font-black italic uppercase tracking-tighter mb-4">PAUSED</div>
+                <div class="text-pink-400 text-xs font-bold uppercase tracking-widest animate-pulse">Tap to Resume</div>
+            </div>
+
             <!-- Instruction Overlay -->
             <div id="calib-instruction"
                 class="absolute top-1/2 left-50 w-full text-center -translate-y-1/2 pointer-events-none">
@@ -1105,6 +1113,8 @@
         let calibPointIdx = 0;
         let calibStateIdx = 0; // 0 = CLOSED, 1 = OPEN
         let calibTimer = 0;
+        let calibPaused = false;
+        let calibPauseStartTime = 0;
         const CALIB_WINDOW_DURATION = 3000;
         const CALIB_TRANSITION_DURATION = 1500;
 
@@ -1117,6 +1127,8 @@
         function startGuidedCalibration() {
             calibrationRecords = [];
             candidates = generateCandidates();
+            calibPaused = false;
+            document.getElementById('calib-pause-overlay').classList.add('hidden');
 
             // Initialize dots
             const dotsContainer = document.getElementById('consensus-dots');
@@ -1132,6 +1144,24 @@
             calibStateIdx = 0;
             nextCalibStep();
         }
+
+        // Tap to pause calibration
+        document.getElementById('calibration-view').addEventListener('pointerdown', (e) => {
+            if (!guidedCalibActive) return;
+            calibPaused = !calibPaused;
+            const pauseOverlay = document.getElementById('calib-pause-overlay');
+            if (calibPaused) {
+                pauseOverlay.classList.remove('hidden');
+                calibPauseStartTime = Date.now();
+            } else {
+                pauseOverlay.classList.add('hidden');
+                // Adjust calibTimer by the duration of the pause
+                if (calibTimer > 0) {
+                    const pauseDuration = Date.now() - calibPauseStartTime;
+                    calibTimer += pauseDuration;
+                }
+            }
+        });
 
         function nextCalibStep() {
             if (calibPointIdx >= calibPoints.length) {
@@ -1746,7 +1776,7 @@
                     FaceTracker.evaluateDetector(c.detector, FaceTracker._lastMetrics);
                     if (c.detector.isMouthOpen) openVotes++;
 
-                    if (calibWindowActive) {
+                    if (calibWindowActive && !calibPaused) {
                         const truth = calibInstructionState === 'OPEN';
 
                         // NEW: Record full raw metrics + key landmarks for the dataset
@@ -1786,10 +1816,12 @@
                 const countEl = document.getElementById('consensus-count');
                 const timerBar = document.getElementById('calib-timer-path');
 
-                if (calibWindowActive) {
+                if (calibWindowActive && !calibPaused) {
                     const elapsed = Date.now() - calibTimer;
                     const pct = Math.max(0, 1 - (elapsed / CALIB_WINDOW_DURATION));
                     timerBar.style.strokeDashoffset = 282.7 * (1 - pct);
+                } else if (calibPaused) {
+                    // Freeze visual bar
                 } else {
                     timerBar.style.strokeDashoffset = 282.7;
                 }
