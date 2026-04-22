@@ -817,6 +817,7 @@
             // UTF-8 safe base64
             const utf8SafeBase64 = btoa(unescape(encodeURIComponent(content)));
 
+            // HF commit API uses "files" array (not "actions")
             const res = await fetch(url, {
                 method: "POST",
                 headers: {
@@ -824,15 +825,14 @@
                     "Content-Type": "application/json"
                 },
                 body: JSON.stringify({
-                    actions: [
+                    summary: `Upload ${path} via Big Mouth UI`,
+                    files: [
                         {
-                            action: "add",
                             path: path,
                             content: utf8SafeBase64,
                             encoding: "base64"
                         }
-                    ],
-                    summary: `Upload ${path} via Big Mouth UI`
+                    ]
                 })
             });
 
@@ -840,7 +840,25 @@
                 const err = await res.json();
                 throw new Error(err.error || `Upload failed with status ${res.status}`);
             }
-            return await res.json();
+
+            const result = await res.json();
+
+            // Verify the file actually persisted (HF can return 200 with empty commits)
+            const dir = path.split('/').slice(0, -1).join('/');
+            const treeUrl = `https://huggingface.co/api/datasets/${repo}/tree/main/${dir}`;
+            const verifyRes = await fetch(treeUrl, {
+                headers: { "Authorization": `Bearer ${token}` }
+            });
+            if (verifyRes.ok) {
+                const files = await verifyRes.json();
+                const found = files.some(f => f.path === path);
+                if (!found) {
+                    throw new Error(`Upload returned OK but file "${path}" not found in repo tree. Check token permissions.`);
+                }
+                console.log(`[Sync] Verified: ${path} exists in repo.`);
+            }
+
+            return result;
         }
 
         document.getElementById('hf-browse-btn').onclick = async () => {
