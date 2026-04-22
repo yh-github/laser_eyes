@@ -1745,10 +1745,19 @@
                     if (calibWindowActive) {
                         const truth = calibInstructionState === 'OPEN';
 
-                        // NEW: Record full raw metrics for the dataset
+                        // NEW: Record full raw metrics + key landmarks for the dataset
+                        const positions = webgazer.getTracker().getPositions();
+                        const mouthRaw = [];
+                        if (positions) {
+                            for (let i = 44; i <= 65; i++) {
+                                if (positions[i]) mouthRaw.push({i, x: positions[i][0], y: positions[i][1]});
+                            }
+                        }
+
                         calibrationRecords.push({
                             timestamp: Date.now(),
                             metrics: JSON.parse(JSON.stringify(FaceTracker._lastMetrics)),
+                            mouthRaw: mouthRaw,
                             truth: truth
                         });
 
