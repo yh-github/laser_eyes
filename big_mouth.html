@@ -1193,7 +1193,8 @@
                                         test: true,
                                         timestamp: new Date().toISOString(),
                                         version: APP_VERSION,
-                                        samples: calibrationRecords.length
+                                        samples: calibrationRecords.length,
+                                        records: calibrationRecords // Include the actual raw data from Point 1
                                     });
                                     await uploadToHF(`data/test/smoke_${Date.now()}.json`, testContent);
 
