@@ -621,17 +621,18 @@ const FaceTracker = {
         const pitchComp = 1.0 + (pitchDelta > 0 ? pitchDelta * 0.8 : pitchDelta * 0.4);
         
         // ─── Self-Healing Baseline ───
-        // If we see a state "more closed" than our baseline, the baseline was wrong. Fix it.
         if (this.neutralBaselines.captured) {
             if (currentMAR < this.neutralBaselines.baseMAR) {
-                this.neutralBaselines.baseMAR = this.neutralBaselines.baseMAR * 0.8 + currentMAR * 0.2;
-            }
-            if (currentNoseToChin < this.neutralBaselines.baseNoseToChin) {
-                this.neutralBaselines.baseNoseToChin = this.neutralBaselines.baseNoseToChin * 0.8 + currentNoseToChin * 0.2;
+                this.neutralBaselines.baseMAR = this.neutralBaselines.baseMAR * 0.5 + currentMAR * 0.5;
             }
         }
 
-        const marScore = Math.min(Math.max((currentMAR * pitchComp) - baseMAR, 0) / 0.35, 1);
+        // ─── Physical Safeguard ───
+        // If the mouth is physically wide (MAR > 0.45), it's almost certainly open,
+        // even if our baseline was somehow set even higher.
+        let marScore = Math.min(Math.max((currentMAR * pitchComp) - baseMAR, 0) / 0.35, 1);
+        if (currentMAR > 0.45) marScore = Math.max(marScore, 0.8);
+
         const areaScore = Math.min(Math.max((areaRatio * pitchComp) - baseAreaRatio, 0) / 0.03, 1);
         const chinScore = Math.min(Math.max(((currentNoseToChin * pitchComp) / baseNoseToChin) - 1, 0) / 0.25, 1);
 
