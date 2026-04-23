@@ -78,6 +78,41 @@ def load_data(data_path):
                 
     return all_records
 
+def augment_data(records, factor=10):
+    augmented = []
+    for rec in records:
+        augmented.append(rec) # Keep original
+        
+        feat = np.array(rec['features'])
+        # Landmark points are at indices 0:44 (22 points, x and y)
+        mr_points = feat[0:44].reshape(-1, 2)
+        
+        for _ in range(factor - 1):
+            # 1. Random Rotation (around origin, which is the nose tip)
+            angle = np.random.uniform(-0.15, 0.15) # ~ +/- 8 degrees
+            c, s = np.cos(angle), np.sin(angle)
+            rot_matrix = np.array([[c, -s], [s, c]])
+            
+            # 2. Random Scaling
+            scale = np.random.uniform(0.9, 1.1)
+            
+            # Apply to landmarks
+            new_mr = (mr_points @ rot_matrix) * scale
+            
+            # Reconstruct feature vector
+            new_feat = feat.copy()
+            new_feat[0:44] = new_mr.flatten()
+            
+            # Add some jitter to non-coordinate features (optional)
+            # pitchDelta, marScore, yawFactor, areaScore are at the end
+            new_feat[-4:] += np.random.normal(0, 0.001, 4)
+            
+            augmented.append({
+                'features': new_feat.tolist(),
+                'label': rec['label']
+            })
+    return augmented
+
 def train():
     data_path = "mouth_status/data"
     json_files = sorted(glob.glob(os.path.join(data_path, "raw", "*.json")))
@@ -100,25 +135,40 @@ def train():
                     continue
                 seen_mr.add(mr_tuple)
                 
-                # Feature engineering (reusing logic from before)
                 mr = np.array(rec['mr'])
                 rr = np.array(rec['rr'])
                 metrics = rec['m']
-                nose_x, nose_y = rr[12], rr[13]
-                chin_x, chin_y = rr[2], rr[3]
-                scale = np.sqrt((nose_x - chin_x)**2 + (nose_y - chin_y)**2) or 1.0
                 
-                # Geometric features
+                # Normalization origin: Nose Tip
+                nose_x, nose_y = rr[12], rr[13]
+                # Scale: Face Width (Point 27 to 32)
+                face_w = np.sqrt((rr[6] - rr[8])**2 + (rr[7] - rr[9])**2) or 1.0
+                chin_dist = np.sqrt((nose_x - rr[2])**2 + (nose_y - rr[3])**2) or 1.0
+                
+                # 4. Explicit Geometric Features
                 p44, p50 = mr[0:2], mr[12:14]
                 p60, p57 = mr[32:34], mr[26:28]
-                mar = np.sqrt(np.sum((p60 - p57)**2)) / (np.sqrt(np.sum((p44 - p50)**2)) or 1.0)
+                m_width = np.sqrt(np.sum((p44 - p50)**2))
+                m_height = np.sqrt(np.sum((p60 - p57)**2))
+                mar = m_height / (m_width or 1.0)
                 
+                # Relative size features
+                rel_mouth_w = m_width / face_w
+                rel_mouth_h = m_height / chin_dist
+                
+                # Normalize mr
                 mr_norm = []
                 for i in range(0, len(mr), 2):
-                    mr_norm.append((mr[i] - nose_x) / scale)
-                    mr_norm.append((mr[i+1] - nose_y) / scale)
+                    mr_norm.append((mr[i] - nose_x) / chin_dist)
+                    mr_norm.append((mr[i+1] - nose_y) / chin_dist)
                 
-                features = mr_norm + [mar]
+                # Normalize rr
+                rr_norm = []
+                for i in range(0, len(rr), 2):
+                    rr_norm.append((rr[i] - nose_x) / chin_dist)
+                    rr_norm.append((rr[i+1] - nose_y) / chin_dist)
+                
+                features = mr_norm + rr_norm + [mar, rel_mouth_w, rel_mouth_h]
                 features.extend([metrics.get(k, 0) for k in ['pitchDelta', 'marScore', 'yawFactor', 'areaScore']])
                 
                 file_records.append({
@@ -128,18 +178,24 @@ def train():
             all_file_data.append(file_records)
             print(f"File {os.path.basename(f_path)}: {len(file_records)} unique records")
 
+    from sklearn.ensemble import RandomForestClassifier
+    
     # Leave-one-file-out CV
     f1_scores = []
     for i in range(len(all_file_data)):
         test_records = all_file_data[i]
-        train_records = [rec for j, file_recs in enumerate(all_file_data) if i != j for rec in file_recs]
+        train_records_raw = [rec for j, file_recs in enumerate(all_file_data) if i != j for rec in file_recs]
+        
+        # Very light augmentation
+        print(f"Augmenting Fold {i} training data...")
+        train_records = augment_data(train_records_raw, factor=2)
         
         X_train = np.stack([r['features'] for r in train_records])
         y_train = np.array([r['label'] for r in train_records])
         X_test = np.stack([r['features'] for r in test_records])
         y_test = np.array([r['label'] for r in test_records])
         
-        model = xgb.XGBClassifier(n_estimators=100, max_depth=4, learning_rate=0.1, random_state=42)
+        model = RandomForestClassifier(n_estimators=100, max_depth=6, random_state=42)
         model.fit(X_train, y_train)
         y_pred = model.predict(X_test)
         
@@ -147,17 +203,21 @@ def train():
         f1_scores.append(score)
         print(f"Fold {i} (Test on {os.path.basename(json_files[i])}): F1 = {score:.4f}")
 
-    print(f"\nAverage F1 Score across files: {np.mean(f1_scores):.4f}")
+    print(f"\nAverage F1 Score across files (Random Forest): {np.mean(f1_scores):.4f}")
 
-    # Final model on all data
+    # Final model
     print("\nTraining final model on all unique data...")
-    all_recs = [rec for file_recs in all_file_data for rec in file_recs]
+    all_recs_raw = [rec for file_recs in all_file_data for rec in file_recs]
+    all_recs = augment_data(all_recs_raw, factor=3)
     X_final = np.stack([r['features'] for r in all_recs])
     y_final = np.array([r['label'] for r in all_recs])
-    final_model = xgb.XGBClassifier(n_estimators=150, max_depth=5, learning_rate=0.05, random_state=42)
+    
+    final_model = RandomForestClassifier(n_estimators=200, max_depth=8, random_state=42)
     final_model.fit(X_final, y_final)
-    final_model.save_model("mouth_baseline.json")
-    print("Final model saved to mouth_baseline.json")
+    # Save using joblib for RF
+    import joblib
+    joblib.dump(final_model, "mouth_baseline_rf.joblib")
+    print("Final model saved to mouth_baseline_rf.joblib")
 
 
 if __name__ == "__main__":
