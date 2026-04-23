@@ -1726,7 +1726,7 @@
 
             if (mouthCursor.style.display === 'none') return;
 
-            const trackerPos = webgazer.getTracker().getPositions()[62];
+            const trackerPos = (webgazer.getTracker() && webgazer.getTracker().getPositions()) ? webgazer.getTracker().getPositions()[62] : null;
             let displayX = FaceTracker.cursorX;
             let displayY = FaceTracker.cursorY;
 
