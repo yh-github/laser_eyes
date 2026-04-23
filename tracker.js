@@ -617,8 +617,10 @@ const FaceTracker = {
         const yawFactor = (noseSideL - noseSideR) / Math.max(faceWidth, 1);
 
         // ─── Normalize Openness with Pose Compensation ───
-        // When looking up (pitchDelta > 0), vertical distances are foreshortened
-        const pitchComp = 1.0 + (pitchDelta > 0 ? pitchDelta * 0.8 : pitchDelta * 0.4);
+        // When the head tilts (pitch), the mouth appears thinner to the camera.
+        // We must compensate by "inflating" the vertical measurements.
+        // Both looking UP and looking DOWN cause foreshortening.
+        const pitchComp = 1.0 + Math.abs(pitchDelta) * 1.2;
         
         // ─── Self-Healing Baseline ───
         if (this.neutralBaselines.captured) {
