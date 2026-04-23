@@ -622,21 +622,23 @@ const FaceTracker = {
         // Both looking UP and looking DOWN cause foreshortening.
         const pitchComp = 1.0 + Math.abs(pitchDelta) * 1.2;
         
-        // ─── Self-Healing Baseline ───
+         // ─── Instant Self-Healing Baseline ───
         if (this.neutralBaselines.captured) {
+            // The baseline is the "minimum openness" ever seen. Snap to it instantly if we find a new low.
             if (currentMAR < this.neutralBaselines.baseMAR) {
-                this.neutralBaselines.baseMAR = this.neutralBaselines.baseMAR * 0.5 + currentMAR * 0.5;
+                this.neutralBaselines.baseMAR = currentMAR;
             }
         }
 
-        // ─── Physical Safeguard ───
-        // If the mouth is physically wide (MAR > 0.45), it's almost certainly open,
-        // even if our baseline was somehow set even higher.
-        let marScore = Math.min(Math.max((currentMAR * pitchComp) - baseMAR, 0) / 0.35, 1);
-        if (currentMAR > 0.45) marScore = Math.max(marScore, 0.8);
+        // ─── Adaptive Scoring ───
+        // We use a relative ratio now: how much bigger is the mouth than its smallest ever state?
+        let marScore = Math.max((currentMAR * pitchComp) - this.neutralBaselines.baseMAR, 0) / 0.3;
+        
+        // Physical Safeguard: If MAR is > 0.45, it's definitely open.
+        if (currentMAR > 0.45) marScore = Math.max(marScore, 0.7);
+        marScore = Math.min(marScore, 1.0);
 
-        const areaScore = Math.min(Math.max((areaRatio * pitchComp) - baseAreaRatio, 0) / 0.03, 1);
-        const chinScore = Math.min(Math.max(((currentNoseToChin * pitchComp) / baseNoseToChin) - 1, 0) / 0.25, 1);
+        this.mouthOpenness = marScore;
 
         // ─── Head velocity (for FP suppression) ───
         if (this._prevNoseForVelocity) {

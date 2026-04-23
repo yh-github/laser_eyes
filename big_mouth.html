@@ -650,41 +650,27 @@
 
         function generateCandidates() {
             const pool = [];
-            pool.push({ id: 'current', config: FaceTracker.mouthDetection });
-
+            
             // Elite: Adaptive Hysteresis (compensates for head tilt)
-            const adaptiveThresholds = [0.3, 0.38, 0.45];
+            const adaptiveThresholds = [0.35, 0.45];
             adaptiveThresholds.forEach(t => pool.push({
                 id: `adaptive-t${t}`,
-                config: { ...FaceTracker.mouthDetection, approach: 'adaptive', hystOpenThreshold: t, hystCloseThreshold: t * 0.5, smoothing: 0.35 }
+                config: { ...FaceTracker.mouthDetection, approach: 'adaptive', hystOpenThreshold: t, hystCloseThreshold: t * 0.6, smoothing: 0.35 }
             }));
 
             // Elite: Impulse (triggers on opening velocity)
-            const impulseThresh = [0.03, 0.05, 0.08];
+            const impulseThresh = [0.04, 0.07];
             impulseThresh.forEach(v => pool.push({
                 id: `impulse-v${v}`,
-                config: { ...FaceTracker.mouthDetection, approach: 'impulse', impulseThreshold: v, impulseHold: 12, smoothing: 0.6 }
+                config: { ...FaceTracker.mouthDetection, approach: 'impulse', impulseThreshold: v, impulseHold: 10, smoothing: 0.5 }
             }));
 
             // Elite: Dual Consensus (Mouth + Chin must agree)
-            const dualConfigs = [[0.35, 0.3], [0.4, 0.35], [0.5, 0.45]];
+            const dualConfigs = [[0.35, 0.25], [0.45, 0.35]];
             dualConfigs.forEach(d => pool.push({
                 id: `dual-m${d[0]}-c${d[1]}`,
                 config: { ...FaceTracker.mouthDetection, approach: 'dual', dualMarThreshold: d[0], dualChinThreshold: d[1] }
             }));
-
-            // Reliable: Hybrid (baseline)
-            const hybridConfs = [0.45, 0.6, 0.7];
-            hybridConfs.forEach(c => pool.push({
-                id: `hybrid-c${c}`,
-                config: { ...FaceTracker.mouthDetection, approach: 'hybrid', hybridConfidence: c }
-            }));
-
-            // High Precision
-            pool.push({
-                id: `elite-strict`,
-                config: { ...FaceTracker.mouthDetection, approach: 'dual', dualMarThreshold: 0.55, dualChinThreshold: 0.5, debounceFrames: 2, headVelocityGate: 1.2 }
-            });
 
             return pool.map(c => ({
                 ...c,
@@ -1739,8 +1725,27 @@
 
             if (mouthCursor.style.display === 'none') return;
 
+            const trackerPos = webgazer.getTracker().getPositions()[62];
             let displayX = FaceTracker.cursorX;
             let displayY = FaceTracker.cursorY;
+
+            if (trackerPos) {
+                const videoWidth = 640;
+                const videoHeight = 480;
+                
+                // Base position from nose landmark
+                const baseDisplayX = (trackerPos[0] / videoWidth) * window.innerWidth;
+                const baseDisplayY = (trackerPos[1] / videoHeight) * window.innerHeight;
+
+                // NEW: Pitch-to-Y mapping
+                // Looking DOWN (pitch < 0) should push the cursor further DOWN
+                // Looking UP (pitch > 0) should push it further UP
+                const pitch = FaceTracker._lastMetrics?.pitchDelta || 0;
+                const pitchGain = window.innerHeight * 0.5; // Gain factor for head tilt
+                
+                displayX = baseDisplayX;
+                displayY = baseDisplayY + (pitch * pitchGain);
+            }
 
             // Magnetic Snapping (Healthy food only)
             if (snappingEnabled && targets.length > 0) {
