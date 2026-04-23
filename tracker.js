@@ -622,21 +622,28 @@ const FaceTracker = {
         // Both looking UP and looking DOWN cause foreshortening.
         const pitchComp = 1.0 + Math.abs(pitchDelta) * 1.2;
         
+        // ─── Metrics Calculation ───
+        const currentMAR = mouthHeight / Math.max(mouthWidth, 1);
+        const areaRatio = this.getPolyArea([positions[44], positions[45], positions[46], positions[47], positions[48], positions[49], positions[50], positions[51], positions[52], positions[53], positions[54], positions[55]]) / Math.max(faceWidth * faceHeight, 1);
+        const currentNoseToChin = this.getDistance(noseTip, chin);
+
          // ─── Instant Self-Healing Baseline ───
         if (this.neutralBaselines.captured) {
-            // The baseline is the "minimum openness" ever seen. Snap to it instantly if we find a new low.
             if (currentMAR < this.neutralBaselines.baseMAR) {
                 this.neutralBaselines.baseMAR = currentMAR;
+            }
+            if (currentNoseToChin < this.neutralBaselines.baseNoseToChin) {
+                this.neutralBaselines.baseNoseToChin = currentNoseToChin;
             }
         }
 
         // ─── Adaptive Scoring ───
-        // We use a relative ratio now: how much bigger is the mouth than its smallest ever state?
         let marScore = Math.max((currentMAR * pitchComp) - this.neutralBaselines.baseMAR, 0) / 0.3;
-        
-        // Physical Safeguard: If MAR is > 0.45, it's definitely open.
         if (currentMAR > 0.45) marScore = Math.max(marScore, 0.7);
         marScore = Math.min(marScore, 1.0);
+
+        const areaScore = Math.min(Math.max((areaRatio * pitchComp) - baseAreaRatio, 0) / 0.03, 1);
+        const chinScore = Math.min(Math.max(((currentNoseToChin * pitchComp) / this.neutralBaselines.baseNoseToChin) - 1, 0) / 0.25, 1);
 
         this.mouthOpenness = marScore;
 
