@@ -1100,6 +1100,7 @@
         let calibTimer = 0;
         let calibPaused = false;
         let calibPauseStartTime = 0;
+        let lastRecordLandmarkHash = "";
         const CALIB_WINDOW_DURATION = 3000;
         const CALIB_TRANSITION_DURATION = 1500;
 
@@ -1805,10 +1806,14 @@
                             });
                         }
 
-                        // Safeguard: Stop if we hit 15,000 frames (~15MB compressed)
-                        if (calibrationRecords.length < 15000) {
+                        // DE-DUPLICATION: Only record if landmarks changed
+                        const currentHash = mouthRaw.join(',') + refRaw.join(',');
+                        const isDuplicate = currentHash === lastRecordLandmarkHash;
+                        
+                        if (!isDuplicate && calibrationRecords.length < 15000) {
+                            lastRecordLandmarkHash = currentHash;
                             calibrationRecords.push({
-                                t: Date.now() - (calibTimer || Date.now()), // Relative time saves space
+                                t: Date.now() - (calibTimer || Date.now()), 
                                 m: FaceTracker._lastMetrics,
                                 mr: mouthRaw,
                                 rr: refRaw,
