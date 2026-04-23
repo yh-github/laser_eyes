@@ -1783,24 +1783,33 @@
                         const mouthRaw = [];
                         const refRaw = []; // Reference points for head pose/scale
                         if (positions) {
-                            // Mouth region
+                            // Mouth region (indices 44-65) - Flat array of rounded [x,y,x,y...]
                             for (let i = 44; i <= 65; i++) {
-                                if (positions[i]) mouthRaw.push({i, x: positions[i][0], y: positions[i][1]});
+                                if (positions[i]) {
+                                    mouthRaw.push(Math.round(positions[i][0] * 10) / 10);
+                                    mouthRaw.push(Math.round(positions[i][1] * 10) / 10);
+                                }
                             }
-                            // Reference points: Eyes (27,32), Nose (62), Face Edges (1,13,33,7)
+                            // Reference points: Eyes (27,32), Nose (62), Face Edges (1,7,13,33)
                             const refIndices = [1, 7, 13, 27, 32, 33, 62];
                             refIndices.forEach(i => {
-                                if (positions[i]) refRaw.push({i, x: positions[i][0], y: positions[i][1]});
+                                if (positions[i]) {
+                                    refRaw.push(Math.round(positions[i][0] * 10) / 10);
+                                    refRaw.push(Math.round(positions[i][1] * 10) / 10);
+                                }
                             });
                         }
 
-                        calibrationRecords.push({
-                            timestamp: Date.now(),
-                            metrics: JSON.parse(JSON.stringify(FaceTracker._lastMetrics)),
-                            mouthRaw: mouthRaw,
-                            refRaw: refRaw, // Essential for head angle / scaling
-                            truth: truth
-                        });
+                        // Safeguard: Stop if we hit 15,000 frames (~15MB compressed)
+                        if (calibrationRecords.length < 15000) {
+                            calibrationRecords.push({
+                                t: Date.now() - (calibTimer || Date.now()), // Relative time saves space
+                                m: FaceTracker._lastMetrics,
+                                mr: mouthRaw,
+                                rr: refRaw,
+                                truth: truth
+                            });
+                        }
 
                         const isCorrect = c.detector.isMouthOpen === truth;
 
