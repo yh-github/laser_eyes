@@ -264,13 +264,28 @@
             mouseY = e.clientY;
         });
 
+        const isDesktop = window.matchMedia('(pointer: fine)').matches;
+
         window.addEventListener('load', () => {
-            FaceTracker.init().then(success => {
-                if (success) requestAnimationFrame(gameLoop);
-            });
+            if (isDesktop) {
+                // Skip face tracking initialization on desktop
+                document.getElementById('intro-overlay').classList.add('hidden');
+                overlay.classList.remove('hidden');
+                requestAnimationFrame(gameLoop);
+            } else {
+                FaceTracker.init().then(success => {
+                    if (success) requestAnimationFrame(gameLoop);
+                });
+            }
         });
 
-        document.getElementById('start-btn').addEventListener('click', () => FaceTracker.startCalibration(startGame));
+        document.getElementById('start-btn').addEventListener('click', () => {
+            if (isDesktop) {
+                startGame();
+            } else {
+                FaceTracker.startCalibration(startGame);
+            }
+        });
 
         function startGame() {
             overlay.classList.add('hidden');
@@ -429,7 +444,7 @@
 
             FaceTracker.update();
             
-            if (gameActive && FaceTracker.isStarted) {
+            if (gameActive && (isDesktop || FaceTracker.isStarted)) {
                 // Update cursor
                 let cx = useMouse ? mouseX : FaceTracker.cursorX;
                 let cy = useMouse ? mouseY : FaceTracker.cursorY;
