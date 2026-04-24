@@ -164,34 +164,58 @@
             border: 2px solid #fbcfe8;
         }
 
-        .dust-container {
-            flex: 1;
-            max-width: 200px;
-            height: 24px;
-            background: rgba(255, 255, 255, 0.3);
-            border-radius: 12px;
-            border: 2px solid white;
-            overflow: hidden;
-            position: relative;
-        }
-
-        .dust-bar {
-            height: 100%;
-            background: linear-gradient(90deg, #f472b6, #db2777);
-            width: 100%;
-            transition: width 0.3s ease;
-        }
-
-        .dust-label {
+        .dust-meter-v {
             position: absolute;
-            inset: 0;
+            left: 20px;
+            top: 100px;
+            bottom: 150px;
+            width: 32px;
+            background: rgba(255, 255, 255, 0.2);
+            border-radius: 16px;
+            border: 3px solid rgba(255, 255, 255, 0.5);
             display: flex;
-            align-items: center;
-            justify-content: center;
-            font-size: 0.7rem;
+            flex-direction: column-reverse;
+            overflow: hidden;
+            z-index: 40;
+            box-shadow: 0 0 15px rgba(219, 39, 119, 0.3);
+        }
+
+        .dust-bar-v {
+            width: 100%;
+            height: 100%;
+            background: linear-gradient(0deg, #db2777, #ec4899, #f9a8d4, #ffffff);
+            background-size: 100% 300%;
+            animation: magic-shimmer 3s linear infinite;
+            transition: height 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+
+        @keyframes magic-shimmer {
+            0% { background-position: 0% 0%; }
+            100% { background-position: 0% 100%; }
+        }
+
+        .dust-val-v {
+            position: absolute;
+            bottom: -25px;
+            left: 50%;
+            transform: translateX(-50%);
+            font-size: 0.8rem;
             font-weight: 900;
-            color: white;
-            text-shadow: 0 1px 2px rgba(0,0,0,0.5);
+            color: #db2777;
+            text-shadow: 0 0 5px white;
+        }
+
+        .dust-loss-flash {
+            position: absolute;
+            pointer-events: none;
+            z-index: 100;
+            font-size: 3rem;
+            animation: popOut 0.5s ease-out forwards;
+        }
+
+        @keyframes popOut {
+            0% { transform: scale(0); opacity: 1; }
+            100% { transform: scale(2); opacity: 0; }
         }
 
         .bubble.dust-bubble {
@@ -336,20 +360,17 @@
 
         <!-- Game Elements -->
         <div class="hud-top hidden" id="game-hud">
-            <div class="flex items-center gap-4 w-full">
-                <div class="score-box flex items-center gap-2 shrink-0">
-                    <span class="text-2xl">💰</span> <span id="score-val">0</span>
-                </div>
-                
-                <div class="dust-container">
-                    <div id="dust-bar" class="dust-bar"></div>
-                    <div class="dust-label">FAIRY DUST</div>
-                </div>
-
-                <div class="score-box flex items-center gap-2 shrink-0">
-                    <span class="text-2xl">⏱️</span> <span id="timer-val">60</span>
-                </div>
+            <div class="score-box flex items-center gap-2">
+                <span class="text-2xl">💰</span> <span id="score-val">0</span>
             </div>
+            <div class="score-box flex items-center gap-2">
+                <span class="text-2xl">⏱️</span> <span id="timer-val">60</span>
+            </div>
+        </div>
+
+        <div id="dust-meter" class="dust-meter-v hidden">
+            <div id="dust-bar" class="dust-bar-v"></div>
+            <div id="dust-num" class="dust-val-v">100</div>
         </div>
 
         <div id="game-container" class="absolute inset-0 overflow-hidden">
@@ -479,14 +500,16 @@
             }
             updateScoreDisplay();
             gameHud.classList.remove('hidden');
+            document.getElementById('dust-meter').classList.remove('hidden');
             playerCursor.classList.remove('hidden');
             
             if (missionInterval) clearInterval(missionInterval);
             missionInterval = setInterval(() => {
                 if (isPaused) return;
                 
-                // Dust decay
-                fairyDust -= 1.5; // decay over time
+                // Scaling decay per level
+                const decayBase = 1.5 + (level - 1) * 0.5;
+                fairyDust -= decayBase; 
                 if (fairyDust <= 0) {
                     fairyDust = 0;
                     endGame("Out of Magic!");
@@ -507,6 +530,7 @@
             gameActive = false;
             clearInterval(missionInterval);
             document.getElementById('rest-overlay').classList.remove('hidden');
+            document.getElementById('dust-meter').classList.add('hidden');
             document.getElementById('level-complete-title').innerText = `Level ${level} Complete!`;
             document.getElementById('final-score').innerText = score;
             playerCursor.classList.add('hidden');
@@ -519,6 +543,7 @@
             gameActive = false;
             clearInterval(missionInterval);
             document.getElementById('rest-overlay').classList.remove('hidden');
+            document.getElementById('dust-meter').classList.add('hidden');
             document.getElementById('level-complete-title').innerText = reason;
             document.getElementById('final-score').innerText = score;
             playerCursor.classList.add('hidden');
@@ -528,9 +553,25 @@
 
         function updateDustBar() {
             const bar = document.getElementById('dust-bar');
-            bar.style.width = fairyDust + '%';
-            if (fairyDust < 30) bar.style.background = '#ef4444';
-            else bar.style.background = 'linear-gradient(90deg, #f472b6, #db2777)';
+            const num = document.getElementById('dust-num');
+            const d = Math.max(0, Math.floor(fairyDust));
+            bar.style.height = d + '%';
+            num.innerText = d;
+            if (d < 30) bar.style.filter = 'hue-rotate(-50deg) brightness(0.8)';
+            else bar.style.filter = 'none';
+        }
+
+        function showDustLoss(x, y) {
+            const flash = document.createElement('div');
+            flash.className = 'dust-loss-flash';
+            flash.innerText = '💥';
+            flash.style.left = x + 'px';
+            flash.style.top = y + 'px';
+            appContainer.appendChild(flash);
+            setTimeout(() => flash.remove(), 500);
+            
+            fairyDust -= 5;
+            updateDustBar();
         }
 
         function updateInventoryUI() {
@@ -609,19 +650,24 @@
             if (rand < dustProb && availableLanes.length >= 1) {
                 // SPAWN DUST BUBBLE
                 const laneIdx = availableLanes[Math.floor(Math.random() * availableLanes.length)];
-                createTarget(w * LANES[laneIdx], yPos, { op: 'DUST', val: 10, price: 5 });
+                // Dust costs more each level
+                const dPrice = 5 + (level - 1) * 2;
+                createTarget(w * LANES[laneIdx], yPos, { op: 'DUST', val: 30, price: dPrice });
                 pairCounter++;
             } else if (unownedItems.length > 0 && Math.random() < shopProb && availableLanes.length >= 2) {
                 // SHOP ITEM COMPARISON
                 const item = unownedItems[Math.floor(Math.random() * unownedItems.length)];
                 
+                // Scaling price per level
+                const basePrice = item.basePrice + (level - 1) * 10;
+                
                 // Generate two distinct prices
                 const v1 = 0.75 + Math.random() * 0.5;
-                const p1 = Math.round(item.basePrice * v1);
+                const p1 = Math.round(basePrice * v1);
                 
                 let v2;
                 do { v2 = 0.75 + Math.random() * 0.5; } while (Math.abs(v1 - v2) < 0.1);
-                const p2 = Math.round(item.basePrice * v2);
+                const p2 = Math.round(basePrice * v2);
 
                 // Spawn in two different lanes
                 availableLanes.sort(() => Math.random() - 0.5);
@@ -829,11 +875,6 @@
                 targets.forEach(t => {
                     if (t.popped) return;
                     
-                    // Fall downwards
-                    const fallSpeed = hoveringAny ? t.speed * 0.4 : t.speed;
-                    t.y += fallSpeed * (dt / 16);
-                    updateTargetPos(t);
-
                     // Check collision
                     const dx = cx - t.x;
                     const dy = cy - t.y;
@@ -873,13 +914,22 @@
                         }
                     }
                     
-                    // Remove if off screen
-                    if (t.y > appContainer.clientHeight + t.radius) {
+                    // Fall downwards
+                    const fallSpeed = hoveringAny ? t.speed * 0.4 : t.speed;
+                    t.y += fallSpeed * (dt / 16);
+                    updateTargetPos(t);
+
+                    // Horde collision logic
+                    // The pile grows taller as you hoard coins
+                    const numCoins = coinPile.children.length;
+                    const hordeHeight = Math.min(100, 10 + Math.floor(numCoins / 3) * 2);
+                    const hordeTop = appContainer.clientHeight - hordeHeight;
+
+                    if (t.y > hordeTop - t.radius) {
                         t.popped = true;
                         t.el.remove();
-                        // Penalty for missing bubbles
-                        fairyDust -= 3;
-                        updateDustBar();
+                        // Visual feedback for hitting the horde/bottom
+                        showDustLoss(t.x, t.y);
                     }
                 });
 
