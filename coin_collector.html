@@ -92,12 +92,31 @@
             pointer-events: none;
         }
 
+        .item-shelf {
+            position: absolute;
+            bottom: 120px;
+            left: 20px;
+            right: 20px;
+            height: 40px;
+            display: flex;
+            justify-content: center;
+            gap: 8px;
+            z-index: 15;
+            pointer-events: none;
+        }
+
+        .shelf-item {
+            font-size: 1.5rem;
+            filter: drop-shadow(0 2px 4px rgba(0,0,0,0.2));
+            animation: dropIn 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+        }
+
         .coin-pile {
             position: absolute;
             bottom: 10px;
             left: 20px;
             right: 20px;
-            height: 120px;
+            height: 100px;
             display: flex;
             flex-wrap: wrap-reverse;
             align-content: flex-start;
@@ -298,6 +317,10 @@
             <!-- Coins go here -->
         </div>
 
+        <div class="item-shelf" id="item-shelf">
+            <!-- Bought items go here -->
+        </div>
+
         <div id="player-cursor" class="player-cursor hidden">🧚‍♀️</div>
         <div id="calib-nose-dot"></div>
     </div>
@@ -312,6 +335,7 @@
         const timerVal = document.getElementById('timer-val');
         const gameHud = document.getElementById('game-hud');
         const coinPile = document.getElementById('coin-pile');
+        const itemShelf = document.getElementById('item-shelf');
         const inventoryDisplay = document.getElementById('inventory-display');
 
         const ITEM_TYPES = [
@@ -452,16 +476,24 @@
                 }
                 inventoryDisplay.appendChild(slot);
             });
-            updateFairyIcon();
+            updateItemShelf();
+        }
+
+        function updateItemShelf() {
+            itemShelf.innerHTML = '';
+            ITEM_TYPES.forEach(item => {
+                if (inventory[item.id] > 0) {
+                    const el = document.createElement('div');
+                    el.className = 'shelf-item';
+                    el.innerText = item.icon;
+                    itemShelf.appendChild(el);
+                }
+            });
+            playerCursor.innerText = '🧚‍♀️'; // Reset to base fairy
         }
 
         function updateFairyIcon() {
-            let base = '🧚‍♀️';
-            let accessories = '';
-            if (inventory.crown > 0) accessories += '👑';
-            if (inventory.jewelry > 0) accessories += '✨';
-            if (inventory.flower > 0) accessories += '🌸';
-            playerCursor.innerText = base + accessories;
+            // No longer used as per request
         }
 
         document.getElementById('next-level-btn').addEventListener('click', () => {
@@ -508,7 +540,10 @@
             let opData;
             if (unownedItems.length > 0 && Math.random() < shopProb) {
                 const item = unownedItems[Math.floor(Math.random() * unownedItems.length)];
-                opData = { op: 'SHOP', val: item.basePrice, item: item };
+                // Base price +- 25%
+                const variance = 0.75 + Math.random() * 0.5;
+                const price = Math.round(item.basePrice * variance);
+                opData = { op: 'SHOP', val: price, item: item };
             } else {
                 if (Math.random() < 0.35) {
                     opData = { op: '*', val: 2 };
@@ -654,7 +689,7 @@
             
             setTimeout(() => t.el.remove(), 400);
             updateScoreDisplay();
-            updateFairyIcon();
+            updateItemShelf();
 
             // Remove popped from array
             targets = targets.filter(x => !x.popped);
