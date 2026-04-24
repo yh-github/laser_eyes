@@ -260,8 +260,9 @@
 
         window.addEventListener('mousemove', (e) => {
             useMouse = true;
-            mouseX = e.clientX;
-            mouseY = e.clientY;
+            const rect = appContainer.getBoundingClientRect();
+            mouseX = e.clientX - rect.left;
+            mouseY = e.clientY - rect.top;
         });
 
         const isDesktop = window.matchMedia('(pointer: fine)').matches;
@@ -288,7 +289,10 @@
         });
 
         function startGame() {
+            overlay.style.display = 'none';
             overlay.classList.add('hidden');
+            calibOverlay.classList.add('hidden');
+            document.getElementById('intro-overlay').classList.add('hidden');
             gameActive = true;
             gameTime = 60;
             score = 0;
@@ -319,11 +323,9 @@
                 { op: '+', val: Math.floor(Math.random() * 4) + 2 }, // +2, +3, +4, +5
             ];
             
-            // Occasionally throw in a *2 if score is low
-            if (score > 0 && score < 15 && Math.random() < 0.3) {
-                ops[1] = { op: '*', val: 2 };
-            } else if (score >= 15 && Math.random() < 0.2) {
-                // If score is high, a *2 is very powerful, make it rare
+            // Occasionally throw in a *2
+            // For 4-7 year olds, multiplication by 2 is a great goal.
+            if (Math.random() < 0.4) {
                 ops[1] = { op: '*', val: 2 };
             }
 
@@ -459,7 +461,7 @@
                     
                     // Fall downwards
                     // Slow down if player is hovering on *any* target to make it easier for kids
-                    const fallSpeed = hoveringAny ? 0.5 : 2; // px per frame approx (assuming 60fps, dt ~16ms)
+                    const fallSpeed = hoveringAny ? 0.3 : 0.8; // Much slower for children
                     t.y += fallSpeed * (dt / 16);
                     updateTargetPos(t);
 
