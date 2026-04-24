@@ -471,53 +471,43 @@
             pairCounter++;
             
             let ops = [];
-
-            // 50% chance for Shop Bubbles if there are items left to buy
-            const unownedItems = ITEM_TYPES.filter(it => inventory[it.id] === 0);
+            const w = appContainer.clientWidth;
             
-            if (unownedItems.length > 0 && Math.random() < 0.5) {
-                // SHOP MODE
-                // Try to pick two unowned items
-                let item1 = unownedItems[Math.floor(Math.random() * unownedItems.length)];
-                let item2 = unownedItems.length > 1 ? unownedItems.find(i => i.id !== item1.id) : null;
-                
-                // Ensure at least one is affordable if possible
-                const affordable = unownedItems.filter(it => it.basePrice <= score);
-                if (affordable.length > 0 && !affordable.includes(item1) && (!item2 || !affordable.includes(item2))) {
-                    item1 = affordable[Math.floor(Math.random() * affordable.length)];
-                }
+            // Number of bubbles scales with level
+            const numBubbles = level < 2 ? 2 : (level < 3 ? 3 : 4);
 
-                ops.push({ op: 'SHOP', val: item1.basePrice, item: item1 });
-                if (item2) {
-                    ops.push({ op: 'SHOP', val: item2.basePrice, item: item2 });
+            // Probability of shop bubbles scales with score (start appearing more when affordable)
+            const unownedItems = ITEM_TYPES.filter(it => inventory[it.id] === 0);
+            const shopProb = Math.min(0.5, score / 50); // Scale up to 50% chance
+            
+            for (let i = 0; i < numBubbles; i++) {
+                if (unownedItems.length > 0 && Math.random() < shopProb) {
+                    // SHOP BUBBLE
+                    const item = unownedItems[Math.floor(Math.random() * unownedItems.length)];
+                    ops.push({ op: 'SHOP', val: item.basePrice, item: item });
                 } else {
-                    // Fallback to treasure
-                    ops.push({ op: '+', val: Math.floor(score * 0.5 + 5) });
+                    // TREASURE BUBBLE
+                    if (Math.random() < 0.4) {
+                        ops.push({ op: '*', val: 2 });
+                    } else {
+                        let addVal;
+                        if (score < 5) addVal = Math.floor(Math.random() * 4) + 1;
+                        else addVal = Math.floor(score * 0.8 + Math.random() * (score * 0.4));
+                        ops.push({ op: '+', val: addVal });
+                    }
                 }
-            } else {
-                // TREASURE MODE
-                let addVal;
-                if (score < 5) {
-                    addVal = Math.floor(Math.random() * 4) + 1;
-                } else {
-                    const spread = score * 0.4;
-                    addVal = Math.floor(score * 0.8 + Math.random() * spread);
-                }
-                ops = [
-                    { op: '+', val: addVal },
-                    { op: '*', val: 2 }
-                ];
             }
 
-            ops.sort(() => Math.random() - 0.5);
+            // Ensure at least one treasure bubble if score is 0
+            if (score === 0 && !ops.some(o => o.op === '+')) {
+                ops[0] = { op: '+', val: 5 };
+            }
 
             const yPos = -120;
-            const w = appContainer.clientWidth;
-            const leftX = w * 0.25;
-            const rightX = w * 0.75;
-
-            createTarget(leftX, yPos, ops[0]);
-            createTarget(rightX, yPos, ops[1]);
+            ops.forEach((opData, idx) => {
+                const x = (w / (ops.length + 1)) * (idx + 1);
+                createTarget(x, yPos, opData);
+            });
         }
 
         function createTarget(x, y, opData) {
@@ -532,7 +522,7 @@
             if (opData.op === 'SHOP') {
                 content = `<div class="flex flex-col items-center">
                     <span>${opData.item.icon}</span>
-                    <span class="text-xs font-bold">${generatePriceFormula(opData.val)}</span>
+                    <span class="text-xs font-bold">-${generatePriceFormula(opData.val)}</span>
                 </div>`;
             } else {
                 const displayOp = opData.op === '*' ? 'x' : opData.op;
