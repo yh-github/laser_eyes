@@ -760,9 +760,10 @@
                 
                 let opData;
                 let attempts = 0;
+                const hasMult = targets.some(t => t.op === '*' && !t.popped);
                 do {
-                    // Multiplication is rarer (20% chance)
-                    if (score <= 100 && Math.random() < 0.2) {
+                    // Multiplication is rarer (20% chance) and limited to one per screen
+                    if (!hasMult && score <= 100 && Math.random() < 0.2) {
                         let mult = 2;
                         if (score < 30) mult = [2, 3, 4][Math.floor(Math.random() * 3)];
                         opData = { op: '*', val: mult };
