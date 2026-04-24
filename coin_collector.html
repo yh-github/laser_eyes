@@ -145,10 +145,23 @@
         .hud-top {
             position: absolute;
             top: 20px;
+            left: 0;
+            right: 0;
+            display: flex;
+            justify-content: center;
+            z-index: 40;
+            pointer-events: none;
+        }
+
+        .hud-bottom {
+            position: absolute;
+            bottom: 20px;
             left: 20px;
             right: 20px;
             display: flex;
-            justify-content: space-between;
+            flex-direction: column;
+            align-items: center;
+            gap: 10px;
             z-index: 40;
             pointer-events: none;
         }
@@ -377,10 +390,16 @@
         <!-- Game Elements -->
         <div class="hud-top hidden" id="game-hud">
             <div class="score-box flex items-center gap-2">
+                <span class="text-2xl">⏱️</span> <span id="timer-val">60</span>
+            </div>
+        </div>
+
+        <div class="hud-bottom hidden" id="game-hud-bottom">
+            <div class="score-box flex items-center gap-2">
                 <span class="text-2xl">💰</span> <span id="score-val">0</span>
             </div>
-            <div class="score-box flex items-center gap-2">
-                <span class="text-2xl">⏱️</span> <span id="timer-val">60</span>
+            <div class="collection-strip flex gap-2 justify-center" id="collection-strip">
+                <!-- Item icons go here -->
             </div>
         </div>
 
@@ -397,10 +416,6 @@
             <!-- Coins go here -->
         </div>
 
-        <div class="collection-strip" id="collection-strip">
-            <!-- Item icons go here -->
-        </div>
-
         <div id="player-cursor" class="player-cursor hidden">🧚‍♀️</div>
         <div id="calib-nose-dot"></div>
     </div>
@@ -414,6 +429,7 @@
         const scoreVal = document.getElementById('score-val');
         const timerVal = document.getElementById('timer-val');
         const gameHud = document.getElementById('game-hud');
+        const gameHudBottom = document.getElementById('game-hud-bottom');
         const coinPile = document.getElementById('coin-pile');
         const collectionStrip = document.getElementById('collection-strip');
         const inventoryDisplay = document.getElementById('inventory-display');
@@ -549,6 +565,7 @@
             }
             updateScoreDisplay();
             gameHud.classList.remove('hidden');
+            gameHudBottom.classList.remove('hidden');
             document.getElementById('dust-meter').classList.remove('hidden');
             playerCursor.classList.remove('hidden');
             
@@ -580,6 +597,7 @@
             clearInterval(missionInterval);
             document.getElementById('rest-overlay').classList.remove('hidden');
             document.getElementById('dust-meter').classList.add('hidden');
+            gameHudBottom.classList.add('hidden');
             document.getElementById('level-complete-title').innerText = `Level ${level} Complete!`;
             document.getElementById('next-level-btn').innerText = "NEXT LEVEL";
             document.getElementById('final-score').innerText = score;
@@ -594,6 +612,7 @@
             clearInterval(missionInterval);
             document.getElementById('rest-overlay').classList.remove('hidden');
             document.getElementById('dust-meter').classList.add('hidden');
+            gameHudBottom.classList.add('hidden');
             document.getElementById('level-complete-title').innerText = reason;
             document.getElementById('next-level-btn').innerText = "RETRY LEVEL";
             // Reset score to start of level
@@ -704,7 +723,7 @@
             const unownedItems = ITEM_TYPES.filter(it => inventory[it.id] === 0 && score >= it.basePrice * 0.4);
             const shopProb = level === 1 ? 0 : Math.min(0.5, score / 60);
             const dustProb = (level === 1) ? 0.05 : (fairyDust < 70 ? 0.3 : 0.1);
-            const yPos = -80;
+            const yPos = appContainer.clientHeight * 0.1; // Start spawning at 10% height
 
             const rand = Math.random();
             if (rand < dustProb && availableLanes.length >= 1) {
@@ -849,7 +868,7 @@
                     appContainer.appendChild(coin);
 
                     const tx = appContainer.clientWidth / 2 + (Math.random() - 0.5) * 40;
-                    const ty = appContainer.clientHeight - 40;
+                    const ty = appContainer.clientHeight - 80; // Fly to bottom HUD position
 
                     coin.animate([
                         { transform: `translate(0, 0) scale(1)`, opacity: 1 },
@@ -1008,15 +1027,14 @@
                     t.y += fallSpeed * (dt / 16);
                     updateTargetPos(t);
 
-                    // Horde collision logic
-                    // The pile grows taller as you hoard coins
-                    // Base 60 (strip) + pile height
-                    const hordeTop = appContainer.clientHeight - 60 - Math.min(80, Math.floor(score / 5) * 4);
+                    // Safe zone logic: Top 10% and Bottom 10%
+                    const safeZoneTop = appContainer.clientHeight * 0.1;
+                    const safeZoneBottom = appContainer.clientHeight * 0.9;
 
-                    if (t.y + t.radius > hordeTop) {
+                    if (t.y + t.radius > safeZoneBottom) {
                         t.popped = true;
                         t.el.remove();
-                        // Visual feedback for hitting the horde/bottom
+                        // Visual feedback for hitting the bottom zone
                         showDustLoss(t.x, t.y);
                     }
                 });
