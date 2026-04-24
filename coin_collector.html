@@ -454,7 +454,9 @@
         let mouseY = 0;
 
         window.addEventListener('mousemove', (e) => {
-            useMouse = true;
+            // Only switch to mouse if face tracking isn't started or user moves mouse significantly
+            if (!FaceTracker.isStarted) useMouse = true;
+            
             const rect = appContainer.getBoundingClientRect();
             mouseX = e.clientX - rect.left;
             mouseY = e.clientY - rect.top;
@@ -472,23 +474,33 @@
         let isDesktop = window.matchMedia('(pointer: fine)').matches;
 
         function initApp() {
-            if (isDesktop) {
-                const intro = document.getElementById('intro-overlay');
-                if (intro) intro.classList.add('hidden');
-                overlay.classList.remove('hidden');
-                requestAnimationFrame(gameLoop);
-            } else {
-                // Hide camera feed on mobile
-                const style = document.createElement('style');
-                style.innerHTML = '#webgazerVideoContainer { display: none !important; }';
-                document.head.appendChild(style);
+            const introStatusBox = document.getElementById('intro-status-box');
+            if (introStatusBox) {
+                introStatusBox.innerHTML = `
+                    <button id="intro-start-btn" class="w-full py-4 bg-pink-600 hover:bg-pink-500 text-white rounded-2xl text-xl font-black transition-all active:scale-95 mb-4 shadow-lg shadow-pink-900/50">
+                        START FACE TRACKING
+                    </button>
+                    <button id="intro-skip-btn" class="text-pink-300 text-sm font-bold hover:text-pink-200 transition-colors uppercase tracking-widest">
+                        SKIP / USE MOUSE
+                    </button>
+                `;
+                
+                document.getElementById('intro-start-btn').addEventListener('click', function() {
+                    this.innerText = 'INITIALIZING...';
+                    this.disabled = true;
+                    FaceTracker.init().then(success => {
+                        if (success) {
+                            useMouse = false;
+                            requestAnimationFrame(gameLoop);
+                        }
+                    });
+                });
 
-                FaceTracker.init().then(success => {
-                    if (success) {
-                        const intro = document.getElementById('intro-overlay');
-                        if (intro) intro.classList.add('hidden');
-                        requestAnimationFrame(gameLoop);
-                    }
+                document.getElementById('intro-skip-btn').addEventListener('click', function() {
+                    useMouse = true;
+                    document.getElementById('intro-overlay').classList.add('hidden');
+                    overlay.classList.remove('hidden');
+                    requestAnimationFrame(gameLoop);
                 });
             }
         }
@@ -504,10 +516,10 @@
         }, { once: true });
 
         document.getElementById('start-btn').addEventListener('click', () => {
-            if (isDesktop) {
-                startGame();
-            } else {
+            if (FaceTracker.isStarted) {
                 FaceTracker.startCalibration(startGame);
+            } else {
+                startGame();
             }
         });
 
