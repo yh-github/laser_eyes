@@ -523,19 +523,13 @@ const FaceTracker = {
         this.updateNoseTracking();
     },
 
-    // Compute inner mouth area using Shoelace formula on inner lip landmarks
-    _computeInnerMouthArea(positions) {
-        // Inner lip indices: 56, 57, 58, 59, 60, 61 (varies by model)
-        // Using the points we know: 57 (top inner), 61 (bottom inner), 
-        // 56 (left inner), 60 (right inner), plus intermediates
-        const innerPoints = [56, 57, 58, 59, 60, 61].map(i => positions[i]).filter(Boolean);
-        if (innerPoints.length < 3) return 0;
-        
+    getPolyArea(points) {
+        if (!points || points.length < 3) return 0;
         let area = 0;
-        for (let i = 0; i < innerPoints.length; i++) {
-            const j = (i + 1) % innerPoints.length;
-            area += innerPoints[i][0] * innerPoints[j][1];
-            area -= innerPoints[j][0] * innerPoints[i][1];
+        for (let i = 0; i < points.length; i++) {
+            const j = (i + 1) % points.length;
+            area += points[i][0] * points[j][1];
+            area -= points[j][0] * points[i][1];
         }
         return Math.abs(area) / 2;
     },
@@ -569,9 +563,9 @@ const FaceTracker = {
         const emaSmooth = 1 - md.smoothing;        // complement
 
         // ─── Compute raw mouth metrics ───
-        // 1) Vertical MAR: inner lip vertical / outer lip width
-        const innerTop = positions[57];   // top inner lip
-        const innerBot = positions[61];   // bottom inner lip
+        // Vertical MAR: inner lip vertical / outer lip width (as per DATA_SPECIFICATION.md)
+        const innerTop = positions[60];   // top inner lip
+        const innerBot = positions[57];   // bottom inner lip
         const outerLeft = positions[44];  // left mouth corner
         const outerRight = positions[50]; // right mouth corner
         
@@ -579,12 +573,13 @@ const FaceTracker = {
         const currentMouthWidth = this.getDistance(outerLeft, outerRight);
         const currentMAR = currentMouthHeight / Math.max(currentMouthWidth, 1);
         
-        // 2) Inner mouth area ratio (normalized by face area)
-        const innerArea = this._computeInnerMouthArea(positions);
+        // Inner mouth area ratio (normalized by face area)
+        const innerPoints = [56, 57, 58, 59, 60, 61].map(i => positions[i]).filter(Boolean);
+        const innerArea = this.getPolyArea(innerPoints);
         const faceArea = faceWidth * faceHeight;
         const areaRatio = innerArea / Math.max(faceArea, 1);
         
-        // 3) Chin-nose separation (jaw drop indicator)
+        // Chin-nose separation (jaw drop indicator) - normalized by faceHeight
         const noseTip = positions[62];
         const chin = positions[7];
         const currentNoseToChin = this.getDistance(noseTip, chin) / Math.max(faceHeight, 1);
@@ -592,11 +587,9 @@ const FaceTracker = {
         // ─── Post-Calibration Neutral Baselines ───
         const baseMAR = this.neutralBaselines.captured ? this.neutralBaselines.baseMAR : 0.15;
         const baseNoseToChin = this.neutralBaselines.captured ? this.neutralBaselines.noseToChin : 0.45;
-        const baseFaceWidth = this.neutralBaselines.faceWidth || faceWidth;
 
         // Neutral area baseline (captured or estimated)
         if (!this.neutralBaselines._baseAreaRatio && this.neutralBaselines.captured) {
-            // Compute on first frame after calibration
             this.neutralBaselines._baseAreaRatio = areaRatio;
         }
         const baseAreaRatio = this.neutralBaselines._baseAreaRatio || 0.005;
@@ -618,32 +611,26 @@ const FaceTracker = {
 
         // ─── Normalize Openness with Pose Compensation ───
         // When the head tilts (pitch), the mouth appears thinner to the camera.
-        // We must compensate by "inflating" the vertical measurements.
-        // Both looking UP and looking DOWN cause foreshortening.
         const pitchComp = 1.0 + Math.abs(pitchDelta) * 1.2;
         
-        // ─── Metrics Calculation ───
-        const currentMAR = mouthHeight / Math.max(mouthWidth, 1);
-        const areaRatio = this.getPolyArea([positions[44], positions[45], positions[46], positions[47], positions[48], positions[49], positions[50], positions[51], positions[52], positions[53], positions[54], positions[55]]) / Math.max(faceWidth * faceHeight, 1);
-        const currentNoseToChin = this.getDistance(noseTip, chin);
-
-         // ─── Instant Self-Healing Baseline ───
+        // ─── Instant Self-Healing Baseline ───
         if (this.neutralBaselines.captured) {
             if (currentMAR < this.neutralBaselines.baseMAR) {
                 this.neutralBaselines.baseMAR = currentMAR;
             }
-            if (currentNoseToChin < this.neutralBaselines.baseNoseToChin) {
-                this.neutralBaselines.baseNoseToChin = currentNoseToChin;
+            // Use property name 'noseToChin' from neutralBaselines object
+            if (currentNoseToChin < this.neutralBaselines.noseToChin) {
+                this.neutralBaselines.noseToChin = currentNoseToChin;
             }
         }
 
         // ─── Adaptive Scoring ───
-        let marScore = Math.max((currentMAR * pitchComp) - this.neutralBaselines.baseMAR, 0) / 0.3;
+        let marScore = Math.max((currentMAR * pitchComp) - baseMAR, 0) / 0.3;
         if (currentMAR > 0.45) marScore = Math.max(marScore, 0.7);
         marScore = Math.min(marScore, 1.0);
 
         const areaScore = Math.min(Math.max((areaRatio * pitchComp) - baseAreaRatio, 0) / 0.03, 1);
-        const chinScore = Math.min(Math.max(((currentNoseToChin * pitchComp) / this.neutralBaselines.baseNoseToChin) - 1, 0) / 0.25, 1);
+        const chinScore = Math.min(Math.max(((currentNoseToChin * pitchComp) / baseNoseToChin) - 1, 0) / 0.25, 1);
 
         this.mouthOpenness = marScore;
 
