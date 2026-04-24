@@ -168,7 +168,7 @@
             position: absolute;
             left: 10px;
             top: 100px;
-            bottom: 150px;
+            bottom: 100px;
             width: 16px;
             background: rgba(255, 255, 255, 0.2);
             border-radius: 8px;
@@ -380,8 +380,8 @@
             <!-- Coins go here -->
         </div>
 
-        <div class="item-shelf" id="item-shelf">
-            <!-- Bought items go here -->
+        <div class="collection-strip" id="collection-strip">
+            <!-- Item icons go here -->
         </div>
 
         <div id="player-cursor" class="player-cursor hidden">🧚‍♀️</div>
@@ -399,6 +399,7 @@
         const gameHud = document.getElementById('game-hud');
         const coinPile = document.getElementById('coin-pile');
         const itemShelf = document.getElementById('item-shelf');
+        const collectionStrip = document.getElementById('collection-strip');
         const inventoryDisplay = document.getElementById('inventory-display');
 
         const ITEM_TYPES = [
@@ -573,9 +574,13 @@
 
         function updateInventoryUI() {
             inventoryDisplay.innerHTML = '';
+            collectionStrip.innerHTML = '';
+
             ITEM_TYPES.forEach(item => {
-                const slot = document.createElement('div');
                 const owned = inventory[item.id] > 0;
+                
+                // Overlay/Menu UI
+                const slot = document.createElement('div');
                 slot.className = `item-slot ${owned ? 'owned' : 'missing'}`;
                 slot.innerHTML = item.icon;
                 if (!owned) {
@@ -585,6 +590,12 @@
                     slot.appendChild(price);
                 }
                 inventoryDisplay.appendChild(slot);
+
+                // Bottom Strip UI
+                const stripItem = document.createElement('div');
+                stripItem.className = `strip-item ${owned ? 'owned' : 'missing'}`;
+                stripItem.innerHTML = item.icon;
+                collectionStrip.appendChild(stripItem);
             });
             updateItemShelf();
         }
@@ -677,17 +688,23 @@
                 const x = w * LANES[laneIdx];
                 
                 let opData;
-                // No multiplication if over 100 coins
-                if (score <= 100 && Math.random() < 0.3) {
-                    opData = { op: '*', val: 2 };
-                } else {
-                    let addVal;
-                    // Keep numbers small for 1st graders
-                    if (score < 20) addVal = Math.floor(Math.random() * 5) + 1;
-                    else if (score < 50) addVal = Math.floor(Math.random() * 10) + 5;
-                    else addVal = Math.floor(Math.random() * 10) + 1;
-                    opData = { op: '+', val: addVal };
-                }
+                let attempts = 0;
+                do {
+                    // Multiplication is rarer (20% chance)
+                    if (score <= 100 && Math.random() < 0.2) {
+                        let mult = 2;
+                        if (score < 30) mult = [2, 3, 4][Math.floor(Math.random() * 3)];
+                        opData = { op: '*', val: mult };
+                    } else {
+                        let addVal;
+                        if (score < 20) addVal = Math.floor(Math.random() * 5) + 1;
+                        else if (score < 50) addVal = Math.floor(Math.random() * 10) + 5;
+                        else addVal = Math.floor(Math.random() * 10) + 1;
+                        opData = { op: '+', val: addVal };
+                    }
+                    attempts++;
+                } while (targets.some(t => t.op === opData.op && t.val === opData.val) && attempts < 5);
+
                 pairCounter++;
                 createTarget(x, yPos, opData);
             }
@@ -922,11 +939,10 @@
 
                     // Horde collision logic
                     // The pile grows taller as you hoard coins
-                    const numCoins = coinPile.children.length;
-                    const hordeHeight = Math.min(100, 10 + Math.floor(numCoins / 3) * 2);
-                    const hordeTop = appContainer.clientHeight - hordeHeight;
+                    // Base 60 (strip) + pile height
+                    const hordeTop = appContainer.clientHeight - 60 - Math.min(80, Math.floor(score / 5) * 4);
 
-                    if (t.y > hordeTop - t.radius) {
+                    if (t.y + t.radius > hordeTop) {
                         t.popped = true;
                         t.el.remove();
                         // Visual feedback for hitting the horde/bottom
