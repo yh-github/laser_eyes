@@ -287,6 +287,8 @@
             75% { transform: translateX(5px); }
         }
 
+        #webgazerVideoContainer { display: none !important; }
+
     </style>
 </head>
 
@@ -425,6 +427,7 @@
         ];
 
         let score = 0;
+        let scoreAtLevelStart = 0;
         let level = 1;
         let fairyDust = 100;
         let inventory = {
@@ -532,6 +535,9 @@
             isPaused = false;
             document.getElementById('pause-overlay').classList.add('hidden');
             gameTime = 60;
+            // Record score at start of level for retry
+            scoreAtLevelStart = score;
+            
             // Reset dust on every level
             fairyDust = 100;
             updateDustBar();
@@ -555,7 +561,7 @@
                 fairyDust -= decayBase; 
                 if (fairyDust <= 0) {
                     fairyDust = 0;
-                    endGame("Out of Magic!");
+                    retryLevel("Out of Magic!");
                 }
                 updateDustBar();
 
@@ -575,11 +581,27 @@
             document.getElementById('rest-overlay').classList.remove('hidden');
             document.getElementById('dust-meter').classList.add('hidden');
             document.getElementById('level-complete-title').innerText = `Level ${level} Complete!`;
+            document.getElementById('next-level-btn').innerText = "NEXT LEVEL";
             document.getElementById('final-score').innerText = score;
             playerCursor.classList.add('hidden');
             targets.forEach(t => t.el.remove());
             targets = [];
             updateInventoryUI();
+        }
+
+        function retryLevel(reason = "Out of Magic!") {
+            gameActive = false;
+            clearInterval(missionInterval);
+            document.getElementById('rest-overlay').classList.remove('hidden');
+            document.getElementById('dust-meter').classList.add('hidden');
+            document.getElementById('level-complete-title').innerText = reason;
+            document.getElementById('next-level-btn').innerText = "RETRY LEVEL";
+            // Reset score to start of level
+            score = scoreAtLevelStart;
+            document.getElementById('final-score').innerText = score;
+            playerCursor.classList.add('hidden');
+            targets.forEach(t => t.el.remove());
+            targets = [];
         }
 
         function endGame(reason = "Time's Up!") {
@@ -647,8 +669,9 @@
         }
 
         document.getElementById('next-level-btn').addEventListener('click', () => {
+            const isRetry = document.getElementById('next-level-btn').innerText === "RETRY LEVEL";
             document.getElementById('rest-overlay').classList.add('hidden');
-            level++;
+            if (!isRetry) level++;
             startGame();
         });
 
@@ -679,8 +702,8 @@
             if (availableLanes.length === 0) return;
             
             const unownedItems = ITEM_TYPES.filter(it => inventory[it.id] === 0 && score >= it.basePrice * 0.4);
-            const shopProb = Math.min(0.5, score / 60);
-            const dustProb = fairyDust < 70 ? 0.3 : 0.1;
+            const shopProb = level === 1 ? 0 : Math.min(0.5, score / 60);
+            const dustProb = (level === 1) ? 0.05 : (fairyDust < 70 ? 0.3 : 0.1);
             const yPos = -80;
 
             const rand = Math.random();
@@ -772,7 +795,8 @@
             gameContainer.appendChild(el);
 
             // Speed variation per bubble
-            const baseSpeed = 0.8 + (level - 1) * 0.2;
+            let baseSpeed = 0.8 + (level - 1) * 0.2;
+            if (level === 1) baseSpeed = 0.5;
             const speed = baseSpeed * (0.8 + Math.random() * 0.4);
 
             targets.push({
@@ -930,7 +954,8 @@
 
                 // Spawning scroller logic
                 spawnTimer += dt;
-                if (spawnTimer >= SPAWN_INTERVAL) {
+                const currentInterval = level === 1 ? 2500 : SPAWN_INTERVAL;
+                if (spawnTimer >= currentInterval) {
                     spawnTimer = 0;
                     spawnWave();
                 }
