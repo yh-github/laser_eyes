@@ -1,0 +1,511 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Coin Collector - Laser Eyes</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="tracker.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/webgazer@2.1.1/dist/webgazer.js"
+        onerror="window.webgazerLoadError = true;"></script>
+    <link rel="stylesheet" href="shared.css">
+    <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@700;900&display=swap" rel="stylesheet">
+    <style>
+        body { font-family: 'Nunito', sans-serif; }
+        .bg-magic {
+            background: linear-gradient(180deg, #fdf4ff 0%, #fce7f3 40%, #fbcfe8 100%);
+            position: relative;
+            overflow: hidden;
+        }
+        .stars {
+            position: absolute;
+            top: 0; left: 0; right: 0; bottom: 0;
+            background-image: 
+                radial-gradient(circle at 20% 30%, rgba(255,255,255,0.8) 2px, transparent 3px),
+                radial-gradient(circle at 70% 60%, rgba(255,255,255,0.8) 2px, transparent 3px),
+                radial-gradient(circle at 40% 80%, rgba(255,255,255,0.8) 2px, transparent 3px),
+                radial-gradient(circle at 80% 20%, rgba(255,255,255,0.8) 2px, transparent 3px);
+            background-size: 200px 200px;
+            animation: drift 20s linear infinite;
+            opacity: 0.6;
+        }
+        @keyframes drift {
+            from { transform: translateY(0); }
+            to { transform: translateY(200px); }
+        }
+
+        .bubble {
+            position: absolute;
+            border-radius: 50%;
+            background: rgba(255, 255, 255, 0.4);
+            backdrop-filter: blur(8px);
+            border: 3px solid rgba(255, 255, 255, 0.8);
+            box-shadow: 0 10px 25px rgba(236, 72, 153, 0.3), inset 0 5px 15px rgba(255,255,255,0.8);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 2rem;
+            font-weight: 900;
+            color: #be185d;
+            transform-origin: center;
+            transition: transform 0.2s;
+        }
+
+        .bubble-ring {
+            position: absolute;
+            top: -6px; left: -6px; right: -6px; bottom: -6px;
+            border-radius: 50%;
+            border: 6px solid transparent;
+            border-top-color: #ec4899;
+            opacity: 0;
+            transform: rotate(0deg);
+            pointer-events: none;
+        }
+
+        .bubble.hovered .bubble-ring {
+            opacity: 1;
+        }
+
+        .pop-anim {
+            animation: pop 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards;
+        }
+
+        @keyframes pop {
+            0% { transform: scale(1); opacity: 1; }
+            50% { transform: scale(1.3); opacity: 0.8; }
+            100% { transform: scale(0); opacity: 0; }
+        }
+
+        .player-cursor {
+            position: absolute;
+            font-size: 3.5rem;
+            transform: translate(-50%, -50%);
+            filter: drop-shadow(0 10px 10px rgba(0,0,0,0.2));
+            z-index: 40;
+            pointer-events: none;
+        }
+
+        .coin-pile {
+            position: absolute;
+            bottom: 20px;
+            left: 20px;
+            right: 20px;
+            height: 120px;
+            display: flex;
+            flex-wrap: wrap-reverse;
+            align-content: flex-start;
+            justify-content: center;
+            gap: 4px;
+            z-index: 10;
+            pointer-events: none;
+        }
+
+        .coin {
+            width: 24px;
+            height: 24px;
+            background: linear-gradient(135deg, #fbbf24, #d97706);
+            border-radius: 50%;
+            border: 2px solid #fef3c7;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+            animation: dropIn 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+        }
+
+        @keyframes dropIn {
+            from { transform: translateY(-50px) scale(0); opacity: 0; }
+            to { transform: translateY(0) scale(1); opacity: 1; }
+        }
+
+        .hud-top {
+            position: absolute;
+            top: 20px;
+            left: 20px;
+            right: 20px;
+            display: flex;
+            justify-content: space-between;
+            z-index: 40;
+            pointer-events: none;
+        }
+        
+        .score-box {
+            background: rgba(255, 255, 255, 0.8);
+            padding: 8px 16px;
+            border-radius: 20px;
+            font-weight: 900;
+            color: #be185d;
+            box-shadow: 0 4px 10px rgba(236, 72, 153, 0.2);
+            font-size: 1.2rem;
+            border: 2px solid #fbcfe8;
+        }
+
+    </style>
+</head>
+
+<body class="bg-black flex items-center justify-center text-white">
+
+    <div id="app-container"
+        class="relative w-full h-full h-[100dvh] sm:h-[800px] sm:w-[400px] bg-magic sm:rounded-[2.5rem] sm:border-8 sm:border-pink-200 overflow-hidden shadow-[0_0_50px_rgba(236,72,153,0.5)]">
+        
+        <div class="stars"></div>
+
+        <!-- Intro / Permission Screen -->
+        <div id="intro-overlay"
+            class="absolute inset-0 z-[100] flex flex-col items-center justify-center bg-black/90 p-6 text-center">
+            <div class="intro-card bg-pink-900/50 border border-pink-500/30 backdrop-blur-md p-8 rounded-3xl">
+                <div class="mb-4">
+                    <span class="text-6xl">🧚‍♀️</span>
+                </div>
+                <h2 class="text-3xl font-black text-pink-300 mb-4">Coin Collector</h2>
+                <p class="text-pink-100 text-sm leading-relaxed mb-6">
+                    Control the fairy with your face.<br>Collect magic bubbles!
+                </p>
+                <div id="intro-status-box" class="w-full">
+                    <p id="intro-loading-msg" class="text-pink-400 text-xs font-bold uppercase tracking-widest mb-2">
+                        Waking up fairies...</p>
+                    <div class="loading-bar-container bg-pink-950 rounded-full h-2">
+                        <div id="intro-loading-bar" class="bg-pink-500 h-full w-0 transition-all rounded-full"></div>
+                    </div>
+                </div>
+                <div id="intro-error-box" class="hidden mt-6">
+                    <p id="intro-error-msg" class="text-rose-500 text-xs mb-4"></p>
+                    <button onclick="location.reload()"
+                        class="px-6 py-2 bg-rose-600 hover:bg-rose-500 text-white text-xs font-bold rounded-full transition-all active:scale-95">RETRY</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Main Menu Overlay -->
+        <div id="overlay"
+            class="absolute inset-0 z-50 flex flex-col items-center justify-center bg-pink-900/80 backdrop-blur-sm p-6 text-center hidden">
+            <h1 class="text-5xl font-black mb-2 text-white drop-shadow-lg">Coin Collector</h1>
+            <p class="text-xl mb-8 text-pink-200 font-bold">Fly and learn!</p>
+            <div class="flex flex-col gap-4 w-full max-w-[280px] mb-4">
+                <button id="start-btn"
+                    class="w-full py-5 bg-pink-500 hover:bg-pink-400 border-b-4 border-pink-700 rounded-2xl text-2xl font-black text-white shadow-2xl transition-transform active:translate-y-1 active:border-b-0">PLAY!</button>
+                <button onclick="window.location.href='index.html'"
+                    class="w-full py-3 bg-white/20 hover:bg-white/30 rounded-xl text-pink-100 font-bold transition-colors">Menu</button>
+            </div>
+        </div>
+
+        <div id="calib-overlay"
+            class="absolute inset-0 z-[60] flex flex-col items-center justify-center bg-black/90 hidden">
+            <div id="nose-calib-ui" class="flex flex-col items-center justify-center h-full w-full pointer-events-none">
+                <div class="text-center w-full px-10 mb-20">
+                    <h2 class="text-3xl font-black text-pink-400 mb-2">Look Here!</h2>
+                    <p id="calib-status" class="text-pink-200 text-lg font-bold mb-6">Finding your face...</p>
+                    <div class="w-full h-4 bg-pink-950 rounded-full mx-auto overflow-hidden max-w-[250px] border-2 border-pink-800">
+                        <div id="nose-calib-progress" class="bg-pink-500 h-full w-0 transition-all"></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div id="rest-overlay"
+            class="absolute inset-0 z-[70] flex flex-col items-center justify-center bg-pink-900/90 backdrop-blur-md p-6 text-center hidden">
+            <h2 class="text-5xl font-black mb-4 text-white">Time's Up!</h2>
+            <div class="text-2xl font-bold text-pink-200 mb-2">You collected</div>
+            <div id="final-score" class="text-7xl font-black text-yellow-400 mb-8 drop-shadow-lg">0</div>
+            <button id="next-mission-btn" onclick="location.reload()"
+                class="py-4 px-12 bg-pink-500 hover:bg-pink-400 border-b-4 border-pink-700 rounded-2xl text-2xl font-black text-white shadow-2xl transition-transform active:translate-y-1 active:border-b-0">PLAY AGAIN</button>
+        </div>
+
+        <!-- Game Elements -->
+        <div class="hud-top hidden" id="game-hud">
+            <div class="score-box flex items-center gap-2">
+                <span class="text-2xl">💰</span> <span id="score-val">0</span>
+            </div>
+            <div class="score-box flex items-center gap-2">
+                <span class="text-2xl">⏱️</span> <span id="timer-val">60</span>
+            </div>
+        </div>
+
+        <div id="game-container" class="absolute inset-0 overflow-hidden">
+            <!-- Bubbles go here -->
+        </div>
+
+        <div class="coin-pile" id="coin-pile">
+            <!-- Coins go here -->
+        </div>
+
+        <div id="player-cursor" class="player-cursor hidden">🧚‍♀️</div>
+        <div id="calib-nose-dot"></div>
+    </div>
+
+    <script>
+        const appContainer = document.getElementById('app-container');
+        const overlay = document.getElementById('overlay');
+        const calibOverlay = document.getElementById('calib-overlay');
+        const playerCursor = document.getElementById('player-cursor');
+        const gameContainer = document.getElementById('game-container');
+        const scoreVal = document.getElementById('score-val');
+        const timerVal = document.getElementById('timer-val');
+        const gameHud = document.getElementById('game-hud');
+        const coinPile = document.getElementById('coin-pile');
+
+        let score = 0;
+        let gameActive = false;
+        let gameTime = 60;
+        let missionInterval;
+        
+        let targets = []; // { el: HTMLElement, x, y, radius, hoverTime, mathOp, value, pairId }
+        let pairCounter = 0;
+        const TARGET_RADIUS = 50; // visual size 100px
+        const HOVER_REQUIRED = 1500; // 1.5 seconds
+
+        let lastTime = performance.now();
+
+        let useMouse = false;
+        let mouseX = 0;
+        let mouseY = 0;
+
+        window.addEventListener('mousemove', (e) => {
+            useMouse = true;
+            mouseX = e.clientX;
+            mouseY = e.clientY;
+        });
+
+        window.addEventListener('load', () => {
+            FaceTracker.init().then(success => {
+                if (success) requestAnimationFrame(gameLoop);
+            });
+        });
+
+        document.getElementById('start-btn').addEventListener('click', () => FaceTracker.startCalibration(startGame));
+
+        function startGame() {
+            overlay.classList.add('hidden');
+            gameActive = true;
+            gameTime = 60;
+            score = 0;
+            updateScoreDisplay();
+            gameHud.classList.remove('hidden');
+            playerCursor.classList.remove('hidden');
+            coinPile.innerHTML = '';
+            
+            if (missionInterval) clearInterval(missionInterval);
+            missionInterval = setInterval(() => {
+                gameTime--;
+                timerVal.innerText = gameTime;
+                if (gameTime <= 0) endGame();
+            }, 1000);
+            
+            spawnPair();
+            lastTime = performance.now();
+        }
+
+        function spawnPair() {
+            if (!gameActive) return;
+            pairCounter++;
+            
+            // Logic for operations
+            // For 4-7 year olds, keep it simple. +1 to +5, *2.
+            const ops = [
+                { op: '+', val: Math.floor(Math.random() * 3) + 1 }, // +1, +2, +3
+                { op: '+', val: Math.floor(Math.random() * 4) + 2 }, // +2, +3, +4, +5
+            ];
+            
+            // Occasionally throw in a *2 if score is low
+            if (score > 0 && score < 15 && Math.random() < 0.3) {
+                ops[1] = { op: '*', val: 2 };
+            } else if (score >= 15 && Math.random() < 0.2) {
+                // If score is high, a *2 is very powerful, make it rare
+                ops[1] = { op: '*', val: 2 };
+            }
+
+            // Shuffle
+            ops.sort(() => Math.random() - 0.5);
+
+            const yPos = -120;
+            // Spawn left and right
+            const w = appContainer.clientWidth;
+            const leftX = w * 0.25;
+            const rightX = w * 0.75;
+
+            createTarget(leftX, yPos, ops[0].op, ops[0].val, pairCounter);
+            createTarget(rightX, yPos, ops[1].op, ops[1].val, pairCounter);
+        }
+
+        function createTarget(x, y, op, val, pairId) {
+            const el = document.createElement('div');
+            el.className = 'bubble';
+            el.style.width = (TARGET_RADIUS * 2) + 'px';
+            el.style.height = (TARGET_RADIUS * 2) + 'px';
+            el.innerHTML = `
+                ${op}${val}
+                <div class="bubble-ring"></div>
+            `;
+            gameContainer.appendChild(el);
+
+            targets.push({
+                el: el,
+                x: x,
+                y: y,
+                radius: TARGET_RADIUS,
+                hoverTime: 0,
+                op: op,
+                val: val,
+                pairId: pairId,
+                popped: false
+            });
+            updateTargetPos(targets[targets.length - 1]);
+        }
+
+        function updateTargetPos(t) {
+            t.el.style.left = (t.x - t.radius) + 'px';
+            t.el.style.top = (t.y - t.radius) + 'px';
+        }
+
+        function updateScoreDisplay() {
+            scoreVal.innerText = score;
+            // Update visual coins
+            const currentCoins = coinPile.children.length;
+            if (score > currentCoins) {
+                // Add missing coins
+                for (let i = 0; i < score - currentCoins; i++) {
+                    // Limit total rendered coins to prevent lag
+                    if (coinPile.children.length < 100) {
+                        const coin = document.createElement('div');
+                        coin.className = 'coin';
+                        coinPile.appendChild(coin);
+                    }
+                }
+            } else if (score < currentCoins) {
+                // Should not happen in this version, but just in case
+                coinPile.innerHTML = '';
+                for (let i = 0; i < Math.min(score, 100); i++) {
+                    const coin = document.createElement('div');
+                    coin.className = 'coin';
+                    coinPile.appendChild(coin);
+                }
+            }
+        }
+
+        function collectTarget(t) {
+            t.popped = true;
+            t.el.classList.add('pop-anim');
+            setTimeout(() => t.el.remove(), 400);
+            
+            if (t.op === '+') {
+                score += t.val;
+            } else if (t.op === '*') {
+                // If score is 0, *2 should at least give 2, otherwise it's frustrating
+                if (score === 0) score = t.val; 
+                else score *= t.val;
+            }
+            
+            updateScoreDisplay();
+
+            // Destroy the pair
+            const pairId = t.pairId;
+            targets.forEach(other => {
+                if (other.pairId === pairId && !other.popped) {
+                    other.popped = true;
+                    other.el.style.opacity = '0';
+                    other.el.style.transform = 'scale(0.5)';
+                    setTimeout(() => other.el.remove(), 300);
+                }
+            });
+
+            // Remove popped from array
+            targets = targets.filter(x => !x.popped);
+            
+            // Spawn next pair quickly
+            setTimeout(spawnPair, 500);
+        }
+
+        function endGame() {
+            gameActive = false;
+            clearInterval(missionInterval);
+            document.getElementById('rest-overlay').classList.remove('hidden');
+            document.getElementById('final-score').innerText = score;
+            playerCursor.classList.add('hidden');
+            targets.forEach(t => t.el.remove());
+            targets = [];
+        }
+
+        function gameLoop(currentTime) {
+            const dt = currentTime - lastTime;
+            lastTime = currentTime;
+
+            FaceTracker.update();
+            
+            if (gameActive && FaceTracker.isStarted) {
+                // Update cursor
+                let cx = useMouse ? mouseX : FaceTracker.cursorX;
+                let cy = useMouse ? mouseY : FaceTracker.cursorY;
+                playerCursor.style.left = cx + 'px';
+                playerCursor.style.top = cy + 'px';
+
+                let hoveringAny = false;
+
+                // Update targets
+                targets.forEach(t => {
+                    if (t.popped) return;
+                    
+                    // Fall downwards
+                    // Slow down if player is hovering on *any* target to make it easier for kids
+                    const fallSpeed = hoveringAny ? 0.5 : 2; // px per frame approx (assuming 60fps, dt ~16ms)
+                    t.y += fallSpeed * (dt / 16);
+                    updateTargetPos(t);
+
+                    // Check collision
+                    const dx = cx - t.x;
+                    const dy = cy - t.y;
+                    const dist = Math.sqrt(dx*dx + dy*dy);
+                    
+                    if (dist < t.radius * 1.2) { // Slightly forgiving hitbox
+                        t.hoverTime += dt;
+                        hoveringAny = true;
+                        t.el.classList.add('hovered');
+                        
+                        // Update ring rotation based on progress
+                        const progress = Math.min(t.hoverTime / HOVER_REQUIRED, 1);
+                        const ring = t.el.querySelector('.bubble-ring');
+                        if (ring) {
+                            // Simple visual feedback using conic-gradient
+                            ring.style.borderTopColor = '#ec4899';
+                            ring.style.transform = `rotate(${progress * 360}deg)`;
+                            // A better effect: conic-gradient
+                            ring.style.background = `conic-gradient(#ec4899 ${progress * 100}%, transparent 0)`;
+                            ring.style.border = 'none'; // Overwrite the CSS border for the conic trick
+                            // To make it an actual ring with conic gradient:
+                            ring.style.mask = 'radial-gradient(transparent 50%, black 50%)';
+                            ring.style.webkitMask = 'radial-gradient(transparent 60%, black 60%)';
+                        }
+                        
+                        if (t.hoverTime >= HOVER_REQUIRED) {
+                            collectTarget(t);
+                        }
+                    } else {
+                        t.hoverTime = Math.max(0, t.hoverTime - dt * 2); // Decay hover time
+                        if (t.hoverTime === 0) {
+                            t.el.classList.remove('hovered');
+                            const ring = t.el.querySelector('.bubble-ring');
+                            if (ring) {
+                                ring.style.background = 'transparent';
+                            }
+                        }
+                    }
+                    
+                    // Remove if off screen
+                    if (t.y > appContainer.clientHeight + t.radius) {
+                        t.popped = true;
+                        t.el.remove();
+                    }
+                });
+
+                // Clean up off-screen
+                const beforeLen = targets.length;
+                targets = targets.filter(x => !x.popped);
+                if (beforeLen > 0 && targets.length === 0) {
+                    // All missed
+                    spawnPair();
+                }
+            }
+
+            requestAnimationFrame(gameLoop);
+        }
+    </script>
+</body>
+
+</html>

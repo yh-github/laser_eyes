@@ -59,6 +59,7 @@
         .btn-glass { background: linear-gradient(135deg, #84cc16, #4d7c0f); box-shadow: 0 10px 20px -5px rgba(132, 204, 22, 0.4); }
         .btn-space { background: linear-gradient(135deg, #f59e0b, #b45309); box-shadow: 0 10px 20px -5px rgba(245, 158, 11, 0.4); }
         .btn-star { background: linear-gradient(135deg, #6366f1, #4338ca); box-shadow: 0 10px 20px -5px rgba(99, 102, 241, 0.4); }
+        .btn-math { background: linear-gradient(135deg, #f472b6, #db2777); box-shadow: 0 10px 20px -5px rgba(244, 114, 182, 0.4); }
     </style>
 </head>
 
@@ -122,6 +123,10 @@
                     <span class="icon">💎</span>
                     <span>The Glass</span>
                 </button>
+                <button id="launch-math" class="launcher-btn btn-math">
+                    <span class="icon">🧚‍♀️</span>
+                    <span>Coin Collector</span>
+                </button>
             </div>
 
             <!-- Global Settings (Minimal) -->
@@ -161,7 +166,8 @@
             'launch-space': 'space_evaders.html',
             'launch-star': 'star_horde.html',
             'launch-unclesam': 'uncle_sam.html',
-            'launch-glass': 'glass.html'
+            'launch-glass': 'glass.html',
+            'launch-math': 'coin_collector.html'
         };
 
         Object.entries(navMap).forEach(([id, url]) => {
