@@ -145,6 +145,56 @@
             border: 2px solid #fbcfe8;
         }
 
+        .item-slot {
+            width: 50px;
+            height: 50px;
+            background: rgba(255, 255, 255, 0.3);
+            border: 2px solid rgba(255, 255, 255, 0.5);
+            border-radius: 12px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1.5rem;
+            position: relative;
+        }
+
+        .item-slot.owned {
+            background: rgba(255, 255, 255, 0.8);
+            border-color: #f472b6;
+            box-shadow: 0 0 10px rgba(244, 114, 182, 0.5);
+        }
+
+        .item-slot.missing {
+            filter: grayscale(1) opacity(0.5);
+        }
+
+        .price-tag {
+            font-size: 0.8rem;
+            background: #be185d;
+            color: white;
+            padding: 2px 6px;
+            border-radius: 10px;
+            position: absolute;
+            bottom: -15px;
+            white-space: nowrap;
+        }
+
+        .bubble.item-bubble {
+            background: rgba(236, 72, 153, 0.6);
+            border-color: #fdf4ff;
+        }
+
+        .bubble.too-expensive {
+            animation: shake 0.3s;
+            background: rgba(225, 29, 72, 0.8);
+        }
+
+        @keyframes shake {
+            0%, 100% { transform: translateX(0); }
+            25% { transform: translateX(-5px); }
+            75% { transform: translateX(5px); }
+        }
+
     </style>
 </head>
 
@@ -210,6 +260,14 @@
         <div id="rest-overlay"
             class="absolute inset-0 z-[70] flex flex-col items-center justify-center bg-pink-900/90 backdrop-blur-md p-6 text-center hidden">
             <h2 id="level-complete-title" class="text-5xl font-black mb-4 text-white">Level Complete!</h2>
+            
+            <div class="mb-6">
+                <p class="text-pink-100 font-bold mb-2">Your Collection:</p>
+                <div id="inventory-display" class="flex gap-3 justify-center">
+                    <!-- Items go here -->
+                </div>
+            </div>
+
             <div class="text-2xl font-bold text-pink-200 mb-2">Total Treasure:</div>
             <div id="final-score" class="text-7xl font-black text-yellow-400 mb-8 drop-shadow-lg">0</div>
             <button id="next-level-btn"
@@ -254,9 +312,25 @@
         const timerVal = document.getElementById('timer-val');
         const gameHud = document.getElementById('game-hud');
         const coinPile = document.getElementById('coin-pile');
+        const inventoryDisplay = document.getElementById('inventory-display');
+
+        const ITEM_TYPES = [
+            { id: 'flower', name: 'Flower', icon: '🌸', basePrice: 10 },
+            { id: 'candy', name: 'Candy', icon: '🍬', basePrice: 30 },
+            { id: 'chocolate', name: 'Chocolate', icon: '🍫', basePrice: 80 },
+            { id: 'jewelry', name: 'Jewellery', icon: '💎', basePrice: 200 },
+            { id: 'crown', name: 'Crown', icon: '👑', basePrice: 500 }
+        ];
 
         let score = 0;
         let level = 1;
+        let inventory = {
+            flower: 0,
+            candy: 0,
+            chocolate: 0,
+            jewelry: 0,
+            crown: 0
+        };
         let gameActive = false;
         let isPaused = false;
         let gameTime = 60;
@@ -351,6 +425,24 @@
             playerCursor.classList.add('hidden');
             targets.forEach(t => t.el.remove());
             targets = [];
+            updateInventoryUI();
+        }
+
+        function updateInventoryUI() {
+            inventoryDisplay.innerHTML = '';
+            ITEM_TYPES.forEach(item => {
+                const slot = document.createElement('div');
+                const owned = inventory[item.id] > 0;
+                slot.className = `item-slot ${owned ? 'owned' : 'missing'}`;
+                slot.innerHTML = item.icon;
+                if (!owned) {
+                    const price = document.createElement('div');
+                    price.className = 'price-tag';
+                    price.innerText = item.basePrice;
+                    slot.appendChild(price);
+                }
+                inventoryDisplay.appendChild(slot);
+            });
         }
 
         document.getElementById('next-level-btn').addEventListener('click', () => {
@@ -359,47 +451,96 @@
             startGame();
         });
 
+        function generatePriceFormula(price) {
+            if (level < 2) return price.toString();
+            
+            const rand = Math.random();
+            if (rand < 0.5) {
+                // Addition formula
+                const part1 = Math.floor(price * 0.4 + Math.random() * (price * 0.4));
+                return `(${part1}+${price - part1})`;
+            } else {
+                // Multiplicationish formula
+                if (price % 2 === 0) return `(${price/2}x2)`;
+                return `(${Math.floor(price/2)}x2+1)`;
+            }
+        }
+
         function spawnPair() {
             if (!gameActive) return;
             pairCounter++;
             
-            // Difficulty scaling
-            // Addition should be proportional to score to be competitive with *2
-            let addVal;
-            if (score < 5) {
-                addVal = Math.floor(Math.random() * 4) + 1; // +1 to +4
+            let ops = [];
+
+            // 50% chance for Shop Bubbles if there are items left to buy
+            const unownedItems = ITEM_TYPES.filter(it => inventory[it.id] === 0);
+            
+            if (unownedItems.length > 0 && Math.random() < 0.5) {
+                // SHOP MODE
+                // Try to pick two unowned items
+                let item1 = unownedItems[Math.floor(Math.random() * unownedItems.length)];
+                let item2 = unownedItems.length > 1 ? unownedItems.find(i => i.id !== item1.id) : null;
+                
+                // Ensure at least one is affordable if possible
+                const affordable = unownedItems.filter(it => it.basePrice <= score);
+                if (affordable.length > 0 && !affordable.includes(item1) && (!item2 || !affordable.includes(item2))) {
+                    item1 = affordable[Math.floor(Math.random() * affordable.length)];
+                }
+
+                ops.push({ op: 'SHOP', val: item1.basePrice, item: item1 });
+                if (item2) {
+                    ops.push({ op: 'SHOP', val: item2.basePrice, item: item2 });
+                } else {
+                    // Fallback to treasure
+                    ops.push({ op: '+', val: Math.floor(score * 0.5 + 5) });
+                }
             } else {
-                // Competitive with *2 means adding around 'score' coins
-                const spread = score * 0.4;
-                addVal = Math.floor(score * 0.8 + Math.random() * spread);
+                // TREASURE MODE
+                let addVal;
+                if (score < 5) {
+                    addVal = Math.floor(Math.random() * 4) + 1;
+                } else {
+                    const spread = score * 0.4;
+                    addVal = Math.floor(score * 0.8 + Math.random() * spread);
+                }
+                ops = [
+                    { op: '+', val: addVal },
+                    { op: '*', val: 2 }
+                ];
             }
 
-            const ops = [
-                { op: '+', val: addVal },
-                { op: '*', val: 2 }
-            ];
-            
-            // Randomly swap so it's not always + on left
             ops.sort(() => Math.random() - 0.5);
 
             const yPos = -120;
-            // Spawn left and right
             const w = appContainer.clientWidth;
             const leftX = w * 0.25;
             const rightX = w * 0.75;
 
-            createTarget(leftX, yPos, ops[0].op, ops[0].val, pairCounter);
-            createTarget(rightX, yPos, ops[1].op, ops[1].val, pairCounter);
+            createTarget(leftX, yPos, ops[0]);
+            createTarget(rightX, yPos, ops[1]);
         }
 
-        function createTarget(x, y, op, val, pairId) {
+        function createTarget(x, y, opData) {
             const el = document.createElement('div');
             el.className = 'bubble';
+            if (opData.op === 'SHOP') el.classList.add('item-bubble');
+            
             el.style.width = (TARGET_RADIUS * 2) + 'px';
             el.style.height = (TARGET_RADIUS * 2) + 'px';
-            const displayOp = op === '*' ? 'x' : op;
+            
+            let content;
+            if (opData.op === 'SHOP') {
+                content = `<div class="flex flex-col items-center">
+                    <span>${opData.item.icon}</span>
+                    <span class="text-xs font-bold">${generatePriceFormula(opData.val)}</span>
+                </div>`;
+            } else {
+                const displayOp = opData.op === '*' ? 'x' : opData.op;
+                content = `${displayOp}${opData.val}`;
+            }
+
             el.innerHTML = `
-                ${displayOp}${val}
+                ${content}
                 <div class="bubble-ring"></div>
             `;
             gameContainer.appendChild(el);
@@ -410,9 +551,10 @@
                 y: y,
                 radius: TARGET_RADIUS,
                 hoverTime: 0,
-                op: op,
-                val: val,
-                pairId: pairId,
+                op: opData.op,
+                val: opData.val,
+                item: opData.item,
+                pairId: pairCounter,
                 popped: false
             });
             updateTargetPos(targets[targets.length - 1]);
@@ -468,18 +610,35 @@
         }
 
         function collectTarget(t) {
-            t.popped = true;
-            t.el.classList.add('pop-anim');
-            
             const oldScore = score;
-            if (t.op === '+') {
-                score += t.val;
-            } else if (t.op === '*') {
-                score *= t.val;
-            }
             
-            const gain = score - oldScore;
-            animateCoinCollection(t.x, t.y, gain);
+            if (t.op === 'SHOP') {
+                if (score >= t.val) {
+                    score -= t.val;
+                    inventory[t.item.id]++;
+                    animateCoinCollection(t.x, t.y, 1); // Small effect for buying
+                    // Visual feedback for item
+                    t.popped = true;
+                    t.el.classList.add('pop-anim');
+                } else {
+                    // Too expensive!
+                    t.el.classList.add('too-expensive');
+                    setTimeout(() => t.el.classList.remove('too-expensive'), 300);
+                    t.hoverTime = 0; // Reset hover
+                    return; // Don't pop or destroy pair
+                }
+            } else {
+                t.popped = true;
+                t.el.classList.add('pop-anim');
+                
+                if (t.op === '+') {
+                    score += t.val;
+                } else if (t.op === '*') {
+                    score *= t.val;
+                }
+                const gain = score - oldScore;
+                animateCoinCollection(t.x, t.y, gain);
+            }
             
             setTimeout(() => t.el.remove(), 400);
             updateScoreDisplay();
