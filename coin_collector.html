@@ -86,9 +86,15 @@
             pointer-events: none;
         }
 
+        .flying-coin {
+            position: absolute;
+            z-index: 100;
+            pointer-events: none;
+        }
+
         .coin-pile {
             position: absolute;
-            bottom: 20px;
+            bottom: 10px;
             left: 20px;
             right: 20px;
             height: 120px;
@@ -96,18 +102,19 @@
             flex-wrap: wrap-reverse;
             align-content: flex-start;
             justify-content: center;
-            gap: 4px;
+            gap: -8px; /* Negative gap for stacking */
             z-index: 10;
             pointer-events: none;
         }
 
         .coin {
-            width: 24px;
-            height: 24px;
+            width: 28px;
+            height: 28px;
             background: linear-gradient(135deg, #fbbf24, #d97706);
             border-radius: 50%;
             border: 2px solid #fef3c7;
-            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+            box-shadow: 0 2px 4px rgba(0,0,0,0.2);
+            margin: -4px; /* Stack overlap */
             animation: dropIn 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
         }
 
@@ -202,11 +209,17 @@
 
         <div id="rest-overlay"
             class="absolute inset-0 z-[70] flex flex-col items-center justify-center bg-pink-900/90 backdrop-blur-md p-6 text-center hidden">
-            <h2 class="text-5xl font-black mb-4 text-white">Time's Up!</h2>
-            <div class="text-2xl font-bold text-pink-200 mb-2">You collected</div>
+            <h2 id="level-complete-title" class="text-5xl font-black mb-4 text-white">Level Complete!</h2>
+            <div class="text-2xl font-bold text-pink-200 mb-2">Total Treasure:</div>
             <div id="final-score" class="text-7xl font-black text-yellow-400 mb-8 drop-shadow-lg">0</div>
-            <button id="next-mission-btn" onclick="location.reload()"
-                class="py-4 px-12 bg-pink-500 hover:bg-pink-400 border-b-4 border-pink-700 rounded-2xl text-2xl font-black text-white shadow-2xl transition-transform active:translate-y-1 active:border-b-0">PLAY AGAIN</button>
+            <button id="next-level-btn"
+                class="py-4 px-12 bg-pink-500 hover:bg-pink-400 border-b-4 border-pink-700 rounded-2xl text-2xl font-black text-white shadow-2xl transition-transform active:translate-y-1 active:border-b-0">NEXT LEVEL</button>
+        </div>
+
+        <div id="pause-overlay"
+            class="absolute inset-0 z-[80] flex flex-col items-center justify-center bg-black/40 backdrop-blur-sm p-6 text-center hidden">
+            <h2 class="text-6xl font-black mb-4 text-white drop-shadow-lg">PAUSED</h2>
+            <p class="text-white text-xl font-bold">Tap to Resume</p>
         </div>
 
         <!-- Game Elements -->
@@ -243,7 +256,9 @@
         const coinPile = document.getElementById('coin-pile');
 
         let score = 0;
+        let level = 1;
         let gameActive = false;
+        let isPaused = false;
         let gameTime = 60;
         let missionInterval;
         
@@ -263,6 +278,15 @@
             const rect = appContainer.getBoundingClientRect();
             mouseX = e.clientX - rect.left;
             mouseY = e.clientY - rect.top;
+        });
+
+        appContainer.addEventListener('click', (e) => {
+            if (!gameActive) return;
+            // Don't pause if clicking the settings or menu buttons
+            if (e.target.closest('button')) return;
+            
+            isPaused = !isPaused;
+            document.getElementById('pause-overlay').classList.toggle('hidden', !isPaused);
         });
 
         const isDesktop = window.matchMedia('(pointer: fine)').matches;
@@ -294,42 +318,68 @@
             calibOverlay.classList.add('hidden');
             document.getElementById('intro-overlay').classList.add('hidden');
             gameActive = true;
+            isPaused = false;
+            document.getElementById('pause-overlay').classList.add('hidden');
             gameTime = 60;
-            score = 0;
+            // Only reset score if level 1
+            if (level === 1) {
+                score = 0;
+                coinPile.innerHTML = '';
+            }
             updateScoreDisplay();
             gameHud.classList.remove('hidden');
             playerCursor.classList.remove('hidden');
-            coinPile.innerHTML = '';
             
             if (missionInterval) clearInterval(missionInterval);
             missionInterval = setInterval(() => {
+                if (isPaused) return;
                 gameTime--;
                 timerVal.innerText = gameTime;
-                if (gameTime <= 0) endGame();
+                if (gameTime <= 0) levelComplete();
             }, 1000);
             
             spawnPair();
             lastTime = performance.now();
         }
 
+        function levelComplete() {
+            gameActive = false;
+            clearInterval(missionInterval);
+            document.getElementById('rest-overlay').classList.remove('hidden');
+            document.getElementById('level-complete-title').innerText = `Level ${level} Complete!`;
+            document.getElementById('final-score').innerText = score;
+            playerCursor.classList.add('hidden');
+            targets.forEach(t => t.el.remove());
+            targets = [];
+        }
+
+        document.getElementById('next-level-btn').addEventListener('click', () => {
+            document.getElementById('rest-overlay').classList.add('hidden');
+            level++;
+            startGame();
+        });
+
         function spawnPair() {
             if (!gameActive) return;
             pairCounter++;
             
-            // Logic for operations
-            // For 4-7 year olds, keep it simple. +1 to +5, *2.
-            const ops = [
-                { op: '+', val: Math.floor(Math.random() * 3) + 1 }, // +1, +2, +3
-                { op: '+', val: Math.floor(Math.random() * 4) + 2 }, // +2, +3, +4, +5
-            ];
-            
-            // Occasionally throw in a *2
-            // For 4-7 year olds, multiplication by 2 is a great goal.
-            if (Math.random() < 0.4) {
-                ops[1] = { op: '*', val: 2 };
+            // Difficulty scaling
+            // Addition should be proportional to score to be competitive with *2
+            let addVal;
+            if (score < 5) {
+                addVal = Math.floor(Math.random() * 4) + 1; // +1 to +4
+            } else {
+                // Competitive with *2 means adding around 'score' coins
+                const spread = score * 0.4;
+                addVal = Math.floor(score * 0.8 + Math.random() * spread);
             }
 
-            // Shuffle
+            const ops = [
+                { op: '+', val: addVal },
+                { op: '*', val: 2 }
+            ];
+            
+            // Randomly swap so it's not always + on left
             ops.sort(() => Math.random() - 0.5);
 
             const yPos = -120;
@@ -347,8 +397,9 @@
             el.className = 'bubble';
             el.style.width = (TARGET_RADIUS * 2) + 'px';
             el.style.height = (TARGET_RADIUS * 2) + 'px';
+            const displayOp = op === '*' ? 'x' : op;
             el.innerHTML = `
-                ${op}${val}
+                ${displayOp}${val}
                 <div class="bubble-ring"></div>
             `;
             gameContainer.appendChild(el);
@@ -374,42 +425,63 @@
 
         function updateScoreDisplay() {
             scoreVal.innerText = score;
-            // Update visual coins
-            const currentCoins = coinPile.children.length;
-            if (score > currentCoins) {
-                // Add missing coins
-                for (let i = 0; i < score - currentCoins; i++) {
-                    // Limit total rendered coins to prevent lag
-                    if (coinPile.children.length < 100) {
-                        const coin = document.createElement('div');
-                        coin.className = 'coin';
-                        coinPile.appendChild(coin);
-                    }
-                }
-            } else if (score < currentCoins) {
-                // Should not happen in this version, but just in case
-                coinPile.innerHTML = '';
-                for (let i = 0; i < Math.min(score, 100); i++) {
+        }
+
+        function addCoinToPile() {
+            if (coinPile.children.length < 150) {
+                const coin = document.createElement('div');
+                coin.className = 'coin';
+                // Add slight random rotation and offset for "natural" stacking
+                const rot = (Math.random() - 0.5) * 40;
+                const offX = (Math.random() - 0.5) * 10;
+                coin.style.transform = `rotate(${rot}deg) translate(${offX}px, 0)`;
+                coinPile.appendChild(coin);
+            }
+        }
+
+        function animateCoinCollection(startX, startY, count) {
+            // Drop multiple coins if count is high (multiplication)
+            const numCoins = Math.min(count, 10); 
+            for (let i = 0; i < numCoins; i++) {
+                setTimeout(() => {
                     const coin = document.createElement('div');
-                    coin.className = 'coin';
-                    coinPile.appendChild(coin);
-                }
+                    coin.className = 'coin flying-coin';
+                    coin.style.left = startX + 'px';
+                    coin.style.top = startY + 'px';
+                    appContainer.appendChild(coin);
+
+                    const tx = appContainer.clientWidth / 2 + (Math.random() - 0.5) * 40;
+                    const ty = appContainer.clientHeight - 40;
+
+                    coin.animate([
+                        { transform: `translate(0, 0) scale(1)`, opacity: 1 },
+                        { transform: `translate(${tx - startX}px, ${ty - startY}px) scale(0.6)`, opacity: 0.8 }
+                    ], {
+                        duration: 600 + Math.random() * 200,
+                        easing: 'cubic-bezier(0.4, 0, 0.2, 1)'
+                    }).onfinish = () => {
+                        coin.remove();
+                        addCoinToPile();
+                    };
+                }, i * 100);
             }
         }
 
         function collectTarget(t) {
             t.popped = true;
             t.el.classList.add('pop-anim');
-            setTimeout(() => t.el.remove(), 400);
             
+            const oldScore = score;
             if (t.op === '+') {
                 score += t.val;
             } else if (t.op === '*') {
-                // If score is 0, *2 should at least give 2, otherwise it's frustrating
-                if (score === 0) score = t.val; 
-                else score *= t.val;
+                score *= t.val;
             }
             
+            const gain = score - oldScore;
+            animateCoinCollection(t.x, t.y, gain);
+            
+            setTimeout(() => t.el.remove(), 400);
             updateScoreDisplay();
 
             // Destroy the pair
@@ -446,7 +518,7 @@
 
             FaceTracker.update();
             
-            if (gameActive && (isDesktop || FaceTracker.isStarted)) {
+            if (gameActive && !isPaused && (isDesktop || FaceTracker.isStarted)) {
                 // Update cursor
                 let cx = useMouse ? mouseX : FaceTracker.cursorX;
                 let cy = useMouse ? mouseY : FaceTracker.cursorY;
@@ -460,8 +532,9 @@
                     if (t.popped) return;
                     
                     // Fall downwards
-                    // Slow down if player is hovering on *any* target to make it easier for kids
-                    const fallSpeed = hoveringAny ? 0.3 : 0.8; // Much slower for children
+                    // Speed increases with level
+                    const baseSpeed = 0.8 + (level - 1) * 0.2;
+                    const fallSpeed = hoveringAny ? baseSpeed * 0.4 : baseSpeed;
                     t.y += fallSpeed * (dt / 16);
                     updateTargetPos(t);
 
