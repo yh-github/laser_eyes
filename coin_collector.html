@@ -454,12 +454,12 @@
             document.getElementById('pause-overlay').classList.toggle('hidden', !isPaused);
         });
 
-        const isDesktop = window.matchMedia('(pointer: fine)').matches;
+        let isDesktop = window.matchMedia('(pointer: fine)').matches;
 
-        window.addEventListener('load', () => {
+        function initApp() {
             if (isDesktop) {
-                // Skip face tracking initialization on desktop
-                document.getElementById('intro-overlay').classList.add('hidden');
+                const intro = document.getElementById('intro-overlay');
+                if (intro) intro.classList.add('hidden');
                 overlay.classList.remove('hidden');
                 requestAnimationFrame(gameLoop);
             } else {
@@ -469,10 +469,24 @@
                 document.head.appendChild(style);
 
                 FaceTracker.init().then(success => {
-                    if (success) requestAnimationFrame(gameLoop);
+                    if (success) {
+                        const intro = document.getElementById('intro-overlay');
+                        if (intro) intro.classList.add('hidden');
+                        requestAnimationFrame(gameLoop);
+                    }
                 });
             }
-        });
+        }
+
+        if (document.readyState === 'complete') initApp();
+        else window.addEventListener('load', initApp);
+
+        window.addEventListener('mousemove', () => {
+            if (!isDesktop) {
+                isDesktop = true;
+                initApp();
+            }
+        }, { once: true });
 
         document.getElementById('start-btn').addEventListener('click', () => {
             if (isDesktop) {
