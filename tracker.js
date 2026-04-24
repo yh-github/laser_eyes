@@ -41,14 +41,14 @@ const FaceTracker = {
     mouthDetection: {
         approach: 'hysteresis',  // 'multiMetric' | 'velocityGated' | 'hysteresis'
         smoothing: 0.35,
-        marWeight: 0.5,
-        areaWeight: 0.3,
-        chinWeight: 0.2,
+        marWeight: 1.0,
+        areaWeight: 0.0,
+        chinWeight: 0.0,
         openThreshold: 0.30,
         velocityThreshold: 0.03,
         holdFrames: 10,
-        hystOpenThreshold: 0.38,
-        hystCloseThreshold: 0.18,
+        hystOpenThreshold: 0.35,
+        hystCloseThreshold: 0.15,
         // FP suppression
         headVelocityGate: 0,      // 0 = disabled, >0 = suppress open when head moves faster than this
         debounceFrames: 0,        // 0 = disabled, >0 = require N consecutive open frames

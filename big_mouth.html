@@ -1635,11 +1635,11 @@
 
         function updateMouthSVG(openness) {
             const o = Math.max(0, Math.min(1, openness));
-            // Much wider spread for dramatic open mouth
-            const lipSpread = o * 40;
+            // Much wider spread for dramatic open mouth (increased from 40 to 65)
+            const lipSpread = o * 65;
             const upperY = 40 - lipSpread;
             const lowerY = 40 + lipSpread;
-            const horizontalStretch = o * 12;
+            const horizontalStretch = o * 18;
 
             const lipInset = 15 - horizontalStretch;
             const lipWidth = 120 - lipInset;
@@ -1726,27 +1726,14 @@
 
             if (mouthCursor.style.display === 'none') return;
 
-            const trackerPos = (webgazer.getTracker() && webgazer.getTracker().getPositions()) ? webgazer.getTracker().getPositions()[62] : null;
+            // Use unified FaceTracker outputs for movement (boosts sensitivity)
             let displayX = FaceTracker.cursorX;
             let displayY = FaceTracker.cursorY;
 
-            if (trackerPos) {
-                const videoWidth = 640;
-                const videoHeight = 480;
-                
-                // Base position from nose landmark
-                const baseDisplayX = (trackerPos[0] / videoWidth) * window.innerWidth;
-                const baseDisplayY = (trackerPos[1] / videoHeight) * window.innerHeight;
-
-                // NEW: Pitch-to-Y mapping
-                // Looking DOWN (pitch < 0) should push the cursor further DOWN
-                // Looking UP (pitch > 0) should push it further UP
-                const pitch = FaceTracker._lastMetrics?.pitchDelta || 0;
-                const pitchGain = window.innerHeight * 0.5; // Gain factor for head tilt
-                
-                displayX = baseDisplayX;
-                displayY = baseDisplayY + (pitch * pitchGain);
-            }
+            // Optional: Still apply the pitch-to-Y mapping for extra vertical reach
+            const pitch = FaceTracker._lastMetrics?.pitchDelta || 0;
+            const pitchGain = window.innerHeight * 0.3; 
+            displayY += (pitch * pitchGain);
 
             // Magnetic Snapping (Healthy food only)
             if (snappingEnabled && targets.length > 0) {
