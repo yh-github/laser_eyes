@@ -1,4 +1,15 @@
 // tracker.js
+// 
+// ==========================================================================================
+// 🛡️ FACETRACKER CORE ENGINE - FORTIFIED VERSION
+// ==========================================================================================
+// WARNING: This file contains critical geometry and initialization logic.
+// Incorrect changes here can cause the entire application to hang or lose tracking accuracy.
+// 
+// BEFORE SUBMITTING CHANGES:
+// 1. Run `node smoke_test.js` to verify syntax and core math.
+// 2. Test initialization on a mobile device.
+// ==========================================================================================
 
 window.saveDataAcrossSessions = true;
 
@@ -242,6 +253,13 @@ const FaceTracker = {
         console.log('[FaceTracker]', msg);
     },
 
+    /**
+     * !!! CRITICAL METHOD: INITIALIZATION !!!
+     * DO NOT MODIFY WITHOUT FULL REGRESSION TESTING.
+     * This method handles the complex 'race' between WebGazer starting up,
+     * camera permissions, and landmark detection. It includes safety timeouts
+     * and liveness checks for mobile browser compatibility.
+     */
     async init() {
         const introLoadingMsg = document.getElementById('intro-loading-msg');
         const introActionMsg = document.getElementById('intro-action-msg');
@@ -534,6 +552,12 @@ const FaceTracker = {
         return Math.abs(area) / 2;
     },
 
+    /**
+     * !!! CRITICAL METHOD: CORE TRACKING LOGIC !!!
+     * DO NOT MODIFY WITHOUT RUNNING smoke_test.js.
+     * This method computes MAR, Area Ratio, and Jaw Drop metrics with 
+     * real-time pitch/tilt compensation. It is the heart of the mouth detection.
+     */
     updateFacialExpressions() {
         let positions = null;
         try {

@@ -23,6 +23,9 @@ The dataset is hosted on Hugging Face:
 - **Baseline Drift**: Users may move closer/further from the camera. The model should ideally be "Self-Normalizing" or use relative geometric ratios.
 - **False Positive Suppression**: Talking or smiling should not trigger an "Open" state.
 
-## 5. Deliverables
-- A lightweight inference function (Javascript/Tensorflow.js) that takes the raw points and returns a probability `0.0 - 1.0`.
-- The optimal thresholds for "Open" and "Closed" triggers.
+## 6. Stability & Fortification
+- **Smoke Tests**: A Node.js smoke test script (`smoke_test.js`) is provided to verify syntax and core math logic without needing a browser.
+  ```bash
+  node smoke_test.js
+  ```
+- **Code Guards**: Critical methods in `tracker.js` are marked with warnings. Always run the smoke test after modifying geometry or scoring logic.
