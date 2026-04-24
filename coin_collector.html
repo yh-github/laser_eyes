@@ -372,6 +372,11 @@
                 overlay.classList.remove('hidden');
                 requestAnimationFrame(gameLoop);
             } else {
+                // Hide camera feed on mobile
+                const style = document.createElement('style');
+                style.innerHTML = '#webgazerVideoContainer { display: none !important; }';
+                document.head.appendChild(style);
+
                 FaceTracker.init().then(success => {
                     if (success) requestAnimationFrame(gameLoop);
                 });
