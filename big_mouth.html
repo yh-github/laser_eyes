@@ -14,11 +14,11 @@
     <style>
         /* Local overrides for Big Mouth mode */
         #mouth-cursor {
-            width: 160px;
-            height: 120px;
+            width: 120px;
+            height: 90px;
             /* Thicker dropshadow for visibility */
             filter: drop-shadow(0 0 15px rgba(236, 72, 153, 0.7));
-            z-index: 200;
+            z-index: 50;
             cursor: pointer;
             pointer-events: auto;
             /* Enable tapping the mouth */
@@ -30,6 +30,7 @@
             border-width: 2px;
             background: rgba(0, 0, 0, 0.2) !important;
             backdrop-filter: blur(4px);
+            z-index: 100;
         }
 
         .food-item {
@@ -555,10 +556,8 @@
             </div>
         </div>
 
-        <div id="game-container" class="relative w-full h-full"></div>
-
         <!-- SVG Mouth Cursor -->
-        <svg id="mouth-cursor" viewBox="0 0 120 80">
+        <svg id="mouth-cursor" viewBox="-10 -30 140 140">
             <defs>
                 <linearGradient id="lip-gradient" x1="0%" y1="0%" x2="0%" y2="100%">
                     <stop offset="0%" stop-color="#f472b6" />
@@ -602,6 +601,8 @@
             <path class="lip-shine" id="lip-shine" d="M 30,37 Q 45,34 60,35 Q 75,34 90,37" fill="none"
                 stroke="rgba(255,255,255,0.3)" stroke-width="1.5" stroke-linecap="round" />
         </svg>
+
+        <div id="game-container" class="relative w-full h-full"></div>
 
         <div id="pause-indicator" class="flex flex-col">
             <div class="text-white/20 text-xs font-black uppercase tracking-[0.3em]">Game Paused</div>
@@ -1636,36 +1637,35 @@
 
         function updateMouthSVG(openness) {
             const o = Math.max(0, Math.min(1, openness));
-            // Much wider spread for dramatic open mouth (increased from 40 to 65)
-            const lipSpread = o * 65;
-            const upperY = 40 - lipSpread;
-            const lowerY = 40 + lipSpread;
-            const horizontalStretch = o * 18;
+            
+            // Sync all spreads to openness
+            const innerSpread = o * 45; 
+            const centerThick = 6 + (1 - o) * 6; // 6 to 12
+            
+            const upperInnerY = 40 - innerSpread;
+            const lowerInnerY = 40 + innerSpread;
+            const upperOuterY = upperInnerY - centerThick;
+            const lowerOuterY = lowerInnerY + centerThick;
 
+            const horizontalStretch = o * 18;
             const lipInset = 15 - horizontalStretch;
             const lipWidth = 120 - lipInset;
 
-            // Anatomical Thickness
-            const baseThick = 6;
-            const centerThick = baseThick + (1 - o) * 6; // Thicker when closed
-
             // --- UPPER LIP (Cupid's Bow) ---
-            // Outer edge with 2 peaks and a dip at center (X=60)
-            const peakY = upperY;
-            const dipY = upperY + 3;
-            const upperOuter = `M ${lipInset},40 Q 35,${peakY} 54,${peakY} Q 60,${dipY} 66,${peakY} Q 85,${peakY} ${lipWidth},40`;
-            const upperInner = `Q 85,${upperY + centerThick} 60,${upperY + centerThick} Q 35,${upperY + centerThick} ${lipInset},40`;
-            document.getElementById('lip-upper').setAttribute('d', `${upperOuter} ${upperInner} Z`);
+            const peakY = upperOuterY;
+            const dipY = upperOuterY + 3;
+            const upperOuterPath = `M ${lipInset},40 Q 35,${peakY} 54,${peakY} Q 60,${dipY} 66,${peakY} Q 85,${peakY} ${lipWidth},40`;
+            const upperInnerPath = `Q 85,${upperInnerY} 60,${upperInnerY} Q 35,${upperInnerY} ${lipInset},40`;
+            document.getElementById('lip-upper').setAttribute('d', `${upperOuterPath} ${upperInnerPath} Z`);
 
             // --- LOWER LIP ---
-            const lowerOuter = `M ${lipInset},40 Q 60,${lowerY + 2} ${lipWidth},40`;
-            const lowerInner = `Q 85,${lowerY - centerThick} 60,${lowerY - centerThick} Q 35,${lowerY - centerThick} ${lipInset},40`;
-            document.getElementById('lip-lower').setAttribute('d', `${lowerOuter} ${lowerInner} Z`);
+            const lowerOuterPath = `M ${lipInset},40 Q 60,${lowerOuterY + 2} ${lipWidth},40`;
+            const lowerInnerPath = `Q 85,${lowerInnerY} 60,${lowerInnerY} Q 35,${lowerInnerY} ${lipInset},40`;
+            document.getElementById('lip-lower').setAttribute('d', `${lowerOuterPath} ${lowerInnerPath} Z`);
 
-            // Inner mouth opening — follows the lips
-            const innerSpread = o * 35;
+            // Inner mouth opening — follows the lips exactly
             const innerInset = 25 - o * 15;
-            const innerPath = `M ${innerInset},40 Q 40,${40 - innerSpread} 60,${40 - innerSpread} Q 80,${40 - innerSpread} ${120 - innerInset},40 Q 80,${40 + innerSpread} 60,${40 + innerSpread} Q 40,${40 + innerSpread} ${innerInset},40 Z`;
+            const innerPath = `M ${innerInset},40 Q 40,${upperInnerY} 60,${upperInnerY} Q 80,${upperInnerY} ${120 - innerInset},40 Q 80,${lowerInnerY} 60,${lowerInnerY} Q 40,${lowerInnerY} ${innerInset},40 Z`;
             document.getElementById('mouth-inner').setAttribute('d', innerPath);
             document.getElementById('mouth-clip-path').setAttribute('d', innerPath);
 
@@ -1674,14 +1674,14 @@
 
             const teethVis = Math.max(0, (o - 0.1) / 0.9);
             const teethH = teethVis * 10;
-            const teethGap = upperY + centerThick;
+            const teethGap = upperInnerY;
 
             // Update teeth paths inside groups
             const teethTopPath = document.getElementById('teeth-top').querySelector('path');
             teethTopPath.setAttribute('d', `M 35,${teethGap} L 85,${teethGap} L 85,${teethGap + teethH} Q 60,${teethGap + 2 + teethH} 35,${teethGap + teethH} Z`);
 
             const teethBottomPath = document.getElementById('teeth-bottom').querySelector('path');
-            const bottomTeethGap = lowerY - centerThick;
+            const bottomTeethGap = lowerInnerY;
             teethBottomPath.setAttribute('d', `M 35,${bottomTeethGap} L 85,${bottomTeethGap} L 85,${bottomTeethGap - teethH * 0.8} Q 60,${bottomTeethGap - 2 - teethH * 0.8} 35,${bottomTeethGap - teethH * 0.8} Z`);
 
             // Hide dividers if closed
@@ -1691,10 +1691,15 @@
             const tongueVis = Math.max(0, (o - 0.25) / 0.75);
             tongue.setAttribute('ry', tongueVis * 18);
             tongue.setAttribute('rx', 14 + tongueVis * 12);
-            tongue.setAttribute('cy', 40 + lipSpread * 0.45);
+            tongue.setAttribute('cy', 40 + innerSpread * 0.6);
             tongue.setAttribute('opacity', tongueVis * 0.9);
 
             mouthCursor.style.filter = `drop-shadow(0 0 ${8 + o * 25}px rgba(236,72,153,${0.4 + o * 0.5}))`;
+
+            // Fix line artifact: hide inner elements when closed
+            const innerOpacity = o > 0.05 ? 1 : 0;
+            document.getElementById('mouth-inner').setAttribute('opacity', innerOpacity);
+            document.getElementById('lip-shine').setAttribute('opacity', Math.max(0, (o - 0.1) * 2));
         }
 
         function triggerChompAnimation() {
@@ -1897,7 +1902,7 @@
                 const dy = displayY - (y + 30);
                 const dist = Math.sqrt(dx * dx + dy * dy);
 
-                if (dist < 65 && (FaceTracker.isMouthOpen || manualMouthOpen)) {
+                if (dist < 55 && (FaceTracker.isMouthOpen || manualMouthOpen)) {
                     destroyFood(food, true);
                 }
             });
