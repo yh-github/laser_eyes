@@ -398,7 +398,6 @@
         const timerVal = document.getElementById('timer-val');
         const gameHud = document.getElementById('game-hud');
         const coinPile = document.getElementById('coin-pile');
-        const itemShelf = document.getElementById('item-shelf');
         const collectionStrip = document.getElementById('collection-strip');
         const inventoryDisplay = document.getElementById('inventory-display');
 
@@ -597,20 +596,6 @@
                 stripItem.innerHTML = item.icon;
                 collectionStrip.appendChild(stripItem);
             });
-            updateItemShelf();
-        }
-
-        function updateItemShelf() {
-            itemShelf.innerHTML = '';
-            ITEM_TYPES.forEach(item => {
-                if (inventory[item.id] > 0) {
-                    const el = document.createElement('div');
-                    el.className = 'shelf-item';
-                    el.innerText = item.icon;
-                    itemShelf.appendChild(el);
-                }
-            });
-            playerCursor.innerText = '🧚‍♀️'; // Reset to base fairy
         }
 
         function updateFairyIcon() {
@@ -851,10 +836,10 @@
             
             setTimeout(() => t.el.remove(), 400);
             updateScoreDisplay();
-            updateItemShelf();
 
             // Remove popped from array
             targets = targets.filter(x => !x.popped);
+        }
         }
 
         function endGame() {
