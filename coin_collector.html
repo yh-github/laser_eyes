@@ -113,7 +113,7 @@
 
         .coin-pile {
             position: absolute;
-            bottom: 10px;
+            bottom: 70px; /* Above the item strip */
             left: 20px;
             right: 20px;
             height: 100px;
@@ -155,15 +155,35 @@
 
         .hud-bottom {
             position: absolute;
-            bottom: 20px;
-            left: 20px;
-            right: 20px;
+            bottom: 10px;
+            left: 0;
+            right: 0;
             display: flex;
             flex-direction: column;
             align-items: center;
             gap: 10px;
             z-index: 40;
             pointer-events: none;
+        }
+
+        .strip-item {
+            font-size: 1.5rem;
+            filter: drop-shadow(0 2px 4px rgba(0,0,0,0.2));
+            transition: all 0.3s ease;
+        }
+
+        .missing {
+            filter: grayscale(1) opacity(0.4) !important;
+        }
+
+        .owned {
+            filter: none !important;
+            animation: bounceIn 0.5s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+        }
+
+        @keyframes bounceIn {
+            0% { transform: scale(0); }
+            100% { transform: scale(1); }
         }
         
         .score-box {
@@ -563,6 +583,7 @@
                 score = 0;
                 coinPile.innerHTML = '';
             }
+            updateInventoryUI();
             updateScoreDisplay();
             gameHud.classList.remove('hidden');
             gameHudBottom.classList.remove('hidden');
@@ -1028,14 +1049,15 @@
                     t.y += fallSpeed * (dt / 16);
                     updateTargetPos(t);
 
-                    // Safe zone logic: Top 10% and Bottom 10%
+                    // Safe zone logic: Top 10% and dynamic pile collision at Bottom
                     const safeZoneTop = appContainer.clientHeight * 0.1;
-                    const safeZoneBottom = appContainer.clientHeight * 0.9;
+                    const pileHeight = Math.min(100, Math.floor(score / 5) * 4);
+                    const safeZoneBottom = appContainer.clientHeight * 0.9 - pileHeight;
 
                     if (t.y + t.radius > safeZoneBottom) {
                         t.popped = true;
                         t.el.remove();
-                        // Visual feedback for hitting the bottom zone
+                        // Visual feedback for hitting the pile
                         showDustLoss(t.x, t.y);
                     }
                 });
