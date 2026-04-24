@@ -339,10 +339,11 @@
         let targets = []; // { el: HTMLElement, x, y, radius, hoverTime, mathOp, value, pairId }
         let pairCounter = 0;
         const TARGET_RADIUS = 50; // visual size 100px
-        const HOVER_REQUIRED = 2000; // 2 seconds (increased by 0.5s)
-        const SPAWN_INTERVAL = 3000; // spawn a wave every 3 seconds
+        const HOVER_REQUIRED = 2000; // 2 seconds
+        const SPAWN_INTERVAL = 1500; // Try to spawn every 1.5 seconds
         let spawnTimer = 0;
 
+        const LANES = [0.2, 0.5, 0.8]; // 3 lanes
         let lastTime = performance.now();
 
         let useMouse = false;
@@ -451,6 +452,16 @@
                 }
                 inventoryDisplay.appendChild(slot);
             });
+            updateFairyIcon();
+        }
+
+        function updateFairyIcon() {
+            let base = '🧚‍♀️';
+            let accessories = '';
+            if (inventory.crown > 0) accessories += '👑';
+            if (inventory.jewelry > 0) accessories += '✨';
+            if (inventory.flower > 0) accessories += '🌸';
+            playerCursor.innerText = base + accessories;
         }
 
         document.getElementById('next-level-btn').addEventListener('click', () => {
@@ -476,51 +487,44 @@
 
         function spawnWave() {
             if (!gameActive) return;
-            pairCounter++;
             
-            let ops = [];
+            // Lane management: Pick a lane that isn't crowded at the top
             const w = appContainer.clientWidth;
-            
-            const numBubbles = level < 2 ? 2 : (level < 3 ? 3 : 4);
-            const unownedItems = ITEM_TYPES.filter(it => inventory[it.id] === 0);
-            const shopProb = Math.min(0.5, score / 50);
-
-            for (let i = 0; i < numBubbles; i++) {
-                let opData;
-                let attempts = 0;
-                
-                // Attempt to generate a unique op for this wave
-                do {
-                    if (unownedItems.length > 0 && Math.random() < shopProb) {
-                        const item = unownedItems[Math.floor(Math.random() * unownedItems.length)];
-                        opData = { op: 'SHOP', val: item.basePrice, item: item };
-                    } else {
-                        if (Math.random() < 0.4) {
-                            opData = { op: '*', val: 2 };
-                        } else {
-                            let addVal;
-                            if (score < 5) addVal = Math.floor(Math.random() * 4) + 1;
-                            else addVal = Math.floor(score * 0.8 + Math.random() * (score * 0.4));
-                            opData = { op: '+', val: addVal };
-                        }
-                    }
-                    attempts++;
-                } while (ops.some(o => o.op === opData.op && o.val === opData.val) && attempts < 10);
-                
-                ops.push(opData);
-            }
-
-            if (score === 0 && !ops.some(o => o.op === '+')) {
-                ops[0] = { op: '+', val: 5 };
-            }
-
-            const yPos = -120;
-            ops.forEach((opData, idx) => {
-                // Add a slight random X offset to waves
-                const xBase = (w / (ops.length + 1)) * (idx + 1);
-                const x = xBase + (Math.random() - 0.5) * 30;
-                createTarget(x, yPos, opData);
+            const availableLanes = [0, 1, 2].filter(idx => {
+                const laneX = w * LANES[idx];
+                // Check if any bubble in this lane is too close to the top
+                return !targets.some(t => Math.abs(t.x - laneX) < 20 && t.y < 150);
             });
+
+            if (availableLanes.length === 0) return;
+            
+            const laneIdx = availableLanes[Math.floor(Math.random() * availableLanes.length)];
+            const x = w * LANES[laneIdx];
+            const yPos = -80;
+
+            const unownedItems = ITEM_TYPES.filter(it => inventory[it.id] === 0);
+            const shopProb = Math.min(0.5, score / 60);
+
+            let opData;
+            if (unownedItems.length > 0 && Math.random() < shopProb) {
+                const item = unownedItems[Math.floor(Math.random() * unownedItems.length)];
+                opData = { op: 'SHOP', val: item.basePrice, item: item };
+            } else {
+                if (Math.random() < 0.35) {
+                    opData = { op: '*', val: 2 };
+                } else {
+                    let addVal;
+                    if (score < 5) addVal = Math.floor(Math.random() * 4) + 1;
+                    else {
+                        const spread = score * 0.4;
+                        addVal = Math.floor(score * 0.8 + Math.random() * spread);
+                    }
+                    opData = { op: '+', val: addVal };
+                }
+            }
+
+            pairCounter++;
+            createTarget(x, yPos, opData);
         }
 
         function createTarget(x, y, opData) {
@@ -650,6 +654,7 @@
             
             setTimeout(() => t.el.remove(), 400);
             updateScoreDisplay();
+            updateFairyIcon();
 
             // Remove popped from array
             targets = targets.filter(x => !x.popped);
