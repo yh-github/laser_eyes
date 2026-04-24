@@ -199,9 +199,24 @@
 
         .bubble.treasure-bubble {
             background: linear-gradient(135deg, #fbbf24, #f59e0b);
-            border: 3px solid #fef3c7;
-            box-shadow: 0 0 10px rgba(251, 191, 36, 0.4);
-            color: #92400e;
+            border: 5px solid #92400e;
+            box-shadow: 0 0 15px rgba(251, 191, 36, 0.6), inset 0 0 10px rgba(255,255,255,0.5);
+            color: #78350f;
+        }
+
+        .sparkle {
+            position: absolute;
+            pointer-events: none;
+            background: white;
+            border-radius: 50%;
+            z-index: 35;
+            box-shadow: 0 0 5px #fff, 0 0 10px #f9a8d4;
+            animation: sparkle-fade 0.6s linear forwards;
+        }
+
+        @keyframes sparkle-fade {
+            0% { transform: scale(1) translateY(0); opacity: 1; }
+            100% { transform: scale(0) translateY(20px); opacity: 0; }
         }
 
         .dust-loss-flash {
@@ -505,10 +520,13 @@
             isPaused = false;
             document.getElementById('pause-overlay').classList.add('hidden');
             gameTime = 60;
-            // Only reset score if level 1
+            // Reset dust on every level
+            fairyDust = 100;
+            updateDustBar();
+
+            // Only reset score and pile if level 1
             if (level === 1) {
                 score = 0;
-                fairyDust = 100;
                 coinPile.innerHTML = '';
             }
             updateScoreDisplay();
@@ -811,6 +829,19 @@
             }
         }
 
+        function createSparkle(x, y) {
+            const s = document.createElement('div');
+            s.className = 'sparkle';
+            const size = Math.random() * 4 + 2;
+            s.style.width = size + 'px';
+            s.style.height = size + 'px';
+            // Offset a bit so they trail behind
+            s.style.left = (x + (Math.random() - 0.5) * 15) + 'px';
+            s.style.top = (y + (Math.random() - 0.5) * 15) + 'px';
+            gameContainer.appendChild(s);
+            setTimeout(() => s.remove(), 600);
+        }
+
         function collectTarget(t) {
             const oldScore = score;
             
@@ -877,6 +908,11 @@
                 let cy = useMouse ? mouseY : FaceTracker.cursorY;
                 playerCursor.style.left = cx + 'px';
                 playerCursor.style.top = cy + 'px';
+
+                // Create sparkles trail
+                if (currentTime % 3 < 1) { // Create every ~3 frames
+                    createSparkle(cx, cy);
+                }
 
                 let hoveringAny = false;
 
