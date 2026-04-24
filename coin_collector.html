@@ -166,32 +166,24 @@
 
         .dust-meter-v {
             position: absolute;
-            left: 20px;
+            left: 10px;
             top: 100px;
             bottom: 150px;
-            width: 32px;
+            width: 16px;
             background: rgba(255, 255, 255, 0.2);
-            border-radius: 16px;
-            border: 3px solid rgba(255, 255, 255, 0.5);
+            border-radius: 8px;
+            border: 2px solid rgba(255, 255, 255, 0.5);
             display: flex;
             flex-direction: column-reverse;
             overflow: hidden;
             z-index: 40;
-            box-shadow: 0 0 15px rgba(219, 39, 119, 0.3);
         }
 
         .dust-bar-v {
             width: 100%;
             height: 100%;
-            background: linear-gradient(0deg, #db2777, #ec4899, #f9a8d4, #ffffff);
-            background-size: 100% 300%;
-            animation: magic-shimmer 3s linear infinite;
-            transition: height 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-        }
-
-        @keyframes magic-shimmer {
-            0% { background-position: 0% 0%; }
-            100% { background-position: 0% 100%; }
+            background: linear-gradient(0deg, #ec4899, #f9a8d4);
+            transition: height 0.3s ease;
         }
 
         .dust-val-v {
@@ -199,23 +191,30 @@
             bottom: -25px;
             left: 50%;
             transform: translateX(-50%);
-            font-size: 0.8rem;
+            font-size: 0.7rem;
             font-weight: 900;
             color: #db2777;
             text-shadow: 0 0 5px white;
+        }
+
+        .bubble.treasure-bubble {
+            background: linear-gradient(135deg, #fbbf24, #f59e0b);
+            border: 3px solid #fef3c7;
+            box-shadow: 0 0 10px rgba(251, 191, 36, 0.4);
+            color: #92400e;
         }
 
         .dust-loss-flash {
             position: absolute;
             pointer-events: none;
             z-index: 100;
-            font-size: 3rem;
+            font-size: 2rem;
             animation: popOut 0.5s ease-out forwards;
         }
 
         @keyframes popOut {
             0% { transform: scale(0); opacity: 1; }
-            100% { transform: scale(2); opacity: 0; }
+            100% { transform: scale(1.5); opacity: 0; }
         }
 
         .bubble.dust-bubble {
@@ -427,7 +426,7 @@
         
         let targets = []; // { el: HTMLElement, x, y, radius, hoverTime, mathOp, value, pairId }
         let pairCounter = 0;
-        const TARGET_RADIUS = 50; // visual size 100px
+        const TARGET_RADIUS = 35; // visual size 70px
         const HOVER_REQUIRED = 2000; // 2 seconds
         const SPAWN_INTERVAL = 1500; // Try to spawn every 1.5 seconds
         let spawnTimer = 0;
@@ -557,8 +556,6 @@
             const d = Math.max(0, Math.floor(fairyDust));
             bar.style.height = d + '%';
             num.innerText = d;
-            if (d < 30) bar.style.filter = 'hue-rotate(-50deg) brightness(0.8)';
-            else bar.style.filter = 'none';
         }
 
         function showDustLoss(x, y) {
@@ -641,7 +638,7 @@
 
             if (availableLanes.length === 0) return;
             
-            const unownedItems = ITEM_TYPES.filter(it => inventory[it.id] === 0);
+            const unownedItems = ITEM_TYPES.filter(it => inventory[it.id] === 0 && score >= it.basePrice * 0.4);
             const shopProb = Math.min(0.5, score / 60);
             const dustProb = fairyDust < 70 ? 0.3 : 0.1;
             const yPos = -80;
@@ -650,8 +647,8 @@
             if (rand < dustProb && availableLanes.length >= 1) {
                 // SPAWN DUST BUBBLE
                 const laneIdx = availableLanes[Math.floor(Math.random() * availableLanes.length)];
-                // Dust costs more each level
-                const dPrice = 5 + (level - 1) * 2;
+                // Dust costs more as you get richer (wealth tax)
+                const dPrice = Math.max(5, Math.floor(score * 0.15));
                 createTarget(w * LANES[laneIdx], yPos, { op: 'DUST', val: 30, price: dPrice });
                 pairCounter++;
             } else if (unownedItems.length > 0 && Math.random() < shopProb && availableLanes.length >= 2) {
@@ -680,7 +677,8 @@
                 const x = w * LANES[laneIdx];
                 
                 let opData;
-                if (Math.random() < 0.3) {
+                // No multiplication if over 100 coins
+                if (score <= 100 && Math.random() < 0.3) {
                     opData = { op: '*', val: 2 };
                 } else {
                     let addVal;
@@ -700,6 +698,7 @@
             el.className = 'bubble';
             if (opData.op === 'SHOP') el.classList.add('item-bubble');
             if (opData.op === 'DUST') el.classList.add('dust-bubble');
+            if (opData.op === '+' || opData.op === '*') el.classList.add('treasure-bubble');
             
             el.style.width = (TARGET_RADIUS * 2) + 'px';
             el.style.height = (TARGET_RADIUS * 2) + 'px';
@@ -805,10 +804,12 @@
                     score -= cost;
                     if (t.op === 'SHOP') {
                         inventory[t.item.id]++;
+                        // Buying items gives a big dust boost!
+                        fairyDust = Math.min(100, fairyDust + 40);
                     } else {
                         fairyDust = Math.min(100, fairyDust + 30);
-                        updateDustBar();
                     }
+                    updateDustBar();
                     animateCoinCollection(t.x, t.y, 1);
                     t.popped = true;
                     t.el.classList.add('pop-anim');
